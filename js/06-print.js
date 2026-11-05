@@ -30,25 +30,29 @@ function buildPrintHtml(sheet) {
   const total = sheetWorkedMinutes(sheet);
   const days = sheet.days.slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
+  const totalOt = sheetOvertimeMinutes(sheet);
+  const num = m => m ? formatHours(m).replace(' h', '') : '';
   const dayRows = days.map(d => {
     const entries = d.entries.slice();
+    const ot = dayOvertimeSplit(d);
     const rows = entries.length ? entries.map((e, i) => `
       <tr>
         ${i === 0 ? `<td rowspan="${entries.length}" class="date-cell">${escapeHtml(formatDate(d.date))}</td>` : ''}
         <td class="num">${escapeHtml(e.from || '')}</td>
         <td class="num">${escapeHtml(e.to || '')}</td>
         <td class="code">${escapeHtml(e.code || '')}</td>
-        <td class="num">${entryMinutes(e) ? formatHours(entryMinutes(e)).replace(' h', '') : ''}</td>
+        <td class="num">${num(entryMinutes(e))}</td>
+        <td class="num ot">${num(ot[i])}</td>
         <td>${escapeHtml(e.desc || '')}</td>
-      </tr>`).join('') : `<tr><td class="date-cell">${escapeHtml(formatDate(d.date))}</td><td colspan="5" class="muted">keine Einträge</td></tr>`;
+      </tr>`).join('') : `<tr><td class="date-cell">${escapeHtml(formatDate(d.date))}</td><td colspan="6" class="muted">keine Einträge</td></tr>`;
     let extra = '';
     if (isMontage && (d.away || d.hotel)) {
       const parts = [];
       if (d.away) parts.push('Abwesenheit: ' + awayText(d.away));
       if (d.hotel) parts.push('Hotel: ' + (d.hotelName || 'ja') + ' · Frühstück: ' + yesNoText(d.breakfast));
-      extra = `<tr class="day-extra"><td></td><td colspan="5">${escapeHtml(parts.join('   |   '))}</td></tr>`;
+      extra = `<tr class="day-extra"><td></td><td colspan="6">${escapeHtml(parts.join('   |   '))}</td></tr>`;
     }
-    return rows + extra + `<tr class="day-total"><td colspan="4">Summe ${escapeHtml(formatDateShort(d.date))}</td><td class="num">${formatHours(dayWorkedMinutes(d)).replace(' h', '')}</td><td></td></tr>`;
+    return rows + extra + `<tr class="day-total"><td colspan="4">Summe ${escapeHtml(formatDateShort(d.date))}</td><td class="num">${formatHours(dayWorkedMinutes(d)).replace(' h', '')}</td><td class="num ot">${num(dayOvertimeMinutes(d))}</td><td></td></tr>`;
   }).join('');
 
   const legend = appData.settings.codes.map(c => `${escapeHtml(c.code)} = ${escapeHtml(c.label)}`).join(' · ');
@@ -78,9 +82,9 @@ function buildPrintHtml(sheet) {
       </table>` : ''}
 
       <table class="pr-times">
-        <thead><tr><th>Datum</th><th>Von</th><th>Bis</th><th>Art</th><th>Std.</th><th>Ausgeführte Arbeiten</th></tr></thead>
+        <thead><tr><th>Datum</th><th>Von</th><th>Bis</th><th>Art</th><th>Std.</th><th>Überst.</th><th>Ausgeführte Arbeiten</th></tr></thead>
         <tbody>${dayRows}</tbody>
-        <tfoot><tr><td colspan="4">Gesamt (Arbeitszeit)</td><td class="num">${formatHours(total).replace(' h', '')}</td><td class="pr-codes">${codeTotals}</td></tr></tfoot>
+        <tfoot><tr><td colspan="4">Gesamt (Arbeitszeit)</td><td class="num">${formatHours(total).replace(' h', '')}</td><td class="num ot">${formatHours(totalOt).replace(' h', '')}</td><td class="pr-codes">${codeTotals}</td></tr></tfoot>
       </table>
       <div class="pr-legend">${legend}</div>
 

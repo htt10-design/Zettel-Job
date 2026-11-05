@@ -70,10 +70,10 @@ function yesNo(label, bind, value) {
 function codeOptions(selected) {
   const codes = appData.settings.codes.slice();
   if (selected && !codes.some(c => c.code === selected)) codes.push({ code: selected, label: '(unbekannt)' });
-  return codes.map(c => `<option value="${escapeHtml(c.code)}" ${c.code === selected ? 'selected' : ''} title="${escapeHtml(c.label)}">${escapeHtml(c.code)}${c.label ? ' · ' + escapeHtml(c.label) : ''}</option>`).join('');
+  return codes.map(c => `<option value="${escapeHtml(c.code)}" ${c.code === selected ? 'selected' : ''} title="${escapeHtml(c.label)}">${escapeHtml(c.code)}</option>`).join('');
 }
 
-function entryRow(e, di, ei) {
+function entryRow(e, di, ei, ot) {
   const p = `days.${di}.entries.${ei}`;
   const mins = entryMinutes(e);
   const bad = (e.from && parseTime(e.from) == null) || (e.to && parseTime(e.to) == null);
@@ -90,15 +90,22 @@ function entryRow(e, di, ei) {
           <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
       </div>
-      <input class="entry-desc" data-bind="${p}.desc" value="${escapeHtml(e.desc || '')}" placeholder="Was wurde gemacht?" autocomplete="off">
+      <div class="entry-desc-row">
+        <input class="entry-desc" data-bind="${p}.desc" value="${escapeHtml(e.desc || '')}" placeholder="Was wurde gemacht?" autocomplete="off">
+        <span class="entry-ot" data-ot="${di}.${ei}" ${ot ? '' : 'hidden'}>${otText(ot)}</span>
+      </div>
     </div>`;
+}
+
+function otText(min) {
+  return min ? 'Überstd. ' + formatHours(min) : '';
 }
 
 function dayCard(day, di, sheet) {
   const isMontage = sheet.type === 'montage';
   const worked = dayWorkedMinutes(day);
   const d = parseISODate(day.date);
-  const target = baseTargetMinutes(day.date);
+  const ot = dayOvertimeSplit(day);
   let montageExtras = '';
   if (isMontage) {
     montageExtras = `
@@ -129,13 +136,13 @@ function dayCard(day, di, sheet) {
         </div>
         <div class="day-sum">
           <strong data-daysum="${di}">${formatHours(worked)}</strong>
-          <small data-daydelta="${di}">${dayDeltaText(worked, target)}</small>
+          <small data-daydelta="${di}">${dayDeltaText(day)}</small>
         </div>
         ${sheet.days.length > 1 ? `<button type="button" class="icon-btn small danger-hover" onclick="removeDay(${di})" aria-label="Tag löschen">
           <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>` : ''}
       </div>
       <div class="entries">
-        ${day.entries.length ? day.entries.map((e, ei) => entryRow(e, di, ei)).join('') : '<p class="muted small-text">Noch keine Zeiten eingetragen.</p>'}
+        ${day.entries.length ? day.entries.map((e, ei) => entryRow(e, di, ei, ot[ei])).join('') : '<p class="muted small-text">Noch keine Zeiten eingetragen.</p>'}
       </div>
       <div class="entry-add">
         <button type="button" class="btn btn-soft" onclick="addEntry(${di})">
@@ -149,11 +156,13 @@ function dayCard(day, di, sheet) {
     </div>`;
 }
 
-function dayDeltaText(worked, target) {
-  if (!worked) return target ? 'Soll ' + formatHours(target) : '';
-  const diff = worked - target;
-  if (diff > 0) return `davon ${formatHours(diff)} Überstd.`;
-  if (diff < 0) return `${formatHours(-diff)} unter Soll`;
+function dayDeltaText(day) {
+  const worked = dayWorkedMinutes(day);
+  const target = dayTargetMinutes(day.date);
+  if (!worked) return target ? 'Soll ' + formatHours(target) : 'Soll 0 h';
+  const ot = dayOvertimeMinutes(day);
+  if (ot > 0) return `davon ${formatHours(ot)} Überstd.`;
+  if (worked < target) return `${formatHours(target - worked)} unter Soll`;
   return 'Soll erfüllt';
 }
 
@@ -240,6 +249,7 @@ function renderEditor(keepScroll) {
   html += `
     <div class="sum-bar">
       <div><span class="muted">Gesamt</span><strong data-total>${formatHours(total)}</strong></div>
+      <div class="sum-ot"><span class="muted">Überstunden</span><strong data-totalot>${formatHours(sheetOvertimeMinutes(sheet))}</strong></div>
       <div class="code-chips" data-codesum>${codeSummary || '<span class="muted">Noch keine Zeiten</span>'}</div>
     </div>`;
 
@@ -323,15 +333,20 @@ function refreshEditorSums() {
     const s = body.querySelector(`[data-daysum="${di}"]`);
     if (s) s.textContent = formatHours(w);
     const dd = body.querySelector(`[data-daydelta="${di}"]`);
-    if (dd) dd.textContent = dayDeltaText(w, baseTargetMinutes(d.date));
+    if (dd) dd.textContent = dayDeltaText(d);
+    const ot = dayOvertimeSplit(d);
     d.entries.forEach((e, ei) => {
       const el = body.querySelector(`[data-dur="${di}.${ei}"]`);
       const m = entryMinutes(e);
       if (el) el.textContent = m ? formatHours(m) : '–';
+      const o = body.querySelector(`[data-ot="${di}.${ei}"]`);
+      if (o) { o.textContent = otText(ot[ei]); o.hidden = !ot[ei]; }
     });
   });
   const t = body.querySelector('[data-total]');
   if (t) t.textContent = formatHours(sheetWorkedMinutes(sheet));
+  const to = body.querySelector('[data-totalot]');
+  if (to) to.textContent = formatHours(sheetOvertimeMinutes(sheet));
   const cs = body.querySelector('[data-codesum]');
   if (cs) {
     const byCode = sheetMinutesByCode(sheet);

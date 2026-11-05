@@ -230,3 +230,43 @@ function downloadFile(name, content, type) {
   a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
 }
+
+// Soll eines Tages für die Überstunden auf dem Zettel:
+// Urlaub/Krank/Feiertag → 0, sonst Soll laut Wochentag
+function dayTargetMinutes(iso) {
+  if (daysOffFor(iso).some(o => o.type === 'urlaub' || o.type === 'krank' || o.type === 'feiertag')) return 0;
+  return baseTargetMinutes(iso);
+}
+
+// Überstunden je Zeile eines Tages: Zeilen werden nach Startzeit
+// durchgezählt, ab der ersten Minute über dem Soll zählt alles als
+// Überstunde. Rückgabe: Array (gleiche Reihenfolge wie day.entries)
+function dayOvertimeSplit(day) {
+  const target = dayTargetMinutes(day.date);
+  const order = day.entries.map((e, i) => i).sort((a, b) => {
+    const ta = parseTime(day.entries[a].from), tb = parseTime(day.entries[b].from);
+    if (ta == null && tb == null) return a - b;
+    if (ta == null) return 1;
+    if (tb == null) return -1;
+    return ta - tb || a - b;
+  });
+  const result = day.entries.map(() => 0);
+  let used = 0;
+  order.forEach(i => {
+    const e = day.entries[i];
+    if (!codeCounts(e.code)) return;
+    const m = entryMinutes(e);
+    const normal = Math.max(0, Math.min(m, target - used));
+    result[i] = m - normal;
+    used += m;
+  });
+  return result;
+}
+
+function dayOvertimeMinutes(day) {
+  return dayOvertimeSplit(day).reduce((a, b) => a + b, 0);
+}
+
+function sheetOvertimeMinutes(sheet) {
+  return sheet.days.reduce((sum, d) => sum + dayOvertimeMinutes(d), 0);
+}

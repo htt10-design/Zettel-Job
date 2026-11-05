@@ -83,6 +83,11 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
       appData.daysOff.push({ id: uid(), date: '2026-11-03', type: 'abbau', note: '' });
       renderEditor();
     });
+    // Überstunden je Zeile: Montag Soll 8 h → erst ab 15:00 Überstunden (0,5+5+(15:00−12:30)=8 h)
+    const split = await page.evaluate(() => dayOvertimeSplit(getActiveSheet().days[0]));
+    assert(JSON.stringify(split) === JSON.stringify([0, 0, 0, 105]), `Überstunden-Split Montag ${JSON.stringify(split)}`, errors);
+    const otTotal = await page.evaluate(() => sheetOvertimeMinutes(getActiveSheet()));
+    assert(otTotal === 225, `Überstunden Zettel erwartet 225 min (1,75 + 2), ist ${otTotal}`, errors);
     const bal = await page.evaluate(() => overtimeBalance());
     assert(bal === -255, `Saldo erwartet -255 min, ist ${bal}`, errors);
     const t = await page.evaluate(() => parseTime('0630') === 390 && parseTime('6:30') === 390 && parseTime('2500') === null && entryMinutes({ from: '22:00', to: '02:00' }) === 240);
