@@ -3,6 +3,9 @@
 // Auftrag. Über den Druckdialog auch als PDF speicherbar.
 // =====================================================================
 
+// Einheitliche Spaltenbreiten für alle Tagesblöcke und die Summen
+const PRINT_COLS = '<colgroup><col style="width:9%"><col style="width:9%"><col style="width:7%"><col style="width:10%"><col style="width:10%"><col></colgroup>';
+
 function yesNoText(v) { return v === true ? 'Ja' : v === false ? 'Nein' : '–'; }
 
 function awayText(v) {
@@ -49,7 +52,7 @@ function buildPrintDoc(doc) {
     totals.worked += split.worked; totals.normal += split.normal; totals.ot += split.ot;
     const lines = split.lines;
     lines.forEach(l => { if (l.minutes) byCode[l.code || '?'] = (byCode[l.code || '?'] || 0) + l.minutes; });
-    const rows = lines.length ? lines.map((l, i) => {
+    const rows = lines.length ? lines.map(l => {
       let from = '', to = '', desc = '';
       if (l.kind === 'entry') {
         from = l.entry.from || ''; to = l.entry.to || ''; desc = l.entry.desc || '';
@@ -60,24 +63,39 @@ function buildPrintDoc(doc) {
       }
       const normalCell = l.counts ? num(l.normal) : `<s>${num(l.minutes)}</s>`;
       return `
-      <tr class="${l.kind === 'travel' ? 'travel' : ''}">
-        ${i === 0 ? `<td rowspan="${lines.length}" class="date-cell">${escapeHtml(formatDate(d.date))}</td>` : ''}
-        <td class="num">${escapeHtml(from)}</td>
-        <td class="num">${escapeHtml(to)}</td>
-        <td class="code">${escapeHtml(l.code || '')}</td>
-        <td class="num">${normalCell}</td>
-        <td class="num ot">${num(l.ot)}</td>
-        <td>${escapeHtml(desc)}</td>
-      </tr>`;
-    }).join('') : `<tr><td class="date-cell">${escapeHtml(formatDate(d.date))}</td><td colspan="6" class="muted">keine Einträge</td></tr>`;
-    let extra = '';
-    if (doc.isMontage && (d.away || d.hotel)) {
-      const parts = [];
-      if (d.away) parts.push('Abwesenheit: ' + awayText(d.away));
-      if (d.hotel) parts.push('Hotel: ' + (d.hotelName || 'ja') + ' · Frühstück: ' + yesNoText(d.breakfast));
-      extra = `<tr class="day-extra"><td></td><td colspan="6">${escapeHtml(parts.join('   |   '))}</td></tr>`;
-    }
-    return rows + extra + `<tr class="day-total"><td colspan="4">Summe ${escapeHtml(formatDateShort(d.date))}${split.worked ? ' · gesamt ' + formatHours(split.worked) : ''}</td><td class="num">${num(split.normal) || '0,00'}</td><td class="num ot">${num(split.ot)}</td><td></td></tr>`;
+        <tr class="${l.kind === 'travel' ? 'travel' : ''}">
+          <td class="num">${escapeHtml(from)}</td>
+          <td class="num">${escapeHtml(to)}</td>
+          <td class="code">${escapeHtml(l.code || '')}</td>
+          <td class="num">${normalCell}</td>
+          <td class="num">${num(l.ot)}</td>
+          <td>${escapeHtml(desc)}</td>
+        </tr>`;
+    }).join('') : `<tr><td colspan="6" class="muted">keine Einträge</td></tr>`;
+
+    // Kopfzeile des Tages: Datum links, Auslöse/Hotel rechts
+    const info = [];
+    if (doc.isMontage && d.away) info.push(awayText(d.away));
+    if (doc.isMontage && d.hotel) info.push('Hotel' + (d.hotelName ? ': ' + d.hotelName : '') + ' · Frühstück ' + yesNoText(d.breakfast));
+    const wd = parseISODate(d.date);
+    return `
+      <div class="pr-day">
+        <div class="pr-day-head">
+          <span class="pr-day-date">${wd ? WEEKDAYS_LONG[wd.getDay()] : ''}, ${escapeHtml(formatDate(d.date, false))}</span>
+          <span class="pr-day-info">${escapeHtml(info.join('   |   '))}</span>
+        </div>
+        <table class="pr-times">
+          ${PRINT_COLS}
+          <thead><tr><th>Von</th><th>Bis</th><th>Art</th><th class="num">Normal</th><th class="num">Überst.</th><th>Ausgeführte Arbeiten</th></tr></thead>
+          <tbody>${rows}</tbody>
+          <tfoot><tr>
+            <td colspan="3">Summe Tag</td>
+            <td class="num">${num(split.normal) || '0,00'}</td>
+            <td class="num">${num(split.ot) || '0,00'}</td>
+            <td class="day-all">Gesamt ${formatHours(split.worked)}</td>
+          </tr></tfoot>
+        </table>
+      </div>`;
   }).join('');
 
   const legend = s.codes.map(c => `${escapeHtml(c.code)} = ${escapeHtml(c.label)}`).join(' · ');
@@ -107,13 +125,12 @@ function buildPrintDoc(doc) {
         <tr><th>Schiff / Anlage</th><td colspan="3">${escapeHtml(doc.vessel || '–')}</td></tr>
       </table>` : ''}
 
-      <table class="pr-times">
-        <thead><tr><th>Datum</th><th>Von</th><th>Bis</th><th>Art</th><th>Normal</th><th>Überst.</th><th>Ausgeführte Arbeiten</th></tr></thead>
-        <tbody>${dayRows}</tbody>
-        <tfoot>
-          <tr><td colspan="4">Normalstunden / Überstunden</td><td class="num">${formatHours(totals.normal).replace(' h', '')}</td><td class="num ot">${formatHours(totals.ot).replace(' h', '')}</td><td></td></tr>
-          <tr class="grand"><td colspan="4">Gesamtstunden</td><td colspan="2" class="num">${formatHours(totals.worked)}</td><td class="pr-codes">${codeTotals}</td></tr>
-        </tfoot>
+      ${dayRows}
+
+      <table class="pr-totals">
+        ${PRINT_COLS}
+        <tr><td colspan="3">Summe aller Tage</td><td class="num">${formatHours(totals.normal).replace(' h', '')}</td><td class="num">${formatHours(totals.ot).replace(' h', '')}</td><td>Normal- / Überstunden</td></tr>
+        <tr class="grand"><td colspan="3">Gesamtstunden</td><td colspan="2" class="num">${formatHours(totals.worked)}</td><td class="pr-codes">${codeTotals}</td></tr>
       </table>
       <div class="pr-legend">${legend}</div>
 

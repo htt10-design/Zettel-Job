@@ -593,38 +593,56 @@ fieldset[disabled] .entry-add, fieldset[disabled] > .btn.block, fieldset[disable
 @media print {
   @page { size: A4; margin: 12mm; }
   html, body { background: #fff !important; color: #000; }
-  .pr-times th:nth-child(2), .pr-times th:nth-child(3), .pr-times th:nth-child(5), .pr-times th:nth-child(6) { width: 8%; }
-  .pr-times .ot { color: #9a6700; }
-  .pr-times tr.travel td { background: #f4f9fd; }
-  .pr-times tfoot tr.grand td { font-size: 11pt; }
   #app, .modal-backdrop, .sign-overlay, .toast { display: none !important; }
   #print-area { display: block; font-size: 10pt; color: #000; }
-  .pr-page { font-family: Arial, Helvetica, sans-serif; }
-  .pr-head { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2.5pt solid #3aa8e6; padding-bottom: 6pt; margin-bottom: 10pt; }
-  .pr-title { font-size: 18pt; font-weight: 700; color: #1d6fa3; }
-  .pr-sub { font-size: 10pt; color: #444; }
+  .pr-page { font-family: Arial, Helvetica, sans-serif; color: #000; }
+
+  /* Kopf */
+  .pr-head { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2pt solid #000; padding-bottom: 6pt; margin-bottom: 10pt; }
+  .pr-title { font-size: 18pt; font-weight: 700; }
+  .pr-sub { font-size: 10pt; }
   .pr-worker { text-align: right; }
-  .pr-worker span { display: block; font-size: 8pt; color: #666; text-transform: uppercase; }
+  .pr-worker span { display: block; font-size: 8pt; text-transform: uppercase; letter-spacing: .5pt; }
   .pr-worker strong { font-size: 11pt; }
-  #print-area table { width: 100%; border-collapse: collapse; margin-bottom: 10pt; }
-  #print-area th, #print-area td { border: .6pt solid #9fb6c8; padding: 3pt 5pt; vertical-align: top; text-align: left; }
-  #print-area thead th, .pr-info th, .pr-travel tbody th { background: #e9f5fc; font-size: 8.5pt; font-weight: 700; }
+
+  /* Tabellen allgemein: nur Schwarz/Weiß */
+  #print-area table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-bottom: 10pt; }
+  #print-area th, #print-area td { border: .5pt solid #000; padding: 3pt 5pt; vertical-align: top; text-align: left; background: #fff; color: #000; word-wrap: break-word; }
+  #print-area th { font-size: 8pt; font-weight: 700; text-transform: uppercase; letter-spacing: .3pt; }
+  #print-area .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .pr-info { table-layout: auto !important; }
   .pr-info th { width: 22%; }
-  .pr-times td.num, #print-area .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-  .pr-times .date-cell { white-space: nowrap; font-weight: 700; width: 18%; }
-  .pr-times .code { font-weight: 700; text-align: center; width: 7%; }
-  .pr-times .day-total td { background: #f4f9fd; font-weight: 700; font-size: 9pt; }
-  .pr-times .day-extra td { font-size: 8.5pt; color: #333; font-style: italic; }
-  .pr-times tfoot td { font-weight: 700; background: #e9f5fc; }
-  .pr-codes span { margin-right: 10pt; font-weight: 400; }
-  .pr-legend { font-size: 7.5pt; color: #666; margin: -6pt 0 10pt; }
+  .pr-travel { table-layout: auto !important; }
+
+  /* Tagesblöcke: deutlich voneinander getrennt */
+  .pr-day { border: 1.5pt solid #000; margin-bottom: 9pt; page-break-inside: avoid; break-inside: avoid; }
+  .pr-day-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10pt; padding: 4pt 6pt; border-bottom: 1.5pt solid #000; }
+  .pr-day-date { font-size: 11pt; font-weight: 700; }
+  .pr-day-info { font-size: 8.5pt; text-align: right; }
+  #print-area .pr-day table.pr-times { margin: 0; }
+  #print-area .pr-day .pr-times th, #print-area .pr-day .pr-times td { border-left: 0; border-right: .5pt solid #000; border-top: 0; border-bottom: .5pt solid #999; }
+  #print-area .pr-day .pr-times th:last-child, #print-area .pr-day .pr-times td:last-child { border-right: 0; }
+  #print-area .pr-day .pr-times thead th { border-bottom: .8pt solid #000; }
+  .pr-times .code { font-weight: 700; text-align: center; }
+  .pr-times tr.travel td { font-style: italic; }
+  #print-area .pr-times tfoot td { font-weight: 700; border-top: 1pt solid #000; border-bottom: 0; }
+  .pr-times .day-all { text-align: right; }
+
+  /* Summen unten */
+  #print-area .pr-totals { border: 1.5pt solid #000; }
+  #print-area .pr-totals td { font-weight: 700; }
+  #print-area .pr-totals tr.grand td { font-size: 11.5pt; border-top: 1.5pt solid #000; }
+  .pr-codes { font-size: 9pt !important; }
+  .pr-codes span { margin-right: 9pt; font-weight: 400; }
+  .pr-legend { font-size: 7.5pt; margin: -6pt 0 10pt; }
+
   .pre { white-space: pre-wrap; }
-  .muted { color: #888; }
+  .muted { color: #000; font-style: italic; }
   .pr-signs { display: flex; gap: 20pt; margin-top: 18pt; page-break-inside: avoid; }
   .pr-sign { flex: 1; }
   .pr-sign-img { height: 55pt; display: flex; align-items: flex-end; }
-  .pr-sign-img img { max-height: 55pt; max-width: 100%; }
-  .pr-sign-line { border-top: .8pt solid #000; padding-top: 3pt; font-size: 8.5pt; color: #333; }
-  .pr-foot { margin-top: 16pt; font-size: 7.5pt; color: #999; text-align: right; }
+  .pr-sign-img img { max-height: 55pt; max-width: 100%; filter: grayscale(1) contrast(2); }
+  .pr-sign-line { border-top: .8pt solid #000; padding-top: 3pt; font-size: 8.5pt; }
+  .pr-foot { margin-top: 16pt; font-size: 7.5pt; text-align: right; }
   tr { page-break-inside: avoid; }
 }

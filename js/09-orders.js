@@ -203,7 +203,7 @@ function allowanceText(a) {
   const parts = [];
   if (a.away8) parts.push(`≥ 8,25 h weg: ${a.away8} Tag${a.away8 > 1 ? 'e' : ''}`);
   if (a.away24) parts.push(`24 h weg: ${a.away24} Tag${a.away24 > 1 ? 'e' : ''}`);
-  if (a.hotel) parts.push(`Hotel: ${a.hotel} Nacht${a.hotel > 1 ? 'e' : ''}${a.hotel ? ` (Frühstück ${a.breakfast}×)` : ''}`);
+  if (a.hotel) parts.push(`Hotel: ${a.hotel} ${a.hotel > 1 ? 'Nächte' : 'Nacht'}${a.hotel ? ` (Frühstück ${a.breakfast}×)` : ''}`);
   return parts;
 }
 
