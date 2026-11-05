@@ -106,7 +106,7 @@ function entryRow(e, di, ei, line) {
       </div>
       <div class="entry-desc-row">
         ${isW ? `<input class="cost-in" data-bind="${p}.cost" data-orderno="cost" data-rerender="1" value="${escapeHtml(e.cost ?? '')}" placeholder="Kostenstelle" list="dl-costs" autocomplete="off" aria-label="Kostenstelle">` : ''}
-        <input class="entry-desc" data-bind="${p}.desc" value="${escapeHtml(e.desc || '')}" placeholder="Was wurde gemacht?" autocomplete="off">
+        <input class="entry-desc" data-bind="${p}.desc" value="${escapeHtml(e.desc || '')}" placeholder="${escapeHtml(isW && getCostCenter(e.cost) ? getCostCenter(e.cost).label + ' – was wurde gemacht?' : 'Was wurde gemacht?')}" autocomplete="off">
         ${isW ? '' : `<span class="entry-ot" data-ot="${di}.${ei}" ${ot ? '' : 'hidden'}>${otText(ot)}</span>`}
       </div>
     </div>`;
@@ -185,7 +185,7 @@ function dayCard(day, di, sheet) {
         </button>
         <div class="quick-codes">
           ${sheet.type === 'werkstatt'
-            ? recentCosts().slice(0, 4).map(c => `<button type="button" class="chip mini" onclick="addEntry(${di},null,${escapeHtml(JSON.stringify(c))})" title="${escapeHtml((getCostCenter(c) || {}).label || '')}">+${escapeHtml(c)}</button>`).join('')
+            ? recentCosts(true).slice(0, 4).map(c => `<button type="button" class="chip mini" onclick="addEntry(${di},null,${escapeHtml(JSON.stringify(c))})" title="${escapeHtml((getCostCenter(c) || {}).label || '')}">+${escapeHtml(c)}</button>`).join('')
             : appData.settings.codes.slice(0, 5).map(c => `<button type="button" class="chip mini" onclick="addEntry(${di},'${escapeHtml(c.code)}')" title="${escapeHtml(c.label)}">+${escapeHtml(c.code)}</button>`).join('')}
         </div>
       </div>
@@ -258,7 +258,7 @@ function datalists() {
 }
 
 // Kostenstellen-Vorschläge: zuletzt benutzte zuerst, dann die aus den Einstellungen
-function recentCosts() {
+function recentCosts(usedOnly) {
   const used = [];
   appData.sheets.filter(s => s.type === 'werkstatt')
     .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
@@ -266,6 +266,7 @@ function recentCosts() {
       const c = String(e.cost || '').trim();
       if (c && !isPauseCost(c) && !used.includes(c)) used.push(c);
     })));
+  if (usedOnly) return used;
   (appData.settings.costCenters || []).forEach(c => { const n = String(c.no || '').trim(); if (n && !used.includes(n)) used.push(n); });
   return used;
 }
@@ -441,6 +442,7 @@ function handleEditorInput(ev) {
     const day = sheet.days[0];
     let v = formatOrderNo(el.value, day && day.date, el.dataset.orderno === 'order');
     if (el.dataset.orderno === 'cost' && isPauseCost(v)) v = 'P';
+    if (el.dataset.orderno === 'cost' && getCostCenter(v)) v = getCostCenter(v).no;
     if (v !== el.value) { el.value = v; setPath(sheet, bind, v); touchSheet(sheet); }
   }
   if (ev.type === 'change' && el.dataset.rerender) { renderEditor(true); return; }

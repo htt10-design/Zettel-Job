@@ -40,7 +40,8 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
   nicht mehr einzeln in der Liste, sondern als Ordner-Karte (`folderList`, `folderCardHtml`). Auflösen löscht nichts.
 - `sheet.worker` (Name des Monteurs) wird beim Anlegen gesetzt – Vorbereitung für mehrere Benutzer.
 - Werkstattzettel: Zeilen haben `cost` (Kostenstelle) statt Zeitart; `P`/`Pause` zählt nicht. Kostenstellen-Liste in
-  `settings.costCenters` ({ no, label }). Ältere Werkstatt-Zeilen ohne `cost` rechnen weiter über `code`.
+  `settings.costCenters` ({ no, label }); Standardliste `DEFAULT_COST_CENTERS` (01-core) wird einmalig eingetragen
+  (`costCentersSeeded`). Ältere Werkstatt-Zeilen ohne `cost` rechnen weiter über `code`.
 - Auftragsnummern-Format `SR26/000249`: `formatOrderNo()` ergänzt beim Verlassen des Feldes
   ("249" → SR{Jahr des Zettels}/000249, "26/249" → SR26/000249). Reine Zahlen bei Kostenstellen bleiben stehen.
 

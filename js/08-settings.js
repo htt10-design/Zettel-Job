@@ -3,6 +3,8 @@
 // eigene Unterschrift, Darstellung, Backup Export/Import
 // =====================================================================
 
+let costListOpen = false; // Kostenstellen-Liste aufgeklappt?
+
 function renderSettings() {
   const s = appData.settings;
   const theme = s.theme || 'auto';
@@ -59,6 +61,8 @@ function renderSettings() {
     <div class="card">
       <h3 class="card-title">Kostenstellen (Werkstatt)</h3>
       <p class="muted small-text">Werden bei Werkstattzetteln je Zeile vorgeschlagen. Auftragsnummern wie SR26/000244 kannst du auch direkt eintippen. Pause = P.</p>
+      <details class="cost-details" ${costListOpen ? 'open' : ''} ontoggle="costListOpen = this.open">
+      <summary>${(s.costCenters || []).length} Kostenstellen anzeigen / bearbeiten</summary>
       <div class="codes-list">
         ${(s.costCenters || []).map((c, i) => `
           <div class="code-row">
@@ -67,7 +71,11 @@ function renderSettings() {
             <button class="icon-btn small danger-hover" onclick="removeCostCenter(${i})" aria-label="Löschen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
           </div>`).join('') || '<p class="muted small-text">Noch keine Kostenstellen angelegt.</p>'}
       </div>
-      <button class="btn btn-soft" onclick="addCostCenter()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Kostenstelle hinzufügen</button>
+      </details>
+      <div class="btn-row">
+        <button class="btn btn-soft" onclick="addCostCenter()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Kostenstelle hinzufügen</button>
+        <button class="btn btn-ghost" onclick="restoreCostCenters()">Standardliste ergänzen</button>
+      </div>
     </div>
 
     <div class="card">
@@ -168,6 +176,7 @@ async function removeCode(i) {
 
 // ---------- Kostenstellen ----------
 function addCostCenter() {
+  costListOpen = true;
   appData.settings.costCenters.push({ no: '', label: '' });
   saveData();
   renderSettings();
@@ -181,6 +190,17 @@ function updateCostCenter(i, key, value) {
   c[key] = key === 'no' ? formatOrderNo(value, null, false) : String(value).trim();
   saveData();
   renderSettings();
+}
+
+// Fehlende Kostenstellen aus der Standardliste wieder hinzufügen (vorhandene bleiben)
+function restoreCostCenters() {
+  let added = 0;
+  defaultCostCenters().forEach(c => {
+    if (!getCostCenter(c.no)) { appData.settings.costCenters.push(c); added++; }
+  });
+  saveData();
+  renderSettings();
+  showToast(added ? `${added} Kostenstelle(n) ergänzt` : 'Alle Standard-Kostenstellen sind vorhanden');
 }
 
 async function removeCostCenter(i) {
@@ -247,6 +267,7 @@ window.removeOwnSignature = removeOwnSignature;
 window.addCostCenter = addCostCenter;
 window.updateCostCenter = updateCostCenter;
 window.removeCostCenter = removeCostCenter;
+window.restoreCostCenters = restoreCostCenters;
 window.exportBackup = exportBackup;
 window.importBackup = importBackup;
 window.resetAll = resetAll;

@@ -18,6 +18,45 @@ const DEFAULT_CODES = [
   { code: 'P', label: 'Pause', counts: false }
 ];
 
+// Kostenstellen der Werkstatt (Standardliste, in den Einstellungen änderbar)
+const DEFAULT_COST_CENTERS = [
+  ['10', 'Allgemeine Kosten'],
+  ['11', 'Bürogebäude/Betriebsausstattung Büro'],
+  ['12', 'Sozialgebäude'],
+  ['13', 'Gelände'],
+  ['14', 'Halle/Werkstätten'],
+  ['15', 'Prüfstand+Peripherie/Brunnen/Kaianlage'],
+  ['16', 'Lager/Außenlagerplätze'],
+  ['17B', 'Betriebsmittel'],
+  ['17W', 'Werkzeuge'],
+  ['18', 'Betriebsfahrzeuge'],
+  ['19', 'Betriebsstoffe'],
+  ['20', 'EDV'],
+  ['301', 'Lagereinkäufe'],
+  ['110', 'Geschäftsführung'],
+  ['120', 'Verwaltung'],
+  ['201', 'Vertrieb Stationär'],
+  ['208', 'Vertrieb Service - Mechanik'],
+  ['209', 'Vertrieb Service - Elektrik'],
+  ['210', 'Vertrieb Service - Büro'],
+  ['211', 'Vertrieb Service - Wilhelmshaven'],
+  ['212', 'Vertrieb Service - Stralsund'],
+  ['215', 'Vertrieb Service - Helgoland'],
+  ['220', 'Einkauf/Vertrieb ET'],
+  ['230', 'Vertrieb Aggregate/Anlagen'],
+  ['240', 'Projektierung'],
+  ['250', 'Dokumentation/Abwicklung/EDV'],
+  ['310', 'Betriebsleitung/Prüfstand'],
+  ['320', 'Fertigung - Mechanik'],
+  ['330', 'Fertigung - Elektrik'],
+  ['340', 'Auszubildende/Studenten/Praktikanten'],
+  ['350', 'Lager']
+];
+
+function defaultCostCenters() {
+  return DEFAULT_COST_CENTERS.map(([no, label]) => ({ no, label }));
+}
+
 // Sollstunden je Wochentag (Index 0 = Sonntag … 6 = Samstag)
 const DEFAULT_TARGETS = [0, 8, 8, 8, 8, 5, 0];
 
@@ -36,7 +75,8 @@ function createDefaultData() {
       targets: DEFAULT_TARGETS.slice(),
       startBalance: 0,
       codes: DEFAULT_CODES.map(c => ({ ...c })),
-      costCenters: [], // Kostenstellen für Werkstatt: { no, label }
+      costCenters: defaultCostCenters(), // Kostenstellen für Werkstatt: { no, label }
+      costCentersSeeded: true,
       ownSignature: null
     },
     sheets: [],
@@ -54,6 +94,11 @@ function normalizeData(data) {
   if (!Array.isArray(s.targets) || s.targets.length !== 7) s.targets = DEFAULT_TARGETS.slice();
   if (!Array.isArray(s.codes) || !s.codes.length) s.codes = DEFAULT_CODES.map(c => ({ ...c }));
   if (!Array.isArray(s.costCenters)) s.costCenters = [];
+  // Standardliste einmalig eintragen, wenn noch keine Kostenstellen angelegt sind
+  if (!s.costCentersSeeded) {
+    if (!s.costCenters.length) s.costCenters = defaultCostCenters();
+    s.costCentersSeeded = true;
+  }
   if (!Array.isArray(data.sheets)) data.sheets = [];
   if (!Array.isArray(data.daysOff)) data.daysOff = [];
   if (!data.orders || typeof data.orders !== 'object' || Array.isArray(data.orders)) data.orders = {};
