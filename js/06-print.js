@@ -1,40 +1,54 @@
 // =====================================================================
-// 06-print: Druckansicht eines Zettels (A4) – über den Druckdialog auch
-// als PDF speicherbar
+// 06-print: Druckansicht (A4) – einzelner Zettel oder zusammengestellter
+// Auftrag. Über den Druckdialog auch als PDF speicherbar.
 // =====================================================================
 
 function yesNoText(v) { return v === true ? 'Ja' : v === false ? 'Nein' : '–'; }
 
 function awayText(v) {
   const o = AWAY_OPTIONS.find(x => x.value === (v || ''));
-  return v ? o.label : '–';
+  return v && o ? o.label : '–';
 }
 
-function travelRow(label, t) {
+function travelRow(label, t, date) {
   t = t || {};
   const vehicle = t.vehicle === 'Firmenwagen' && t.plate ? `Firmenwagen (${t.plate})` : (t.vehicle || '–');
+  const m = parseDuration(t.duration);
   return `<tr>
-    <th>${label}</th>
-    <td>${escapeHtml(formatDate(t.date, false) === '–' ? '' : formatDate(t.date, false))}</td>
+    <th>${escapeHtml(label)}</th>
+    <td>${escapeHtml(date ? formatDate(date, false) : '')}</td>
     <td>${escapeHtml(t.from || '–')} → ${escapeHtml(t.to || '–')}</td>
     <td class="num">${escapeHtml(t.km ? t.km + ' km' : '–')}</td>
-    <td class="num">${(() => { const m = parseDuration(t.duration); return m != null ? formatHours(m) : '–'; })()}</td>
+    <td class="num">${m != null ? formatHours(m) : '–'}</td>
     <td>${escapeHtml(vehicle)}</td>
   </tr>`;
 }
 
-function buildPrintHtml(sheet) {
-  const isMontage = sheet.type === 'montage';
-  const s = appData.settings;
-  const byCode = sheetMinutesByCode(sheet);
-  const totals = sheetTotals(sheet);
-  const num = m => m ? formatHours(m).replace(' h', '') : '';
-  // Tage chronologisch, Index für daySplit merken
-  const days = sheet.days.map((d, di) => ({ d, di })).sort((a, b) => (a.d.date || '').localeCompare(b.d.date || ''));
+// Fahrten eines Zettels mit dem Datum des zugeordneten Tages
+function sheetTravels(sheet) {
+  if (sheet.type !== 'montage') return [];
+  return TRAVEL_KEYS.filter(({ key }) => travelActive(sheet[key])).map(({ key, label }) => {
+    const i = travelDayIndex(sheet, key);
+    return { label, t: sheet[key], date: sheet[key].date || (sheet.days[i] ? sheet.days[i].date : '') };
+  });
+}
 
-  const dayRows = days.map(({ d, di }) => {
+// Druckdokument aus beliebig vielen Tagen (auch aus mehreren Zetteln)
+// doc: { title, subtitle, isMontage, orderNo, customer, vessel, items: [{sheet, di}],
+//        travels, material, materialNotes, finished, notes, signWorker, signCustomer, summary }
+function buildPrintDoc(doc) {
+  const s = appData.settings;
+  const num = m => m ? formatHours(m).replace(' h', '') : '';
+  const totals = { worked: 0, normal: 0, ot: 0 };
+  const byCode = {};
+
+  const items = doc.items.slice().sort((a, b) => (a.sheet.days[a.di].date || '').localeCompare(b.sheet.days[b.di].date || ''));
+  const dayRows = items.map(({ sheet, di }) => {
+    const d = sheet.days[di];
     const split = daySplit(sheet, di);
+    totals.worked += split.worked; totals.normal += split.normal; totals.ot += split.ot;
     const lines = split.lines;
+    lines.forEach(l => { if (l.minutes) byCode[l.code || '?'] = (byCode[l.code || '?'] || 0) + l.minutes; });
     const rows = lines.length ? lines.map((l, i) => {
       let from = '', to = '', desc = '';
       if (l.kind === 'entry') {
@@ -57,7 +71,7 @@ function buildPrintHtml(sheet) {
       </tr>`;
     }).join('') : `<tr><td class="date-cell">${escapeHtml(formatDate(d.date))}</td><td colspan="6" class="muted">keine Einträge</td></tr>`;
     let extra = '';
-    if (isMontage && (d.away || d.hotel)) {
+    if (doc.isMontage && (d.away || d.hotel)) {
       const parts = [];
       if (d.away) parts.push('Abwesenheit: ' + awayText(d.away));
       if (d.hotel) parts.push('Hotel: ' + (d.hotelName || 'ja') + ' · Frühstück: ' + yesNoText(d.breakfast));
@@ -66,18 +80,19 @@ function buildPrintHtml(sheet) {
     return rows + extra + `<tr class="day-total"><td colspan="4">Summe ${escapeHtml(formatDateShort(d.date))}${split.worked ? ' · gesamt ' + formatHours(split.worked) : ''}</td><td class="num">${num(split.normal) || '0,00'}</td><td class="num ot">${num(split.ot)}</td><td></td></tr>`;
   }).join('');
 
-  const legend = appData.settings.codes.map(c => `${escapeHtml(c.code)} = ${escapeHtml(c.label)}`).join(' · ');
+  const legend = s.codes.map(c => `${escapeHtml(c.code)} = ${escapeHtml(c.label)}`).join(' · ');
   const codeTotals = Object.keys(byCode).map(k => `<span><b>${escapeHtml(k)}</b> ${formatHours(byCode[k])}</span>`).join('');
-
   const sigImg = sig => sig && sig.img ? `<img src="${sig.img}" alt="">` : '';
   const sigMeta = sig => sig ? escapeHtml([sig.name, sig.at ? new Date(sig.at).toLocaleDateString('de-DE') : ''].filter(Boolean).join(', ')) : '';
+  const notes = (doc.notes || []).filter(Boolean);
+  const matNotes = (doc.materialNotes || []).filter(Boolean);
 
   return `
     <div class="pr-page">
       <div class="pr-head">
         <div>
-          <div class="pr-title">${isMontage ? 'Montagezettel' : 'Werkstattzettel'}</div>
-          <div class="pr-sub">${escapeHtml(sheetDateRange(sheet))}</div>
+          <div class="pr-title">${escapeHtml(doc.title)}</div>
+          <div class="pr-sub">${escapeHtml(doc.subtitle || '')}</div>
         </div>
         <div class="pr-worker">
           <span>Monteur</span>
@@ -85,11 +100,11 @@ function buildPrintHtml(sheet) {
         </div>
       </div>
 
-      ${isMontage ? `
+      ${doc.isMontage ? `
       <table class="pr-info">
-        <tr><th>Auftragsnummer</th><td>${escapeHtml(sheet.orderNo || '–')}</td>
-            <th>Auftraggeber / Kunde</th><td>${escapeHtml(sheet.customer || '–')}</td></tr>
-        <tr><th>Schiff / Anlage</th><td colspan="3">${escapeHtml(sheet.vessel || '–')}</td></tr>
+        <tr><th>Auftragsnummer</th><td>${escapeHtml(doc.orderNo || '–')}</td>
+            <th>Auftraggeber / Kunde</th><td>${escapeHtml(doc.customer || '–')}</td></tr>
+        <tr><th>Schiff / Anlage</th><td colspan="3">${escapeHtml(doc.vessel || '–')}</td></tr>
       </table>` : ''}
 
       <table class="pr-times">
@@ -102,41 +117,67 @@ function buildPrintHtml(sheet) {
       </table>
       <div class="pr-legend">${legend}</div>
 
-      ${isMontage ? `
+      ${doc.summary || ''}
+
+      ${doc.isMontage ? `
+      ${doc.travels.length ? `
       <table class="pr-travel">
         <thead><tr><th></th><th>Datum</th><th>Strecke</th><th>Km</th><th>Zeit</th><th>Verkehrsmittel</th></tr></thead>
-        <tbody>${travelRow('Anfahrt', sheet.travelOut)}${travelRow('Rückfahrt', sheet.travelBack)}</tbody>
-      </table>
+        <tbody>${doc.travels.map(x => travelRow(x.label, x.t, x.date)).join('')}</tbody>
+      </table>` : ''}
 
       <table class="pr-info">
-        <tr><th>Material verwendet</th><td>${yesNoText(sheet.material)}</td>
-            <th>Montage beendet</th><td>${yesNoText(sheet.finished)}</td></tr>
-        ${sheet.material === true && sheet.materialNote ? `<tr><th>Material</th><td colspan="3" class="pre">${escapeHtml(sheet.materialNote)}</td></tr>` : ''}
-        ${sheet.note ? `<tr><th>Bemerkung</th><td colspan="3" class="pre">${escapeHtml(sheet.note)}</td></tr>` : ''}
+        <tr><th>Material verwendet</th><td>${yesNoText(doc.material)}</td>
+            <th>Montage beendet</th><td>${yesNoText(doc.finished)}</td></tr>
+        ${doc.material === true && matNotes.length ? `<tr><th>Material</th><td colspan="3" class="pre">${escapeHtml(matNotes.join('\n'))}</td></tr>` : ''}
+        ${notes.length ? `<tr><th>Bemerkung</th><td colspan="3" class="pre">${escapeHtml(notes.join('\n'))}</td></tr>` : ''}
       </table>
 
       <div class="pr-signs">
-        <div class="pr-sign"><div class="pr-sign-img">${sigImg(sheet.signWorker)}</div><div class="pr-sign-line">Unterschrift Monteur ${sigMeta(sheet.signWorker) ? '· ' + sigMeta(sheet.signWorker) : ''}</div></div>
-        <div class="pr-sign"><div class="pr-sign-img">${sigImg(sheet.signCustomer)}</div><div class="pr-sign-line">Unterschrift Kunde ${sigMeta(sheet.signCustomer) ? '· ' + sigMeta(sheet.signCustomer) : ''}</div></div>
-      </div>` : (sheet.note ? `<table class="pr-info"><tr><th>Bemerkung</th><td class="pre">${escapeHtml(sheet.note)}</td></tr></table>` : '')}
+        <div class="pr-sign"><div class="pr-sign-img">${sigImg(doc.signWorker)}</div><div class="pr-sign-line">Unterschrift Monteur ${sigMeta(doc.signWorker) ? '· ' + sigMeta(doc.signWorker) : ''}</div></div>
+        <div class="pr-sign"><div class="pr-sign-img">${sigImg(doc.signCustomer)}</div><div class="pr-sign-line">Unterschrift Kunde ${sigMeta(doc.signCustomer) ? '· ' + sigMeta(doc.signCustomer) : ''}</div></div>
+      </div>` : (notes.length ? `<table class="pr-info"><tr><th>Bemerkung</th><td class="pre">${escapeHtml(notes.join('\n'))}</td></tr></table>` : '')}
 
       <div class="pr-foot">Erstellt mit Zettel-Job · ${escapeHtml(new Date().toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }))}</div>
     </div>`;
 }
 
-function printActiveSheet() {
-  const sheet = getActiveSheet();
-  if (!sheet) return;
+function buildPrintHtml(sheet) {
+  const isMontage = sheet.type === 'montage';
+  return buildPrintDoc({
+    title: isMontage ? 'Montagezettel' : 'Werkstattzettel',
+    subtitle: sheetDateRange(sheet),
+    isMontage,
+    orderNo: sheet.orderNo, customer: sheet.customer, vessel: sheet.vessel,
+    items: sheet.days.map((d, di) => ({ sheet, di })),
+    travels: sheetTravels(sheet),
+    material: sheet.material,
+    materialNotes: [sheet.materialNote],
+    finished: sheet.finished,
+    notes: [sheet.note],
+    signWorker: sheet.signWorker,
+    signCustomer: sheet.signCustomer
+  });
+}
+
+// HTML in den Druckbereich setzen und Druckdialog öffnen
+function printHtml(html, fileTitle) {
   flushSave();
-  document.getElementById('print-area').innerHTML = buildPrintHtml(sheet);
+  document.getElementById('print-area').innerHTML = html;
   const oldTitle = document.title;
   // Dateiname-Vorschlag für "Als PDF speichern"
-  document.title = [sheet.type === 'montage' ? 'Montagezettel' : 'Werkstattzettel', sheet.orderNo, sheet.vessel || sheet.customer, sheetFirstDate(sheet)]
-    .filter(Boolean).join('_').replace(/[\\/:*?"<>|]+/g, '-');
+  document.title = fileTitle.replace(/[\\/:*?"<>|]+/g, '-');
   setTimeout(() => {
     window.print();
     document.title = oldTitle;
   }, 50);
+}
+
+function printActiveSheet() {
+  const sheet = getActiveSheet();
+  if (!sheet) return;
+  printHtml(buildPrintHtml(sheet),
+    [sheet.type === 'montage' ? 'Montagezettel' : 'Werkstattzettel', sheet.orderNo, sheet.vessel || sheet.customer, sheetFirstDate(sheet)].filter(Boolean).join('_'));
 }
 
 window.printActiveSheet = printActiveSheet;

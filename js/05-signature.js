@@ -1,6 +1,8 @@
 // =====================================================================
 // 05-signature: Unterschriftenfeld (Canvas mit Pointer-Events)
-// who = 'customer' | 'worker' | 'own' (eigene Unterschrift in den Einstellungen)
+// who = 'customer' | 'worker'            → aktueller Zettel
+//       'orderCustomer' | 'orderWorker'  → zusammengestellter Auftrag
+//       'own'                            → eigene Unterschrift (Einstellungen)
 // =====================================================================
 
 let signWho = null;
@@ -8,13 +10,37 @@ let signHasInk = false;
 let signDrawing = false;
 let signLast = null;
 
+// Wo wird die Unterschrift gespeichert? → { obj, field }
+function signTarget(who) {
+  if (who === 'customer' || who === 'worker') {
+    const sheet = getActiveSheet();
+    return sheet ? { obj: sheet, field: who === 'customer' ? 'signCustomer' : 'signWorker' } : null;
+  }
+  if (who === 'orderCustomer' || who === 'orderWorker') {
+    if (!activeOrderNo) return null;
+    return { obj: orderRecord(activeOrderNo, true), field: who === 'orderCustomer' ? 'signCustomer' : 'signWorker' };
+  }
+  return null;
+}
+
+// Nach Änderung speichern und passende Ansicht neu zeichnen
+function afterSignChange(who) {
+  if (who === 'customer' || who === 'worker') {
+    touchSheet(getActiveSheet());
+    renderEditor(true);
+  } else {
+    saveData(true);
+    renderOrder();
+  }
+}
+
 function startSignature(who) {
   // Monteur: gespeicherte eigene Unterschrift direkt einsetzen
-  if (who === 'worker' && appData.settings.ownSignature) {
-    const sheet = getActiveSheet();
-    sheet.signWorker = { img: appData.settings.ownSignature, name: appData.settings.name || '', at: new Date().toISOString() };
-    touchSheet(sheet);
-    renderEditor(true);
+  if ((who === 'worker' || who === 'orderWorker') && appData.settings.ownSignature) {
+    const target = signTarget(who);
+    if (!target) return;
+    target.obj[target.field] = { img: appData.settings.ownSignature, name: appData.settings.name || '', at: new Date().toISOString() };
+    afterSignChange(who);
     showToast('Gespeicherte Unterschrift eingesetzt');
     return;
   }
@@ -23,12 +49,16 @@ function startSignature(who) {
 
 function openSignaturePad(who) {
   signWho = who;
-  const titles = { customer: 'Unterschrift Kunde', worker: 'Unterschrift Monteur', own: 'Meine Unterschrift' };
+  const titles = {
+    customer: 'Unterschrift Kunde', worker: 'Unterschrift Monteur', own: 'Meine Unterschrift',
+    orderCustomer: 'Unterschrift Kunde – Auftrag ' + (activeOrderNo || ''), orderWorker: 'Unterschrift Monteur – Auftrag ' + (activeOrderNo || '')
+  };
   document.getElementById('sign-title').textContent = titles[who] || 'Unterschrift';
-  const nameInput = document.getElementById('sign-name');
-  const sheet = who === 'own' ? null : getActiveSheet();
-  document.getElementById('sign-name-wrap').hidden = who !== 'customer';
-  nameInput.value = who === 'customer' && sheet && sheet.signCustomer ? sheet.signCustomer.name || '' : '';
+  const isCustomer = who === 'customer' || who === 'orderCustomer';
+  const target = signTarget(who);
+  const prev = target && target.obj[target.field];
+  document.getElementById('sign-name-wrap').hidden = !isCustomer;
+  document.getElementById('sign-name').value = isCustomer && prev ? prev.name || '' : '';
   document.getElementById('sign-overlay').classList.add('open');
   document.body.classList.add('no-scroll');
   requestAnimationFrame(setupSignCanvas);
@@ -134,31 +164,30 @@ function confirmSignaturePad() {
     return;
   }
 
-  const sheet = getActiveSheet();
-  if (!sheet) { closeSignaturePad(); return; }
-  if (signWho === 'customer') {
-    const name = document.getElementById('sign-name').value.trim();
-    sheet.signCustomer = { img, name, at: now };
-  } else {
-    sheet.signWorker = { img, name: appData.settings.name || '', at: now };
-  }
-  touchSheet(sheet);
-  saveData(true);
+  const who = signWho;
+  const target = signTarget(who);
+  if (!target) { closeSignaturePad(); return; }
+  const isCustomer = who === 'customer' || who === 'orderCustomer';
+  target.obj[target.field] = {
+    img,
+    name: isCustomer ? document.getElementById('sign-name').value.trim() : (appData.settings.name || ''),
+    at: now
+  };
   closeSignaturePad();
-  renderEditor(true);
-  showToast(signWho === 'customer' ? 'Zettel unterschrieben & gesperrt' : 'Unterschrift gespeichert');
+  afterSignChange(who);
+  saveData(true);
+  showToast(who === 'customer' ? 'Zettel unterschrieben & gesperrt' : 'Unterschrift gespeichert');
 }
 
 async function removeSignature(who) {
-  const sheet = getActiveSheet();
-  if (!sheet) return;
+  const target = signTarget(who);
+  if (!target) return;
   const msg = who === 'customer'
     ? 'Kunden-Unterschrift entfernen? Danach ist der Zettel wieder bearbeitbar und muss neu unterschrieben werden.'
-    : 'Monteur-Unterschrift entfernen?';
+    : 'Unterschrift entfernen?';
   if (!(await confirmDialog(msg, 'Entfernen', true))) return;
-  if (who === 'customer') sheet.signCustomer = null; else sheet.signWorker = null;
-  touchSheet(sheet);
-  renderEditor(true);
+  target.obj[target.field] = null;
+  afterSignChange(who);
 }
 
 document.addEventListener('DOMContentLoaded', () => {

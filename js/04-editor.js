@@ -8,12 +8,14 @@
 // =====================================================================
 
 let activeSheetId = null;
+let editorReturn = null; // 'order' wenn aus der Zusammenstellung geöffnet
 
 function getActiveSheet() {
   return appData.sheets.find(s => s.id === activeSheetId) || null;
 }
 
-function openEditor(id) {
+function openEditor(id, from) {
+  editorReturn = from || null;
   activeSheetId = id;
   showView('editor');
   activeSheetId = id; // showView setzt außerhalb des Editors zurück
@@ -22,7 +24,10 @@ function openEditor(id) {
 
 function closeEditor() {
   flushSave();
-  showView('sheets');
+  const back = editorReturn;
+  editorReturn = null;
+  if (back === 'order' && activeOrderNo) showView('order');
+  else showView('sheets');
 }
 
 // ---------- Pfad-Helfer ----------
@@ -191,7 +196,7 @@ function dayDeltaText(split) {
   return 'Soll erfüllt';
 }
 
-function travelBlock(title, key, t) {
+function travelBlock(title, key, t, withDate) {
   const p = key;
   return `
     <div class="sub-block">
@@ -199,7 +204,7 @@ function travelBlock(title, key, t) {
       <div class="grid-2">
         ${field('Von', `${p}.from`, t.from, { placeholder: 'Ort', list: 'dl-places' })}
         ${field('Nach', `${p}.to`, t.to, { placeholder: 'Ort', list: 'dl-places' })}
-        ${field('Datum', `${p}.date`, t.date, { type: 'date', rerender: true })}
+        ${withDate ? field('Datum', `${p}.date`, t.date, { type: 'date', rerender: true }) : ''}
         ${field('Kilometer', `${p}.km`, t.km, { inputmode: 'decimal', placeholder: 'km' })}
         ${field('Fahrzeit (Std.)', `${p}.duration`, t.duration, { placeholder: 'z.B. 2:30', inputmode: 'text', rerender: true })}
         <label class="field">
@@ -295,18 +300,21 @@ function renderEditor(keepScroll) {
   // Tage
   html += `<div class="section-head"><h3>Zeiten &amp; Arbeiten</h3><span class="muted small-text">Zeit als 0630 eintippen</span></div>`;
   html += sheet.days.map((d, di) => dayCard(d, di, sheet)).join('');
-  html += `<button type="button" class="btn btn-soft block" onclick="addDay()">
-      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Weiteren Tag hinzufügen</button>`;
 
   if (isMontage) {
-    const tb = sheet.travelBack || {};
+    const multiDay = sheet.days.length > 1;
+    const travelPart = (label, key) => travelActive(sheet[key])
+      ? travelBlock(label, key, sheet[key], multiDay) + `<button type="button" class="link-btn danger" onclick="setTravel('${key}', false)">${label} entfernen</button>`
+      : `<button type="button" class="btn btn-soft travel-add" onclick="setTravel('${key}', true)">
+           <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> ${label} an diesem Tag</button>`;
     html += `
       <div class="card">
         <h3 class="card-title">Anfahrt &amp; Rückfahrt</h3>
-        ${travelBlock('Anfahrt', 'travelOut', sheet.travelOut || {})}
-        ${travelBlock('Rückfahrt', 'travelBack', tb)}
-        <button type="button" class="link-btn" onclick="copyTravelBack()">Rückfahrt = Anfahrt umgekehrt übernehmen</button>
-        <p class="muted small-text">Die Fahrzeit wird automatisch als FZ mitgezählt (Anfahrt am Anfang, Rückfahrt am Ende des Tages) – also nicht zusätzlich als FZ-Zeile eintragen. Ohne Datum zählt die Anfahrt zum ersten, die Rückfahrt zum letzten Tag.</p>
+        <div class="travel-parts">
+          ${travelPart('Anfahrt', 'travelOut')}
+          ${travelPart('Rückfahrt', 'travelBack')}
+        </div>
+        <p class="muted small-text">Die Fahrzeit wird automatisch als FZ mitgezählt (Anfahrt am Anfang, Rückfahrt am Ende des Tages) – also nicht zusätzlich als FZ-Zeile eintragen.</p>
       </div>
 
       <div class="card">
@@ -342,6 +350,8 @@ function renderEditor(keepScroll) {
     <div class="editor-footer">
       <button type="button" class="btn btn-ghost" onclick="printActiveSheet()">
         <svg viewBox="0 0 24 24"><path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/></svg> Drucken / PDF</button>
+      ${isMontage ? `<button type="button" class="btn btn-soft" onclick="nextDaySheet('${sheet.id}')">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Nächster Tag</button>` : ''}
       <button type="button" class="btn btn-primary" onclick="closeEditor()">Fertig</button>
     </div>`;
 
@@ -467,20 +477,6 @@ function removeEntry(di, ei) {
   renderEditor(true);
 }
 
-function addDay() {
-  const sheet = getActiveSheet();
-  const dates = sheet.days.map(d => d.date).filter(Boolean).sort();
-  const next = dates.length ? addDaysISO(dates[dates.length - 1], 1) : todayISO();
-  const prev = sheet.days[sheet.days.length - 1];
-  const day = newDay(next);
-  if (prev) { day.away = prev.away; day.hotel = prev.hotel; day.hotelName = prev.hotelName; day.breakfast = prev.breakfast; }
-  sheet.days.push(day);
-  touchSheet(sheet);
-  renderEditor(true);
-  const cards = document.querySelectorAll('.day-card');
-  if (cards.length) cards[cards.length - 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
-}
-
 async function removeDay(di) {
   const sheet = getActiveSheet();
   const d = sheet.days[di];
@@ -493,15 +489,20 @@ async function removeDay(di) {
   renderEditor(true);
 }
 
-function copyTravelBack() {
+// An-/Rückfahrt für diesen Zettel ein- oder ausschalten.
+// Rückfahrt wird mit der Anfahrt desselben Auftrags (umgekehrt) vorbelegt.
+function setTravel(key, on) {
   const sheet = getActiveSheet();
-  const o = sheet.travelOut || {};
-  sheet.travelBack = Object.assign({}, sheet.travelBack, {
-    from: o.to || '', to: o.from || '', km: o.km || '', duration: o.duration || '', vehicle: o.vehicle || '', plate: o.plate || ''
-  });
+  if (!sheet[key]) sheet[key] = defaultTravel(key);
+  const t = sheet[key];
+  if (on && key === 'travelBack' && !t.duration && !t.km) {
+    const out = [sheet, ...appData.sheets.filter(s => s !== sheet && s.orderNo && s.orderNo === sheet.orderNo)]
+      .map(s => s.travelOut).find(o => travelActive(o));
+    if (out) Object.assign(t, { from: out.to || '', to: out.from || '', km: out.km || '', duration: out.duration || '', vehicle: out.vehicle || '', plate: out.plate || '' });
+  }
+  t.on = !!on;
   touchSheet(sheet);
   renderEditor(true);
-  showToast('Rückfahrt übernommen');
 }
 
 function openSheetMenu() {
@@ -511,7 +512,8 @@ function openSheetMenu() {
     <h2 class="modal-title">Zettel</h2>
     <div class="menu-list">
       <button onclick="closeModal();printActiveSheet()">Drucken / als PDF speichern</button>
-      <button onclick="duplicateSheet('${sheet.id}')">Kopieren (Kopf &amp; Anfahrt übernehmen)</button>
+      ${sheet.type === 'montage' ? `<button onclick="nextDaySheet('${sheet.id}')">Nächster Tag (gleicher Auftrag)</button>` : ''}
+      ${sheet.type === 'montage' && sheet.orderNo ? `<button onclick="closeModal();openOrder(${escapeHtml(JSON.stringify(sheet.orderNo))})">Auftrag ${escapeHtml(sheet.orderNo)} zusammenstellen</button>` : ''}
       <button class="danger" onclick="deleteSheet('${sheet.id}')">Zettel löschen</button>
     </div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Schließen</button></div>`);
@@ -521,7 +523,6 @@ window.openEditor = openEditor;
 window.closeEditor = closeEditor;
 window.addEntry = addEntry;
 window.removeEntry = removeEntry;
-window.addDay = addDay;
 window.removeDay = removeDay;
-window.copyTravelBack = copyTravelBack;
+window.setTravel = setTravel;
 window.openSheetMenu = openSheetMenu;

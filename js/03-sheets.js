@@ -112,8 +112,20 @@ function newDay(date) {
   return { id: uid(), date: date || todayISO(), entries: [], away: '', hotel: false, hotelName: '', breakfast: null };
 }
 
-function createSheet(type) {
+// Leere An-/Rückfahrt (ausgeschaltet) mit Vorschlägen aus den Einstellungen
+function defaultTravel(key) {
   const s = appData.settings;
+  return {
+    on: false,
+    from: key === 'travelOut' ? s.home || '' : '',
+    to: key === 'travelBack' ? s.home || '' : '',
+    km: '', duration: '',
+    vehicle: s.plate ? 'Firmenwagen' : '',
+    plate: s.plate || ''
+  };
+}
+
+function createSheet(type) {
   const sheet = {
     id: uid(),
     type,
@@ -121,8 +133,8 @@ function createSheet(type) {
     updatedAt: new Date().toISOString(),
     orderNo: '', customer: '', vessel: '',
     days: [newDay(todayISO())],
-    travelOut: type === 'montage' ? { from: s.home || '', to: '', km: '', duration: '', vehicle: s.plate ? 'Firmenwagen' : '', plate: s.plate || '' } : {},
-    travelBack: type === 'montage' ? { from: '', to: s.home || '', km: '', duration: '', vehicle: s.plate ? 'Firmenwagen' : '', plate: s.plate || '' } : {},
+    travelOut: type === 'montage' ? defaultTravel('travelOut') : {},
+    travelBack: type === 'montage' ? defaultTravel('travelBack') : {},
     material: null, materialNote: '',
     finished: null,
     note: '',
@@ -135,24 +147,40 @@ function createSheet(type) {
   openEditor(sheet.id);
 }
 
-function duplicateSheet(id) {
+// Neuer Zettel für den nächsten Tag desselben Auftrags:
+// übernimmt Auftrag, Kunde, Schiff, Abwesenheit und Hotel – keine Zeiten, keine Fahrten
+function nextDaySheet(id) {
   const src = appData.sheets.find(s => s.id === id);
   if (!src) return;
-  const copy = JSON.parse(JSON.stringify(src));
-  copy.id = uid();
-  copy.createdAt = copy.updatedAt = new Date().toISOString();
-  copy.signCustomer = null;
-  copy.signWorker = null;
-  copy.finished = null;
-  copy.material = null;
-  copy.materialNote = '';
-  // Kopf + Anfahrt übernehmen, Tage neu mit heutigem Datum ohne Zeiten
-  copy.days = [newDay(todayISO())];
-  appData.sheets.push(copy);
+  const dates = src.days.map(d => d.date).filter(Boolean).sort();
+  const lastDay = src.days[src.days.length - 1] || {};
+  const day = newDay(dates.length ? addDaysISO(dates[dates.length - 1], 1) : todayISO());
+  if (src.type === 'montage') {
+    day.away = lastDay.away || '';
+    day.hotel = !!lastDay.hotel;
+    day.hotelName = lastDay.hotelName || '';
+    day.breakfast = lastDay.breakfast ?? null;
+  }
+  const sheet = {
+    id: uid(),
+    type: src.type,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    orderNo: src.orderNo || '', customer: src.customer || '', vessel: src.vessel || '',
+    days: [day],
+    travelOut: src.type === 'montage' ? defaultTravel('travelOut') : {},
+    travelBack: src.type === 'montage' ? defaultTravel('travelBack') : {},
+    material: null, materialNote: '',
+    finished: null,
+    note: '',
+    signCustomer: null,
+    signWorker: null
+  };
+  appData.sheets.push(sheet);
   saveData(true);
   closeModal();
-  openEditor(copy.id);
-  showToast('Zettel kopiert (Kopf & Anfahrt übernommen)');
+  openEditor(sheet.id);
+  showToast('Zettel für ' + formatDate(day.date) + ' angelegt');
 }
 
 async function deleteSheet(id) {
@@ -168,6 +196,6 @@ async function deleteSheet(id) {
 window.setSheetFilter = setSheetFilter;
 window.openNewSheetModal = openNewSheetModal;
 window.createSheet = createSheet;
-window.duplicateSheet = duplicateSheet;
+window.nextDaySheet = nextDaySheet;
 window.deleteSheet = deleteSheet;
 window.renderSheetList = renderSheetList;

@@ -545,6 +545,38 @@ fieldset[disabled] .entry-add, fieldset[disabled] > .btn.block, fieldset[disable
   .fab { padding: 16px; border-radius: 50%; }
 }
 
+
+/* ---------- Auftrag zusammenstellen ---------- */
+.toolbar-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.chip-action { display: inline-flex; align-items: center; gap: 6px; color: var(--accent-strong); border-color: var(--accent); background: var(--accent-softer); }
+.chip-action svg { width: 16px; height: 16px; }
+.travel-parts { display: flex; flex-direction: column; gap: 8px; }
+.travel-add { justify-content: flex-start; }
+.travel-parts .link-btn { align-self: flex-start; }
+.mr-right { display: flex; flex-direction: column; align-items: flex-end; text-align: right; white-space: nowrap; }
+.compose-manual { margin-top: 14px; }
+.order-head .oh-top { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.oh-title { font-size: 20px; font-weight: 750; margin: 2px 0; }
+.oh-range { display: flex; flex-direction: column; align-items: flex-end; text-align: right; font-size: 15px; }
+.oh-range small { color: var(--muted); font-size: 12.5px; }
+.o-day {
+  width: 100%; border: 0; background: transparent; text-align: left;
+  display: grid; grid-template-columns: 78px 1fr 64px 64px; gap: 8px; align-items: center; padding: 10px 16px;
+}
+.o-day + .o-day { border-top: 1px solid var(--border); }
+.o-day:hover { background: var(--accent-softer); }
+.o-num { text-align: right; font-weight: 700; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.o-num.ot { color: var(--warn); }
+.src.ok { background: rgba(18, 148, 107, .12); color: var(--pos); }
+.allow-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.allow-list .code-chip { background: var(--accent-soft); }
+.o-travels { margin-top: 4px; }
+.warn-text { color: var(--warn); font-weight: 600; font-size: 13.5px; margin: 0 0 10px; }
+@media (max-width: 560px) {
+  .o-day { grid-template-columns: 62px 1fr 56px 56px; padding: 10px 12px; }
+  .editor-footer { flex-wrap: wrap; }
+}
+
 /* ---------- Druck ---------- */
 #print-area { display: none; }
 

@@ -76,30 +76,71 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     assert(info.worked === 585, `Montag gearbeitet erwartet 585 min, ist ${info.worked}`, errors);
     assert(info.delta === 105, `Montag Überstunden erwartet 105 min, ist ${info.delta}`, errors);
 
-    // Fahrzeit: Anfahrt 1:00 (ohne Datum → erster Tag), Rückfahrt 2:00 (→ letzter Tag)
-    // Freitag: 5h Soll, 7h + 2h Rückfahrt → +4h; freier Tag Dienstag → −8h
-    await page.evaluate(() => {
-      const s = getActiveSheet();
-      s.travelOut.duration = '1:00';
-      s.travelBack.duration = '2:00';
-      s.days.push({ id: uid(), date: '2026-11-06', entries: [{ id: uid(), from: '07:00', to: '14:00', code: 'AZ', desc: 'Probelauf' }], away: '8h', hotel: false });
-      appData.daysOff.push({ id: uid(), date: '2026-11-03', type: 'abbau', note: '' });
-      renderEditor();
-    });
+    // Anfahrt über die Oberfläche einschalten: 1:00 h am Montag
+    await page.click('button.travel-add >> nth=0');
+    await page.fill('[data-bind="travelOut.duration"]', '1:00');
+    await page.locator('[data-bind="travelOut.duration"]').dispatchEvent('change');
+    const mondayId = await page.evaluate(() => activeSheetId);
     // Montag: 1h Anfahrt + 9,75h = 10,75h → 8 normal, 2,75 Überstunden (alle in der letzten AZ-Zeile)
     const mon = await page.evaluate(() => { const r = daySplit(getActiveSheet(), 0); return { n: r.normal, o: r.ot, by: r.byEntry.map(l => l.ot) }; });
     assert(mon.n === 480 && mon.o === 165 && JSON.stringify(mon.by) === '[0,0,0,165]', `Montag-Split ${JSON.stringify(mon)}`, errors);
-    const tot = await page.evaluate(() => sheetTotals(getActiveSheet()));
-    assert(tot.worked === 1185 && tot.normal === 780 && tot.ot === 405, `Zettel-Summen ${JSON.stringify(tot)}`, errors);
-    // Saldo = +2,75 − 8 + 4 = −1,25 h
+    await page.click('[data-set="material"][data-val="true"]');
+    await page.screenshot({ path: path.join(OUT, `${label}-03-editor.png`), fullPage: true });
+
+    // „Nächster Tag“ → eigener Zettel, Kopf übernommen; Datum auf Freitag setzen
+    await page.click('.editor-footer .btn-soft');
+    await page.waitForTimeout(200);
+    const head = await page.evaluate(() => { const s = getActiveSheet(); return [s.orderNo, s.vessel, s.days.length, s.days[0].date, s.days[0].hotel].join('|'); });
+    assert(head === '24-1187|MS Hanna|1|2026-11-03|true', `Nächster Tag übernimmt Kopf: ${head}`, errors);
+    await page.evaluate(() => {
+      const s = getActiveSheet();
+      s.days[0].date = '2026-11-06';
+      s.days[0].away = '8h'; s.days[0].hotel = false;
+      s.days[0].entries.push({ id: uid(), from: '07:00', to: '14:00', code: 'AZ', desc: 'Probelauf' });
+      renderEditor();
+    });
+    // Rückfahrt einschalten → wird aus der Anfahrt (umgekehrt) vorbelegt, dann 2:00 h
+    await page.click('button.travel-add >> nth=1');
+    const prefill = await page.evaluate(() => getActiveSheet().travelBack.duration);
+    assert(prefill === '1:00', `Rückfahrt vorbelegt mit Anfahrt-Zeit, ist ${prefill}`, errors);
+    await page.fill('[data-bind="travelBack.duration"]', '2:00');
+    await page.locator('[data-bind="travelBack.duration"]').dispatchEvent('change');
+    await page.click('[data-set="finished"][data-val="false"]');
+    // Freitag: 5h Soll, 7h + 2h Rückfahrt → 5 normal, 4 Überstunden
+    const fri = await page.evaluate(() => sheetTotals(getActiveSheet()));
+    assert(fri.worked === 540 && fri.normal === 300 && fri.ot === 240, `Freitag-Summen ${JSON.stringify(fri)}`, errors);
+    const nSheets = await page.evaluate(() => appData.sheets.length);
+    assert(nSheets === 2, `zwei einzelne Zettel erwartet, sind ${nSheets}`, errors);
+
+    // Freier Tag Dienstag → −8h; Saldo = +2,75 − 8 + 4 = −1,25 h
+    await page.evaluate(() => { appData.daysOff.push({ id: uid(), date: '2026-11-03', type: 'abbau', note: '' }); });
     const bal = await page.evaluate(() => overtimeBalance());
     assert(bal === -75, `Saldo erwartet -75 min, ist ${bal}`, errors);
+
+    // Auftrag zusammenstellen (nur auf Befehl)
+    await page.evaluate(() => { closeEditor(); });
+    await page.click('.chip-action');
+    await page.waitForTimeout(250);
+    await page.screenshot({ path: path.join(OUT, `${label}-14-zusammenstellen-auswahl.png`) });
+    await page.click('#modal .menu-row >> nth=0');
+    await page.waitForTimeout(300);
+    const ord = await page.evaluate(() => { const o = orderData(activeOrderNo); return { n: o.items.length, t: o.totals, a: o.allowance }; });
+    assert(ord.n === 2 && ord.t.worked === 1185 && ord.t.normal === 780 && ord.t.ot === 405, `Auftragssummen ${JSON.stringify(ord)}`, errors);
+    assert(ord.a.away24 === 1 && ord.a.away8 === 1 && ord.a.hotel === 1, `Auslöse ${JSON.stringify(ord.a)}`, errors);
+    await page.screenshot({ path: path.join(OUT, `${label}-15-auftrag.png`), fullPage: true });
+    await page.evaluate(() => { document.getElementById('print-area').innerHTML = buildOrderPrintHtml(activeOrderNo); });
+    await page.emulateMedia({ media: 'print' });
+    await page.screenshot({ path: path.join(OUT, `${label}-16-auftrag-druck.png`), fullPage: true });
+    await page.emulateMedia({ media: 'screen' });
+    // Aus der Zusammenstellung einen Tag öffnen und zurück
+    await page.click('.o-day >> nth=0');
+    await page.waitForTimeout(200);
+    const backTo = await page.evaluate(() => { closeEditor(); return currentView; });
+    assert(backTo === 'order', `Zurück aus Editor in Zusammenstellung, ist ${backTo}`, errors);
+    await page.evaluate((id) => openEditor(id), mondayId);
+    await page.waitForTimeout(200);
     const t = await page.evaluate(() => parseTime('0630') === 390 && parseTime('6:30') === 390 && parseTime('2500') === null && entryMinutes({ from: '22:00', to: '02:00' }) === 240);
     assert(t, 'parseTime/entryMinutes', errors);
-
-    await page.click('[data-set="material"][data-val="true"]');
-    await page.click('[data-set="finished"][data-val="false"]');
-    await page.screenshot({ path: path.join(OUT, `${label}-03-editor.png`), fullPage: true });
 
     // Unterschrift Kunde
     await page.click('.sign-box.empty >> nth=1');
@@ -157,7 +198,7 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     await page.reload();
     await page.waitForTimeout(800);
     const n = await page.evaluate(() => appData.sheets.length);
-    assert(n === 2, `nach Reload 2 Zettel erwartet, sind ${n}`, errors);
+    assert(n === 3, `nach Reload 3 Zettel erwartet, sind ${n}`, errors);
 
     await ctx.close();
   }

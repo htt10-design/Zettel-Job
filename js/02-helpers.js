@@ -142,6 +142,15 @@ const TRAVEL_KEYS = [
   { key: 'travelBack', label: 'Rückfahrt' }
 ];
 
+// Ist An-/Rückfahrt auf diesem Zettel eingeschaltet?
+// Ältere Daten ohne "on"-Feld: aktiv, sobald eine Fahrzeit eingetragen ist
+function travelActive(t) {
+  if (!t) return false;
+  if (t.on === true) return true;
+  if (t.on === false) return false;
+  return !!parseDuration(t.duration);
+}
+
 function travelMinutes(t) {
   if (!t) return 0;
   const m = parseDuration(t.duration);
@@ -172,7 +181,7 @@ function daySplit(sheet, di) {
   const travel = {};
   TRAVEL_KEYS.forEach(({ key, label }) => {
     if (sheet.type !== 'montage') return;
-    const m = travelMinutes(sheet[key]);
+    const m = travelActive(sheet[key]) ? travelMinutes(sheet[key]) : 0;
     if (m && travelDayIndex(sheet, key) === di) {
       travel[key] = { kind: 'travel', key, label, minutes: m, counts: true, code: 'FZ' };
     }

@@ -23,12 +23,19 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
 |---|---|
 | 01-core | `appData`-State, IndexedDB-Persistenz (`saveData`), `initApp`, `showView`, Theme, Modal, Toast |
 | 02-helpers | `escapeHtml`, Zeit-/Datumsfunktionen (`parseTime` "0630"→390), Stundenrechnung (`dayInfo`, `overtimeBalance`) |
-| 03-sheets | Zettel-Liste, Filter/Suche, Neuer Zettel (Montage/Werkstatt), Kopieren, Löschen |
+| 03-sheets | Zettel-Liste, Filter/Suche, Neuer Zettel (Montage/Werkstatt), „Nächster Tag“ (`nextDaySheet`), Löschen |
 | 04-editor | Zettel-Editor (data-bind-Pfade + Event-Delegation), Tage, Zeitzeilen, Anfahrt, Abschluss |
 | 05-signature | Unterschriften-Canvas; Kundenunterschrift sperrt den Zettel |
 | 06-print | Druckansicht A4 (`buildPrintHtml`, `printActiveSheet`) |
 | 07-hours | Stundenübersicht (Monat/KW/Jahr), Überstundenkonto, freie Tage / Urlaub / Krank / Feiertag / Korrektur |
 | 08-settings | Name, Standort, Kennzeichen, Sollzeiten, Startsaldo, Zeitarten, eigene Unterschrift, Backup |
+| 09-orders | „Auftrag zusammenstellen“ (nur auf Befehl): alle Montagezettel einer Auftragsnummer → Übersicht, Auslöse-Summen, gemeinsamer Druck, Unterschriften in `appData.orders` |
+
+## Zettel-Modell
+
+- Ein Zettel = ein Tag (`days` hat einen Eintrag; ältere Mehrtages-Zettel werden weiter angezeigt).
+- An-/Rückfahrt pro Zettel ein-/ausschaltbar (`travelOut.on` / `travelBack.on`; ohne `on` aktiv, wenn Fahrzeit gesetzt).
+- Zusammenstellung verändert keine Einzelzettel; sie wird bei jedem Öffnen neu berechnet.
 
 ## Stundenregeln
 

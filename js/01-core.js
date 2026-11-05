@@ -39,7 +39,8 @@ function createDefaultData() {
       ownSignature: null
     },
     sheets: [],
-    daysOff: []
+    daysOff: [],
+    orders: {} // Zusammenstellungen je Auftragsnummer (Unterschriften)
   };
 }
 
@@ -53,6 +54,7 @@ function normalizeData(data) {
   if (!Array.isArray(s.codes) || !s.codes.length) s.codes = DEFAULT_CODES.map(c => ({ ...c }));
   if (!Array.isArray(data.sheets)) data.sheets = [];
   if (!Array.isArray(data.daysOff)) data.daysOff = [];
+  if (!data.orders || typeof data.orders !== 'object' || Array.isArray(data.orders)) data.orders = {};
   data.sheets.forEach(normalizeSheet);
   return data;
 }
@@ -142,25 +144,40 @@ window.addEventListener('pagehide', flushSave);
 // ---------- Navigation ----------
 function showView(name) {
   if (name !== 'editor') activeSheetId = null;
+  if (name !== 'order' && name !== 'editor') activeOrderNo = null;
   currentView = name;
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
   document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   const inEditor = name === 'editor';
-  document.getElementById('btn-back').hidden = !inEditor;
-  document.getElementById('btn-print').hidden = !inEditor;
+  const inSub = inEditor || name === 'order';
+  document.getElementById('btn-back').hidden = !inSub;
+  document.getElementById('btn-print').hidden = !inSub;
   document.getElementById('btn-sheet-menu').hidden = !inEditor;
-  document.getElementById('bottom-nav').classList.toggle('hidden', inEditor);
-  document.body.classList.toggle('in-editor', inEditor);
-  if (!inEditor) setTopbarTitle('Zettel-Job');
+  document.getElementById('bottom-nav').classList.toggle('hidden', inSub);
+  document.body.classList.toggle('in-editor', inSub);
+  if (!inSub) setTopbarTitle('Zettel-Job');
 
   if (name === 'sheets') renderSheetList();
   if (name === 'hours') renderHours();
   if (name === 'settings') renderSettings();
+  if (name === 'order') renderOrder();
   window.scrollTo(0, 0);
 }
 
 function setTopbarTitle(text) {
   document.querySelector('#topbar-title .brand-text').textContent = text;
+}
+
+// Zurück-Knopf oben links
+function goBack() {
+  if (currentView === 'editor') closeEditor();
+  else showView('sheets');
+}
+
+// Drucken-Knopf oben: Zettel oder Zusammenstellung
+function printCurrent() {
+  if (currentView === 'order') printActiveOrder();
+  else printActiveSheet();
 }
 
 // ---------- Theme ----------
@@ -226,5 +243,7 @@ function showToast(text) {
 }
 
 window.showView = showView;
+window.goBack = goBack;
+window.printCurrent = printCurrent;
 window.toggleTheme = toggleTheme;
 window.closeModal = closeModal;
