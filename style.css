@@ -300,7 +300,14 @@ fieldset[disabled] .entry-add, fieldset[disabled] > .btn.block, fieldset[disable
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
   background: var(--accent-soft); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 14px;
 }
-.sum-bar > div:first-child, .sum-bar > .sum-ot { display: flex; flex-direction: column; }
+.sum-bar .sum-item { display: flex; flex-direction: column; }
+.sum-bar .code-chips { flex-basis: 100%; }
+.sum-all strong { color: var(--text) !important; }
+.travel-line { background: var(--accent-softer); border-style: dashed; }
+.travel-line .entry-times { min-height: 32px; color: var(--accent-strong); }
+.travel-line .entry-times svg { width: 20px; height: 20px; }
+.tl-label { flex: 1; min-width: 0; font-size: 13.5px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-hint { flex: 1; min-width: 0; }
 .sum-bar strong { font-size: 22px; color: var(--accent-strong); }
 .code-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .code-chip { background: var(--surface); border-radius: 8px; padding: 4px 9px; font-size: 12.5px; }
@@ -546,6 +553,8 @@ fieldset[disabled] .entry-add, fieldset[disabled] > .btn.block, fieldset[disable
   html, body { background: #fff !important; color: #000; }
   .pr-times th:nth-child(2), .pr-times th:nth-child(3), .pr-times th:nth-child(5), .pr-times th:nth-child(6) { width: 8%; }
   .pr-times .ot { color: #9a6700; }
+  .pr-times tr.travel td { background: #f4f9fd; }
+  .pr-times tfoot tr.grand td { font-size: 11pt; }
   #app, .modal-backdrop, .sign-overlay, .toast { display: none !important; }
   #print-area { display: block; font-size: 10pt; color: #000; }
   .pr-page { font-family: Arial, Helvetica, sans-serif; }

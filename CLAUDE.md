@@ -35,7 +35,10 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
 - Soll je Wochentag in `settings.targets` (Index 0 = So): Standard Mo–Do 8 h, Fr 5 h, Sa/So 0.
 - Überstunden je Tag = gearbeitet − Soll; Tage ohne Einträge und ohne Abwesenheit zählen nicht.
 - Freier Tag (`abbau`): Soll bleibt → Minus. Urlaub/Krank/Feiertag: Soll = 0. Korrektur: fester ± Wert.
-- Auf dem Zettel: Zeilen eines Tages nach Startzeit, ab der ersten Minute über dem Soll → Spalte „Überstd.“ (`dayOvertimeSplit`).
+- Zentrale Tagesrechnung `daySplit(sheet, di)`: Anfahrt-Fahrzeit (FZ) am Tagesanfang, Zeilen nach Startzeit,
+  Rückfahrt-Fahrzeit am Tagesende; bis zum Soll = Normalstunden, ab der ersten Minute darüber = Überstunden.
+  Fahrt ohne Datum → Anfahrt erster, Rückfahrt letzter Tag. Zettel zeigt links nur Normalstunden, daneben Überstunden,
+  unten Normal/Über/Gesamt (`sheetTotals`).
 - Zeitarten mit `counts: false` (z.B. Pause) zählen nicht als Arbeitszeit.
 
 ## Konventionen

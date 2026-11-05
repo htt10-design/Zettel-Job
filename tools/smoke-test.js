@@ -76,20 +76,24 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     assert(info.worked === 585, `Montag gearbeitet erwartet 585 min, ist ${info.worked}`, errors);
     assert(info.delta === 105, `Montag Überstunden erwartet 105 min, ist ${info.delta}`, errors);
 
-    // Freitag: 5h Soll, 7h gearbeitet → +2h; freier Tag Dienstag → −8h; Saldo = 1,75 + 2 − 8 = −4,25
+    // Fahrzeit: Anfahrt 1:00 (ohne Datum → erster Tag), Rückfahrt 2:00 (→ letzter Tag)
+    // Freitag: 5h Soll, 7h + 2h Rückfahrt → +4h; freier Tag Dienstag → −8h
     await page.evaluate(() => {
       const s = getActiveSheet();
+      s.travelOut.duration = '1:00';
+      s.travelBack.duration = '2:00';
       s.days.push({ id: uid(), date: '2026-11-06', entries: [{ id: uid(), from: '07:00', to: '14:00', code: 'AZ', desc: 'Probelauf' }], away: '8h', hotel: false });
       appData.daysOff.push({ id: uid(), date: '2026-11-03', type: 'abbau', note: '' });
       renderEditor();
     });
-    // Überstunden je Zeile: Montag Soll 8 h → erst ab 15:00 Überstunden (0,5+5+(15:00−12:30)=8 h)
-    const split = await page.evaluate(() => dayOvertimeSplit(getActiveSheet().days[0]));
-    assert(JSON.stringify(split) === JSON.stringify([0, 0, 0, 105]), `Überstunden-Split Montag ${JSON.stringify(split)}`, errors);
-    const otTotal = await page.evaluate(() => sheetOvertimeMinutes(getActiveSheet()));
-    assert(otTotal === 225, `Überstunden Zettel erwartet 225 min (1,75 + 2), ist ${otTotal}`, errors);
+    // Montag: 1h Anfahrt + 9,75h = 10,75h → 8 normal, 2,75 Überstunden (alle in der letzten AZ-Zeile)
+    const mon = await page.evaluate(() => { const r = daySplit(getActiveSheet(), 0); return { n: r.normal, o: r.ot, by: r.byEntry.map(l => l.ot) }; });
+    assert(mon.n === 480 && mon.o === 165 && JSON.stringify(mon.by) === '[0,0,0,165]', `Montag-Split ${JSON.stringify(mon)}`, errors);
+    const tot = await page.evaluate(() => sheetTotals(getActiveSheet()));
+    assert(tot.worked === 1185 && tot.normal === 780 && tot.ot === 405, `Zettel-Summen ${JSON.stringify(tot)}`, errors);
+    // Saldo = +2,75 − 8 + 4 = −1,25 h
     const bal = await page.evaluate(() => overtimeBalance());
-    assert(bal === -255, `Saldo erwartet -255 min, ist ${bal}`, errors);
+    assert(bal === -75, `Saldo erwartet -75 min, ist ${bal}`, errors);
     const t = await page.evaluate(() => parseTime('0630') === 390 && parseTime('6:30') === 390 && parseTime('2500') === null && entryMinutes({ from: '22:00', to: '02:00' }) === 240);
     assert(t, 'parseTime/entryMinutes', errors);
 

@@ -27,24 +27,35 @@ function buildPrintHtml(sheet) {
   const isMontage = sheet.type === 'montage';
   const s = appData.settings;
   const byCode = sheetMinutesByCode(sheet);
-  const total = sheetWorkedMinutes(sheet);
-  const days = sheet.days.slice().sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-
-  const totalOt = sheetOvertimeMinutes(sheet);
+  const totals = sheetTotals(sheet);
   const num = m => m ? formatHours(m).replace(' h', '') : '';
-  const dayRows = days.map(d => {
-    const entries = d.entries.slice();
-    const ot = dayOvertimeSplit(d);
-    const rows = entries.length ? entries.map((e, i) => `
-      <tr>
-        ${i === 0 ? `<td rowspan="${entries.length}" class="date-cell">${escapeHtml(formatDate(d.date))}</td>` : ''}
-        <td class="num">${escapeHtml(e.from || '')}</td>
-        <td class="num">${escapeHtml(e.to || '')}</td>
-        <td class="code">${escapeHtml(e.code || '')}</td>
-        <td class="num">${num(entryMinutes(e))}</td>
-        <td class="num ot">${num(ot[i])}</td>
-        <td>${escapeHtml(e.desc || '')}</td>
-      </tr>`).join('') : `<tr><td class="date-cell">${escapeHtml(formatDate(d.date))}</td><td colspan="6" class="muted">keine Einträge</td></tr>`;
+  // Tage chronologisch, Index für daySplit merken
+  const days = sheet.days.map((d, di) => ({ d, di })).sort((a, b) => (a.d.date || '').localeCompare(b.d.date || ''));
+
+  const dayRows = days.map(({ d, di }) => {
+    const split = daySplit(sheet, di);
+    const lines = split.lines;
+    const rows = lines.length ? lines.map((l, i) => {
+      let from = '', to = '', desc = '';
+      if (l.kind === 'entry') {
+        from = l.entry.from || ''; to = l.entry.to || ''; desc = l.entry.desc || '';
+      } else {
+        const t = sheet[l.key] || {};
+        const route = [t.from, t.to].filter(Boolean).join(' → ');
+        desc = l.label + (route ? ': ' + route : '') + (t.km ? ` (${t.km} km)` : '');
+      }
+      const normalCell = l.counts ? num(l.normal) : `<s>${num(l.minutes)}</s>`;
+      return `
+      <tr class="${l.kind === 'travel' ? 'travel' : ''}">
+        ${i === 0 ? `<td rowspan="${lines.length}" class="date-cell">${escapeHtml(formatDate(d.date))}</td>` : ''}
+        <td class="num">${escapeHtml(from)}</td>
+        <td class="num">${escapeHtml(to)}</td>
+        <td class="code">${escapeHtml(l.code || '')}</td>
+        <td class="num">${normalCell}</td>
+        <td class="num ot">${num(l.ot)}</td>
+        <td>${escapeHtml(desc)}</td>
+      </tr>`;
+    }).join('') : `<tr><td class="date-cell">${escapeHtml(formatDate(d.date))}</td><td colspan="6" class="muted">keine Einträge</td></tr>`;
     let extra = '';
     if (isMontage && (d.away || d.hotel)) {
       const parts = [];
@@ -52,7 +63,7 @@ function buildPrintHtml(sheet) {
       if (d.hotel) parts.push('Hotel: ' + (d.hotelName || 'ja') + ' · Frühstück: ' + yesNoText(d.breakfast));
       extra = `<tr class="day-extra"><td></td><td colspan="6">${escapeHtml(parts.join('   |   '))}</td></tr>`;
     }
-    return rows + extra + `<tr class="day-total"><td colspan="4">Summe ${escapeHtml(formatDateShort(d.date))}</td><td class="num">${formatHours(dayWorkedMinutes(d)).replace(' h', '')}</td><td class="num ot">${num(dayOvertimeMinutes(d))}</td><td></td></tr>`;
+    return rows + extra + `<tr class="day-total"><td colspan="4">Summe ${escapeHtml(formatDateShort(d.date))}${split.worked ? ' · gesamt ' + formatHours(split.worked) : ''}</td><td class="num">${num(split.normal) || '0,00'}</td><td class="num ot">${num(split.ot)}</td><td></td></tr>`;
   }).join('');
 
   const legend = appData.settings.codes.map(c => `${escapeHtml(c.code)} = ${escapeHtml(c.label)}`).join(' · ');
@@ -82,9 +93,12 @@ function buildPrintHtml(sheet) {
       </table>` : ''}
 
       <table class="pr-times">
-        <thead><tr><th>Datum</th><th>Von</th><th>Bis</th><th>Art</th><th>Std.</th><th>Überst.</th><th>Ausgeführte Arbeiten</th></tr></thead>
+        <thead><tr><th>Datum</th><th>Von</th><th>Bis</th><th>Art</th><th>Normal</th><th>Überst.</th><th>Ausgeführte Arbeiten</th></tr></thead>
         <tbody>${dayRows}</tbody>
-        <tfoot><tr><td colspan="4">Gesamt (Arbeitszeit)</td><td class="num">${formatHours(total).replace(' h', '')}</td><td class="num ot">${formatHours(totalOt).replace(' h', '')}</td><td class="pr-codes">${codeTotals}</td></tr></tfoot>
+        <tfoot>
+          <tr><td colspan="4">Normalstunden / Überstunden</td><td class="num">${formatHours(totals.normal).replace(' h', '')}</td><td class="num ot">${formatHours(totals.ot).replace(' h', '')}</td><td></td></tr>
+          <tr class="grand"><td colspan="4">Gesamtstunden</td><td colspan="2" class="num">${formatHours(totals.worked)}</td><td class="pr-codes">${codeTotals}</td></tr>
+        </tfoot>
       </table>
       <div class="pr-legend">${legend}</div>
 

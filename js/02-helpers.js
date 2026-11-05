@@ -130,23 +130,107 @@ function codeCounts(code) {
 }
 
 // ---------- Stundenrechnung ----------
-// Gearbeitete Minuten eines Tages eines Zettels (nur zählende Zeitarten)
-function dayWorkedMinutes(day) {
-  return day.entries.reduce((sum, e) => sum + (codeCounts(e.code) ? entryMinutes(e) : 0), 0);
+// Zentrale Rechnung je Tag eines Zettels (daySplit):
+//  - Anfahrt-Zeit zählt als Fahrzeit (FZ) am Anfang ihres Tages,
+//    Rückfahrt-Zeit am Ende ihres Tages
+//  - Zeilen werden nach Startzeit durchgezählt; bis zum Soll = Normalstunden,
+//    ab der ersten Minute darüber = Überstunden
+//  - Zeitarten mit counts:false (Pause) zählen nicht
+
+const TRAVEL_KEYS = [
+  { key: 'travelOut', label: 'Anfahrt' },
+  { key: 'travelBack', label: 'Rückfahrt' }
+];
+
+function travelMinutes(t) {
+  if (!t) return 0;
+  const m = parseDuration(t.duration);
+  return m && m > 0 ? m : 0;
+}
+
+// Index des Tages, dem An-/Rückfahrt zugeordnet wird:
+// Datum der Fahrt, sonst erster bzw. letzter Tag des Zettels
+function travelDayIndex(sheet, key) {
+  if (!sheet.days.length) return -1;
+  const t = sheet[key] || {};
+  if (t.date) {
+    const i = sheet.days.findIndex(d => d.date === t.date);
+    if (i >= 0) return i;
+  }
+  let best = 0;
+  sheet.days.forEach((d, i) => {
+    const a = d.date || '', b = sheet.days[best].date || '';
+    if (key === 'travelOut' ? a < b : a > b) best = i;
+  });
+  return best;
+}
+
+function daySplit(sheet, di) {
+  const day = sheet.days[di];
+  const target = dayTargetMinutes(day.date);
+  const lines = [];
+  const travel = {};
+  TRAVEL_KEYS.forEach(({ key, label }) => {
+    if (sheet.type !== 'montage') return;
+    const m = travelMinutes(sheet[key]);
+    if (m && travelDayIndex(sheet, key) === di) {
+      travel[key] = { kind: 'travel', key, label, minutes: m, counts: true, code: 'FZ' };
+    }
+  });
+  if (travel.travelOut) lines.push(travel.travelOut);
+  const order = day.entries.map((e, i) => i).sort((a, b) => {
+    const ta = parseTime(day.entries[a].from), tb = parseTime(day.entries[b].from);
+    if (ta == null && tb == null) return a - b;
+    if (ta == null) return 1;
+    if (tb == null) return -1;
+    return ta - tb || a - b;
+  });
+  const byEntry = day.entries.map(() => null);
+  order.forEach(i => {
+    const e = day.entries[i];
+    const line = { kind: 'entry', index: i, entry: e, minutes: entryMinutes(e), counts: codeCounts(e.code), code: e.code };
+    byEntry[i] = line;
+    lines.push(line);
+  });
+  if (travel.travelBack) lines.push(travel.travelBack);
+
+  let used = 0;
+  lines.forEach(l => {
+    if (!l.counts) { l.normal = 0; l.ot = 0; return; }
+    l.normal = Math.max(0, Math.min(l.minutes, target - used));
+    l.ot = l.minutes - l.normal;
+    used += l.minutes;
+  });
+  const normal = lines.reduce((a, l) => a + l.normal, 0);
+  const ot = lines.reduce((a, l) => a + l.ot, 0);
+  return { lines, byEntry, travel, target, worked: normal + ot, normal, ot };
+}
+
+// Gearbeitete Minuten eines Tages eines Zettels (inkl. Fahrzeit)
+function dayWorkedMinutes(sheet, di) {
+  return daySplit(sheet, di).worked;
+}
+
+// Summen eines Zettels: { worked, normal, ot }
+function sheetTotals(sheet) {
+  return sheet.days.reduce((acc, d, di) => {
+    const s = daySplit(sheet, di);
+    acc.worked += s.worked; acc.normal += s.normal; acc.ot += s.ot;
+    return acc;
+  }, { worked: 0, normal: 0, ot: 0 });
 }
 
 function sheetWorkedMinutes(sheet) {
-  return sheet.days.reduce((sum, d) => sum + dayWorkedMinutes(d), 0);
+  return sheetTotals(sheet).worked;
 }
 
-// Minuten je Zeitart eines Zettels, z.B. { AZ: 900, FZ: 120 }
+// Minuten je Zeitart eines Zettels, z.B. { AZ: 900, FZ: 120 } (Fahrten als FZ)
 function sheetMinutesByCode(sheet) {
   const res = {};
-  sheet.days.forEach(d => d.entries.forEach(e => {
-    const m = entryMinutes(e);
-    if (!m) return;
-    const k = e.code || '?';
-    res[k] = (res[k] || 0) + m;
+  sheet.days.forEach((d, di) => daySplit(sheet, di).lines.forEach(l => {
+    if (!l.minutes) return;
+    const k = l.code || '?';
+    res[k] = (res[k] || 0) + l.minutes;
   }));
   return res;
 }
@@ -183,9 +267,9 @@ function daysOffFor(iso) {
 function dayInfo(iso) {
   const sources = [];
   let worked = 0;
-  appData.sheets.forEach(sh => sh.days.forEach(d => {
+  appData.sheets.forEach(sh => sh.days.forEach((d, di) => {
     if (d.date !== iso) return;
-    const m = dayWorkedMinutes(d);
+    const m = dayWorkedMinutes(sh, di);
     if (m || d.entries.length) sources.push({ sheet: sh, minutes: m });
     worked += m;
   }));
@@ -236,37 +320,4 @@ function downloadFile(name, content, type) {
 function dayTargetMinutes(iso) {
   if (daysOffFor(iso).some(o => o.type === 'urlaub' || o.type === 'krank' || o.type === 'feiertag')) return 0;
   return baseTargetMinutes(iso);
-}
-
-// Überstunden je Zeile eines Tages: Zeilen werden nach Startzeit
-// durchgezählt, ab der ersten Minute über dem Soll zählt alles als
-// Überstunde. Rückgabe: Array (gleiche Reihenfolge wie day.entries)
-function dayOvertimeSplit(day) {
-  const target = dayTargetMinutes(day.date);
-  const order = day.entries.map((e, i) => i).sort((a, b) => {
-    const ta = parseTime(day.entries[a].from), tb = parseTime(day.entries[b].from);
-    if (ta == null && tb == null) return a - b;
-    if (ta == null) return 1;
-    if (tb == null) return -1;
-    return ta - tb || a - b;
-  });
-  const result = day.entries.map(() => 0);
-  let used = 0;
-  order.forEach(i => {
-    const e = day.entries[i];
-    if (!codeCounts(e.code)) return;
-    const m = entryMinutes(e);
-    const normal = Math.max(0, Math.min(m, target - used));
-    result[i] = m - normal;
-    used += m;
-  });
-  return result;
-}
-
-function dayOvertimeMinutes(day) {
-  return dayOvertimeSplit(day).reduce((a, b) => a + b, 0);
-}
-
-function sheetOvertimeMinutes(sheet) {
-  return sheet.days.reduce((sum, d) => sum + dayOvertimeMinutes(d), 0);
 }

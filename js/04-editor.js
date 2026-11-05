@@ -73,9 +73,16 @@ function codeOptions(selected) {
   return codes.map(c => `<option value="${escapeHtml(c.code)}" ${c.code === selected ? 'selected' : ''} title="${escapeHtml(c.label)}">${escapeHtml(c.code)}</option>`).join('');
 }
 
-function entryRow(e, di, ei, ot) {
+// Anzeige links: nur Normalstunden; Pausen durchgestrichen mit voller Dauer
+function lineDurText(line) {
+  if (!line || !line.minutes) return '–';
+  if (!line.counts) return formatHours(line.minutes);
+  return line.normal ? formatHours(line.normal) : '–';
+}
+
+function entryRow(e, di, ei, line) {
   const p = `days.${di}.entries.${ei}`;
-  const mins = entryMinutes(e);
+  const ot = line ? line.ot : 0;
   const bad = (e.from && parseTime(e.from) == null) || (e.to && parseTime(e.to) == null);
   const counts = codeCounts(e.code);
   return `
@@ -85,7 +92,7 @@ function entryRow(e, di, ei, ot) {
         <span class="dash">–</span>
         <input class="t-in" data-bind="${p}.to" data-time="1" value="${escapeHtml(e.to || '')}" placeholder="0700" inputmode="numeric" autocomplete="off" aria-label="Bis">
         <select class="code-sel" data-bind="${p}.code" data-rerender="1" aria-label="Zeitart">${codeOptions(e.code)}</select>
-        <span class="entry-dur" data-dur="${di}.${ei}">${mins ? formatHours(mins) : '–'}</span>
+        <span class="entry-dur" data-dur="${di}.${ei}">${lineDurText(line)}</span>
         <button type="button" class="icon-btn small danger-hover" onclick="removeEntry(${di},${ei})" aria-label="Zeile löschen">
           <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
@@ -101,11 +108,28 @@ function otText(min) {
   return min ? 'Überstd. ' + formatHours(min) : '';
 }
 
+// Fahrzeit aus An-/Rückfahrt als feste (nicht editierbare) Zeile im Tag
+function travelLine(line, di) {
+  const t = getActiveSheet()[line.key] || {};
+  const route = [t.from, t.to].filter(Boolean).join(' → ');
+  return `
+    <div class="entry travel-line">
+      <div class="entry-times">
+        <svg viewBox="0 0 24 24"><path d="M5 17h14l-1.5-6h-11z"/><circle cx="8" cy="17.5" r="1.5"/><circle cx="16" cy="17.5" r="1.5"/><path d="M7 11l1.5-4h7L17 11"/></svg>
+        <span class="tl-label"><b>${escapeHtml(line.label)}</b> · FZ${route ? ' · ' + escapeHtml(route) : ''}</span>
+        <span class="entry-dur" data-tl="${di}.${line.key}">${lineDurText(line)}</span>
+      </div>
+      <div class="entry-desc-row">
+        <span class="muted small-text tl-hint">Fahrzeit ${formatHours(line.minutes)} – wird aus „${escapeHtml(line.label)}“ unten übernommen</span>
+        <span class="entry-ot" data-tlot="${di}.${line.key}" ${line.ot ? '' : 'hidden'}>${otText(line.ot)}</span>
+      </div>
+    </div>`;
+}
+
 function dayCard(day, di, sheet) {
   const isMontage = sheet.type === 'montage';
-  const worked = dayWorkedMinutes(day);
+  const split = daySplit(sheet, di);
   const d = parseISODate(day.date);
-  const ot = dayOvertimeSplit(day);
   let montageExtras = '';
   if (isMontage) {
     montageExtras = `
@@ -135,14 +159,16 @@ function dayCard(day, di, sheet) {
           <span class="day-wd">${d ? WEEKDAYS_LONG[d.getDay()] : ''}</span>
         </div>
         <div class="day-sum">
-          <strong data-daysum="${di}">${formatHours(worked)}</strong>
-          <small data-daydelta="${di}">${dayDeltaText(day)}</small>
+          <strong data-daysum="${di}">${formatHours(split.normal)}</strong>
+          <small data-daydelta="${di}">${dayDeltaText(split)}</small>
         </div>
         ${sheet.days.length > 1 ? `<button type="button" class="icon-btn small danger-hover" onclick="removeDay(${di})" aria-label="Tag löschen">
           <svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg></button>` : ''}
       </div>
       <div class="entries">
-        ${day.entries.length ? day.entries.map((e, ei) => entryRow(e, di, ei, ot[ei])).join('') : '<p class="muted small-text">Noch keine Zeiten eingetragen.</p>'}
+        ${split.travel.travelOut ? travelLine(split.travel.travelOut, di) : ''}
+        ${day.entries.length ? day.entries.map((e, ei) => entryRow(e, di, ei, split.byEntry[ei])).join('') : '<p class="muted small-text">Noch keine Zeiten eingetragen.</p>'}
+        ${split.travel.travelBack ? travelLine(split.travel.travelBack, di) : ''}
       </div>
       <div class="entry-add">
         <button type="button" class="btn btn-soft" onclick="addEntry(${di})">
@@ -156,12 +182,11 @@ function dayCard(day, di, sheet) {
     </div>`;
 }
 
-function dayDeltaText(day) {
-  const worked = dayWorkedMinutes(day);
-  const target = dayTargetMinutes(day.date);
+// Text unter den Normalstunden eines Tages
+function dayDeltaText(split) {
+  const { worked, target, ot } = split;
   if (!worked) return target ? 'Soll ' + formatHours(target) : 'Soll 0 h';
-  const ot = dayOvertimeMinutes(day);
-  if (ot > 0) return `davon ${formatHours(ot)} Überstd.`;
+  if (ot > 0) return `+ ${formatHours(ot)} Überstd.`;
   if (worked < target) return `${formatHours(target - worked)} unter Soll`;
   return 'Soll erfüllt';
 }
@@ -174,9 +199,9 @@ function travelBlock(title, key, t) {
       <div class="grid-2">
         ${field('Von', `${p}.from`, t.from, { placeholder: 'Ort', list: 'dl-places' })}
         ${field('Nach', `${p}.to`, t.to, { placeholder: 'Ort', list: 'dl-places' })}
-        ${field('Datum', `${p}.date`, t.date, { type: 'date' })}
+        ${field('Datum', `${p}.date`, t.date, { type: 'date', rerender: true })}
         ${field('Kilometer', `${p}.km`, t.km, { inputmode: 'decimal', placeholder: 'km' })}
-        ${field('Zeit (Std.)', `${p}.duration`, t.duration, { placeholder: 'z.B. 2:30', inputmode: 'text' })}
+        ${field('Fahrzeit (Std.)', `${p}.duration`, t.duration, { placeholder: 'z.B. 2:30', inputmode: 'text', rerender: true })}
         <label class="field">
           <span>Verkehrsmittel</span>
           <select data-bind="${p}.vehicle" data-rerender="1">
@@ -229,7 +254,7 @@ function renderEditor(keepScroll) {
   const locked = !!(sheet.signCustomer && sheet.signCustomer.img);
   setTopbarTitle(isMontage ? 'Montagezettel' : 'Werkstattzettel');
 
-  const total = sheetWorkedMinutes(sheet);
+  const totals = sheetTotals(sheet);
   const byCode = sheetMinutesByCode(sheet);
   const codeSummary = Object.keys(byCode).map(k => `<span class="code-chip ${codeCounts(k) ? '' : 'no-count'}"><b>${escapeHtml(k)}</b> ${formatHours(byCode[k])}</span>`).join('');
 
@@ -248,8 +273,9 @@ function renderEditor(keepScroll) {
   // Summenleiste
   html += `
     <div class="sum-bar">
-      <div><span class="muted">Gesamt</span><strong data-total>${formatHours(total)}</strong></div>
-      <div class="sum-ot"><span class="muted">Überstunden</span><strong data-totalot>${formatHours(sheetOvertimeMinutes(sheet))}</strong></div>
+      <div class="sum-item"><span class="muted">Normalstunden</span><strong data-totalnormal>${formatHours(totals.normal)}</strong></div>
+      <div class="sum-item sum-ot"><span class="muted">Überstunden</span><strong data-totalot>${formatHours(totals.ot)}</strong></div>
+      <div class="sum-item sum-all"><span class="muted">Gesamt</span><strong data-total>${formatHours(totals.worked)}</strong></div>
       <div class="code-chips" data-codesum>${codeSummary || '<span class="muted">Noch keine Zeiten</span>'}</div>
     </div>`;
 
@@ -280,7 +306,7 @@ function renderEditor(keepScroll) {
         ${travelBlock('Anfahrt', 'travelOut', sheet.travelOut || {})}
         ${travelBlock('Rückfahrt', 'travelBack', tb)}
         <button type="button" class="link-btn" onclick="copyTravelBack()">Rückfahrt = Anfahrt umgekehrt übernehmen</button>
-        <p class="muted small-text">Fahr-/Lenkzeiten für die Stunden bitte als FZ/LZ-Zeile bei den Zeiten eintragen.</p>
+        <p class="muted small-text">Die Fahrzeit wird automatisch als FZ mitgezählt (Anfahrt am Anfang, Rückfahrt am Ende des Tages) – also nicht zusätzlich als FZ-Zeile eintragen. Ohne Datum zählt die Anfahrt zum ersten, die Rückfahrt zum letzten Tag.</p>
       </div>
 
       <div class="card">
@@ -328,25 +354,29 @@ function refreshEditorSums() {
   const sheet = getActiveSheet();
   if (!sheet) return;
   const body = document.getElementById('editor-body');
+  const setOt = (el, min) => { if (el) { el.textContent = otText(min); el.hidden = !min; } };
   sheet.days.forEach((d, di) => {
-    const w = dayWorkedMinutes(d);
+    const split = daySplit(sheet, di);
     const s = body.querySelector(`[data-daysum="${di}"]`);
-    if (s) s.textContent = formatHours(w);
+    if (s) s.textContent = formatHours(split.normal);
     const dd = body.querySelector(`[data-daydelta="${di}"]`);
-    if (dd) dd.textContent = dayDeltaText(d);
-    const ot = dayOvertimeSplit(d);
-    d.entries.forEach((e, ei) => {
+    if (dd) dd.textContent = dayDeltaText(split);
+    split.byEntry.forEach((line, ei) => {
       const el = body.querySelector(`[data-dur="${di}.${ei}"]`);
-      const m = entryMinutes(e);
-      if (el) el.textContent = m ? formatHours(m) : '–';
-      const o = body.querySelector(`[data-ot="${di}.${ei}"]`);
-      if (o) { o.textContent = otText(ot[ei]); o.hidden = !ot[ei]; }
+      if (el) el.textContent = lineDurText(line);
+      setOt(body.querySelector(`[data-ot="${di}.${ei}"]`), line.ot);
+    });
+    Object.values(split.travel).forEach(line => {
+      const el = body.querySelector(`[data-tl="${di}.${line.key}"]`);
+      if (el) el.textContent = lineDurText(line);
+      setOt(body.querySelector(`[data-tlot="${di}.${line.key}"]`), line.ot);
     });
   });
-  const t = body.querySelector('[data-total]');
-  if (t) t.textContent = formatHours(sheetWorkedMinutes(sheet));
-  const to = body.querySelector('[data-totalot]');
-  if (to) to.textContent = formatHours(sheetOvertimeMinutes(sheet));
+  const totals = sheetTotals(sheet);
+  const set = (sel, v) => { const el = body.querySelector(sel); if (el) el.textContent = formatHours(v); };
+  set('[data-total]', totals.worked);
+  set('[data-totalnormal]', totals.normal);
+  set('[data-totalot]', totals.ot);
   const cs = body.querySelector('[data-codesum]');
   if (cs) {
     const byCode = sheetMinutesByCode(sheet);
