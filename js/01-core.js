@@ -76,7 +76,7 @@ function createDefaultData() {
       startBalance: 0,
       codes: DEFAULT_CODES.map(c => ({ ...c })),
       costCenters: defaultCostCenters(), // Kostenstellen für Werkstatt: { no, label }
-      costCentersSeeded: true,
+      costCentersVersion: 1, // Version der eingetragenen Standard-Kostenstellen
       ownSignature: null
     },
     sheets: [],
@@ -89,16 +89,20 @@ function createDefaultData() {
 function normalizeData(data) {
   const def = createDefaultData();
   if (!data || typeof data !== 'object') return def;
+  // Vor dem Zusammenführen merken, ob die Standard-Kostenstellen schon eingetragen wurden
+  // (sonst würde der Standardwert aus createDefaultData den Stand überdecken)
+  const costVersion = Number(data.settings && data.settings.costCentersVersion) || 0;
   data.settings = Object.assign({}, def.settings, data.settings || {});
   const s = data.settings;
   if (!Array.isArray(s.targets) || s.targets.length !== 7) s.targets = DEFAULT_TARGETS.slice();
   if (!Array.isArray(s.codes) || !s.codes.length) s.codes = DEFAULT_CODES.map(c => ({ ...c }));
   if (!Array.isArray(s.costCenters)) s.costCenters = [];
   // Standardliste einmalig eintragen, wenn noch keine Kostenstellen angelegt sind
-  if (!s.costCentersSeeded) {
+  if (costVersion < 1) {
     if (!s.costCenters.length) s.costCenters = defaultCostCenters();
-    s.costCentersSeeded = true;
+    s.costCentersVersion = 1;
   }
+  delete s.costCentersSeeded; // fehlerhafte Markierung der Vorversion
   if (!Array.isArray(data.sheets)) data.sheets = [];
   if (!Array.isArray(data.daysOff)) data.daysOff = [];
   if (!data.orders || typeof data.orders !== 'object' || Array.isArray(data.orders)) data.orders = {};

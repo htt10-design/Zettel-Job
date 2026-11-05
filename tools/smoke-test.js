@@ -201,6 +201,14 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     assert(ws.by['SR26/000244'] === 180 && ws.by['120'] === 345, `Summen je Kostenstelle ${JSON.stringify(ws.by)}`, errors);
     const cc = await page.evaluate(() => [appData.settings.costCenters.length, (getCostCenter('17b') || {}).no, (getCostCenter('120') || {}).label].join('|'));
     assert(cc === '31|17B|Verwaltung', `Standard-Kostenstellen ${cc}`, errors);
+    // Daten der Vorversion (leere Liste, fehlerhafte Markierung) → Standardliste wird nachgetragen
+    const seeded = await page.evaluate(() => [
+      normalizeData({ settings: { costCenters: [] }, sheets: [] }).settings.costCenters.length,
+      normalizeData({ settings: { costCenters: [], costCentersSeeded: true }, sheets: [] }).settings.costCenters.length,
+      normalizeData({ settings: { costCenters: [{ no: '1', label: 'x' }] }, sheets: [] }).settings.costCenters.length,
+      normalizeData({ settings: { costCenters: [], costCentersVersion: 1 }, sheets: [] }).settings.costCenters.length
+    ].join(','));
+    assert(seeded === '31,31,1,0', `Kostenstellen nachtragen ${seeded}`, errors);
     const fmt = await page.evaluate(() => [formatOrderNo('249', '2026-11-04'), formatOrderNo('26/249'), formatOrderNo('SR26000249'), formatOrderNo('120', null, false), formatOrderNo('24-1187')].join(' '));
     assert(fmt === 'SR26/000249 SR26/000249 SR26/000249 120 24-1187', `Auftragsnummer-Format ${fmt}`, errors);
     await page.screenshot({ path: path.join(OUT, `${label}-07-werkstatt.png`), fullPage: true });
