@@ -3,6 +3,11 @@
 // Montagezettel mit gleicher Auftragsnummer zu einer Übersicht bzw.
 // einem gemeinsamen Ausdruck zusammen. Die Einzelzettel bleiben unverändert.
 // Unterschriften der Zusammenstellung liegen in appData.orders[auftragsnr].
+//
+// Ordner: Eine Zusammenstellung kann „in einen Ordner abgelegt“ werden
+// (appData.orders[nr].folder). Dann erscheinen alle Zettel dieses Auftrags –
+// auch spätere – nicht mehr einzeln in der Liste, sondern im Ordner.
+// Vorbereitung für mehrere Monteure: jeder Zettel trägt sheet.worker.
 // =====================================================================
 
 let activeOrderNo = null;
@@ -45,6 +50,78 @@ function orderRecord(no, create) {
   return appData.orders[key] || null;
 }
 
+// ---------- Ordner ----------
+function isFolder(no) {
+  const rec = normOrderNo(no) && appData.orders[normOrderNo(no).toLowerCase()];
+  return !!(rec && rec.folder);
+}
+
+// Alle Ordner mit Kennzahlen (auch leere)
+function folderList() {
+  return Object.keys(appData.orders).filter(k => appData.orders[k] && appData.orders[k].folder).map(k => {
+    const rec = appData.orders[k];
+    const sheets = orderSheets(rec.folder.no || k);
+    const dates = sheets.flatMap(s => s.days.map(d => d.date)).filter(Boolean).sort();
+    return {
+      no: normOrderNo(sheets[0] ? sheets[0].orderNo : rec.folder.no || k),
+      sheets, rec,
+      first: dates[0] || '', last: dates[dates.length - 1] || rec.folder.createdAt || '',
+      customer: distinctJoin(sheets.map(s => s.customer)),
+      vessel: distinctJoin(sheets.map(s => s.vessel)),
+      workers: distinctJoin(sheets.map(s => s.worker))
+    };
+  });
+}
+
+function folderCardHtml(f) {
+  const totals = f.sheets.reduce((t, s) => { const x = sheetTotals(s); t.worked += x.worked; t.ot += x.ot; return t; }, { worked: 0, ot: 0 });
+  const range = f.first ? (f.first === f.last ? formatDate(f.first) : formatDateShort(f.first) + ' – ' + formatDate(f.last, false)) : '';
+  const badges = [
+    f.rec.signCustomer ? '<span class="badge badge-ok">Unterschrieben</span>' : '',
+    f.sheets.some(s => s.finished === true) ? '<span class="badge">Beendet</span>' : ''
+  ].join('');
+  return `
+    <button class="sheet-card folder-card" onclick="openOrder(${escapeHtml(JSON.stringify(f.no))})">
+      <div class="sc-top">
+        <span class="type-pill"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg> Ordner</span>
+        <span class="sc-date">${escapeHtml(range)}</span>
+      </div>
+      <div class="sc-title">Auftrag ${escapeHtml(f.no)}</div>
+      <div class="sc-sub">${escapeHtml([f.vessel, f.customer].filter(Boolean).join(' · ') || 'ohne Kunde')}</div>
+      <div class="sc-bottom">
+        <span class="sc-hours">${formatHours(totals.worked)} <small>· ${f.sheets.length} Zettel${totals.ot ? ' · ' + formatHours(totals.ot) + ' Überstd.' : ''}</small></span>
+        <span class="sc-badges">${badges}</span>
+      </div>
+    </button>`;
+}
+
+function createFolder(no) {
+  const rec = orderRecord(no, true);
+  rec.folder = { no: normOrderNo(no), createdAt: new Date().toISOString() };
+  saveData(true);
+  renderOrder();
+  showToast('Ordner „' + normOrderNo(no) + '“ angelegt – die Zettel liegen jetzt darin');
+}
+
+async function dissolveFolder(no) {
+  const ok = await confirmDialog(`Ordner „${normOrderNo(no)}“ auflösen? Die Zettel erscheinen wieder einzeln in der Liste. Es wird nichts gelöscht.`, 'Auflösen');
+  if (!ok) return;
+  const rec = orderRecord(no, false);
+  if (rec) rec.folder = null;
+  saveData(true);
+  if (orderSheets(no).length) renderOrder(); else showView('sheets');
+  showToast('Ordner aufgelöst');
+}
+
+// Neuer Zettel im Ordner: Folgetag des letzten Zettels, sonst leerer Montagezettel mit Auftragsnummer
+function newSheetInFolder(no) {
+  const sheets = orderSheets(no);
+  if (sheets.length) { nextDaySheet(sheets[sheets.length - 1].id, 'order'); return; }
+  createSheet('montage');
+  const s = getActiveSheet();
+  if (s) { s.orderNo = normOrderNo(no); editorReturn = 'order'; saveData(true); renderEditor(); }
+}
+
 // Werte, die in allen Zetteln vorkommen (z.B. Kunde), eindeutig zusammenfassen
 function distinctJoin(values) {
   const seen = [];
@@ -57,7 +134,7 @@ function openComposeModal() {
   const orders = allOrders();
   const list = orders.length ? orders.map(o => `
       <button class="menu-row" onclick="closeModal();openOrder(${escapeHtml(JSON.stringify(o.no))})">
-        <span><b>Auftrag ${escapeHtml(o.no)}</b><small>${escapeHtml([o.vessel, o.customer].filter(Boolean).join(' · ') || 'ohne Kunde')}</small></span>
+        <span><b>${isFolder(o.no) ? '<svg class="inline-ico" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg> ' : ''}Auftrag ${escapeHtml(o.no)}</b><small>${escapeHtml([o.vessel, o.customer].filter(Boolean).join(' · ') || 'ohne Kunde')}</small></span>
         <span class="mr-right"><b>${o.count} Zettel</b><small>${o.first ? escapeHtml(o.first === o.last ? formatDateShort(o.first) : formatDateShort(o.first) + ' – ' + formatDateShort(o.last)) : ''}</small></span>
       </button>`).join('')
     : '<p class="muted">Noch keine Montagezettel mit Auftragsnummer vorhanden.</p>';
@@ -88,8 +165,8 @@ function composeFromInput() {
 
 function openOrder(no) {
   const sheets = orderSheets(no);
-  if (!sheets.length) { showToast('Keine Zettel zu diesem Auftrag'); return; }
-  activeOrderNo = normOrderNo(sheets[0].orderNo);
+  if (!sheets.length && !isFolder(no)) { showToast('Keine Zettel zu diesem Auftrag'); return; }
+  activeOrderNo = normOrderNo(sheets.length ? sheets[0].orderNo : no);
   flushSave();
   showView('order');
 }
@@ -135,10 +212,15 @@ function renderOrder() {
   if (!activeOrderNo) { showView('sheets'); return; }
   const o = orderData(activeOrderNo);
   setTopbarTitle('Auftrag ' + o.no);
+  const folder = isFolder(o.no);
   if (!o.sheets.length) {
-    body.innerHTML = `<div class="empty"><h3>Keine Zettel</h3><p>Zu diesem Auftrag gibt es keine Montagezettel mehr.</p></div>`;
+    body.innerHTML = `<div class="empty"><h3>Keine Zettel</h3><p>Zu diesem Auftrag gibt es keine Montagezettel mehr.</p>
+      ${folder ? `<div class="btn-row center"><button class="btn btn-primary" onclick="newSheetInFolder(${escapeHtml(JSON.stringify(o.no))})">Neuer Zettel im Ordner</button>
+      <button class="btn btn-ghost" onclick="dissolveFolder(${escapeHtml(JSON.stringify(o.no))})">Ordner auflösen</button></div>` : ''}</div>`;
     return;
   }
+  const noJs = escapeHtml(JSON.stringify(o.no));
+  const workers = distinctJoin(o.sheets.map(s => s.worker));
   const rec = orderRecord(o.no, false) || {};
   const changedAfterSign = rec.signCustomer && o.sheets.some(s => s.updatedAt && s.updatedAt > rec.signCustomer.at);
   const allow = allowanceText(o.allowance);
@@ -164,12 +246,23 @@ function renderOrder() {
     <div class="card order-head">
       <div class="oh-top">
         <div>
-          <div class="type-pill">Zusammenstellung</div>
+          <div class="type-pill">${folder ? '<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg> Ordner' : 'Zusammenstellung'}</div>
           <div class="oh-title">Auftrag ${escapeHtml(o.no)}</div>
           <div class="muted">${escapeHtml([o.vessel, o.customer].filter(Boolean).join(' · ') || 'ohne Kunde')}</div>
+          ${workers ? `<div class="muted small-text">Monteur: ${escapeHtml(workers)}</div>` : ''}
         </div>
         <div class="oh-range"><b>${o.items.length}</b> Tag${o.items.length > 1 ? 'e' : ''}<small>${escapeHtml(o.range)}</small></div>
       </div>
+      ${folder
+        ? `<div class="folder-actions">
+             <button class="btn btn-soft" onclick="newSheetInFolder(${noJs})"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Neuer Zettel im Ordner</button>
+             <button class="link-btn" onclick="dissolveFolder(${noJs})">Ordner auflösen</button>
+           </div>
+           <p class="muted small-text">Alle Zettel mit Auftragsnummer ${escapeHtml(o.no)} – auch neue – liegen in diesem Ordner.</p>`
+        : `<div class="folder-actions">
+             <button class="btn btn-primary" onclick="createFolder(${noJs})"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg> In Ordner ablegen</button>
+           </div>
+           <p class="muted small-text">Legt einen Ordner „${escapeHtml(o.no)}“ an. Die Zettel verschwinden dann aus der Liste und liegen im Ordner – neue Zettel mit dieser Auftragsnummer kommen automatisch dazu.</p>`}
     </div>
 
     <div class="sum-bar">
@@ -238,6 +331,9 @@ function printActiveOrder() {
 }
 
 window.openComposeModal = openComposeModal;
+window.createFolder = createFolder;
+window.dissolveFolder = dissolveFolder;
+window.newSheetInFolder = newSheetInFolder;
 window.composeFromInput = composeFromInput;
 window.openOrder = openOrder;
 window.renderOrder = renderOrder;

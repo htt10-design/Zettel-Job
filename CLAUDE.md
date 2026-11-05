@@ -29,13 +29,16 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
 | 06-print | Druckansicht A4 (`buildPrintHtml`, `printActiveSheet`) |
 | 07-hours | Stundenübersicht (Monat/KW/Jahr), Überstundenkonto, freie Tage / Urlaub / Krank / Feiertag / Korrektur |
 | 08-settings | Name, Standort, Kennzeichen, Sollzeiten, Startsaldo, Zeitarten, eigene Unterschrift, Backup |
-| 09-orders | „Auftrag zusammenstellen“ (nur auf Befehl): alle Montagezettel einer Auftragsnummer → Übersicht, Auslöse-Summen, gemeinsamer Druck, Unterschriften in `appData.orders` |
+| 09-orders | „Auftrag zusammenstellen“ (nur auf Befehl): alle Montagezettel einer Auftragsnummer → Übersicht, Auslöse-Summen, gemeinsamer Druck, Unterschriften in `appData.orders`; Ordner je Auftragsnummer |
 
 ## Zettel-Modell
 
 - Ein Zettel = ein Tag (`days` hat einen Eintrag; ältere Mehrtages-Zettel werden weiter angezeigt).
 - An-/Rückfahrt pro Zettel ein-/ausschaltbar (`travelOut.on` / `travelBack.on`; ohne `on` aktiv, wenn Fahrzeit gesetzt).
 - Zusammenstellung verändert keine Einzelzettel; sie wird bei jedem Öffnen neu berechnet.
+- Ordner: `appData.orders[nr].folder` gesetzt → alle Montagezettel dieser Auftragsnummer (auch neue) erscheinen
+  nicht mehr einzeln in der Liste, sondern als Ordner-Karte (`folderList`, `folderCardHtml`). Auflösen löscht nichts.
+- `sheet.worker` (Name des Monteurs) wird beim Anlegen gesetzt – Vorbereitung für mehrere Benutzer.
 
 ## Stundenregeln
 

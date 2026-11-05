@@ -290,10 +290,12 @@ function renderEditor(keepScroll) {
       <div class="card">
         <h3 class="card-title">Auftrag</h3>
         <div class="grid-2">
-          ${field('Auftragsnummer', 'orderNo', sheet.orderNo, { placeholder: 'z.B. 24-1187', inputmode: 'text' })}
+          ${field('Auftragsnummer', 'orderNo', sheet.orderNo, { placeholder: 'z.B. 24-1187', inputmode: 'text', rerender: true, list: 'dl-orders-ed' })}
           ${field('Auftraggeber / Kunde', 'customer', sheet.customer, { placeholder: 'Firma', list: 'dl-customers' })}
           ${field('Schiffsname / Anlage', 'vessel', sheet.vessel, { placeholder: 'z.B. MS Hanna', list: 'dl-vessels', cls: 'span-2' })}
         </div>
+        ${isFolder(sheet.orderNo) ? `<p class="folder-hint">Dieser Zettel liegt im Ordner <b>Auftrag ${escapeHtml(normOrderNo(sheet.orderNo))}</b>.</p>` : ''}
+        <datalist id="dl-orders-ed">${allOrders().map(o => `<option value="${escapeHtml(o.no)}">`).join('')}</datalist>
       </div>`;
   }
 

@@ -132,6 +132,25 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     await page.emulateMedia({ media: 'print' });
     await page.screenshot({ path: path.join(OUT, `${label}-16-auftrag-druck.png`), fullPage: true });
     await page.emulateMedia({ media: 'screen' });
+    // In Ordner ablegen → Zettel verschwinden aus der Liste, Ordner erscheint
+    await page.click('.folder-actions .btn-primary');
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: path.join(OUT, `${label}-17-ordner.png`), fullPage: true });
+    await page.evaluate(() => showView('sheets'));
+    await page.waitForTimeout(200);
+    const listInfo = await page.evaluate(() => ({ folders: document.querySelectorAll('.folder-card').length, cards: document.querySelectorAll('.sheet-card:not(.folder-card)').length }));
+    assert(listInfo.folders === 1 && listInfo.cards === 0, `Liste mit Ordner ${JSON.stringify(listInfo)}`, errors);
+    await page.screenshot({ path: path.join(OUT, `${label}-18-liste-ordner.png`), fullPage: true });
+    // Neuer Zettel im Ordner → landet automatisch darin, zurück in den Ordner
+    await page.click('.folder-card');
+    await page.waitForTimeout(200);
+    await page.click('.folder-actions .btn-soft');
+    await page.waitForTimeout(200);
+    const inFolder = await page.evaluate(() => { const s = getActiveSheet(); const r = [s.orderNo, s.days[0].date, editorReturn].join('|'); return r; });
+    assert(inFolder === '24-1187|2026-11-07|order', `Neuer Zettel im Ordner ${inFolder}`, errors);
+    const back2 = await page.evaluate(() => { const id = activeSheetId; closeEditor(); appData.sheets = appData.sheets.filter(x => x.id !== id); renderOrder(); return currentView; });
+    assert(back2 === 'order', `Nach neuem Ordner-Zettel zurück im Ordner, ist ${back2}`, errors);
+
     // Aus der Zusammenstellung einen Tag öffnen und zurück
     await page.click('.o-day >> nth=0');
     await page.waitForTimeout(200);

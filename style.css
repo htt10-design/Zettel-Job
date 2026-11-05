@@ -577,6 +577,16 @@ fieldset[disabled] .entry-add, fieldset[disabled] > .btn.block, fieldset[disable
   .editor-footer { flex-wrap: wrap; }
 }
 
+/* ---------- Ordner ---------- */
+.type-pill svg, .inline-ico { width: 14px; height: 14px; vertical-align: -2px; margin-right: 2px; }
+.folder-card { border-left-color: var(--warn); background: linear-gradient(0deg, var(--surface), var(--surface)), var(--surface); }
+.folder-card .type-pill { color: var(--warn); }
+.folder-card .sc-hours small { font-weight: 600; color: var(--muted); font-size: 12.5px; }
+.folder-actions { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 14px; }
+.folder-actions .btn svg { width: 18px; height: 18px; }
+.folder-hint { margin: 12px 0 0; font-size: 13px; color: var(--warn); background: rgba(201, 138, 10, .1); padding: 8px 12px; border-radius: 10px; }
+.btn-row.center { justify-content: center; }
+
 /* ---------- Druck ---------- */
 #print-area { display: none; }
 

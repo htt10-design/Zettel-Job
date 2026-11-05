@@ -37,12 +37,18 @@ function renderSheetList() {
   const q = (document.getElementById('sheet-search').value || '').trim().toLowerCase();
   let sheets = appData.sheets.slice();
   if (sheetFilter !== 'all') sheets = sheets.filter(s => s.type === sheetFilter);
-  if (q) {
-    sheets = sheets.filter(s => [s.orderNo, s.customer, s.vessel, s.note,
-      ...s.days.flatMap(d => d.entries.map(e => e.desc))]
-      .some(v => String(v || '').toLowerCase().includes(q)));
-  }
-  sheets.sort((a, b) => (sheetFirstDate(b) || b.createdAt || '').localeCompare(sheetFirstDate(a) || a.createdAt || ''));
+  const matches = s => !q || [s.orderNo, s.customer, s.vessel, s.note,
+    ...s.days.flatMap(d => d.entries.map(e => e.desc))]
+    .some(v => String(v || '').toLowerCase().includes(q));
+
+  // Zettel, deren Auftrag in einem Ordner liegt, erscheinen nur im Ordner
+  const folders = sheetFilter === 'werkstatt' ? [] : folderList()
+    .filter(f => !q || f.no.toLowerCase().includes(q) || f.sheets.some(matches));
+  sheets = sheets.filter(s => !(s.type === 'montage' && isFolder(s.orderNo)) && matches(s));
+
+  const entries = sheets.map(s => ({ date: sheetFirstDate(s) || s.createdAt || '', html: sheetCardHtml(s) }))
+    .concat(folders.map(f => ({ date: f.last || '', html: folderCardHtml(f) })))
+    .sort((a, b) => b.date.localeCompare(a.date));
 
   if (!appData.sheets.length) {
     list.innerHTML = `
@@ -54,12 +60,16 @@ function renderSheetList() {
       </div>`;
     return;
   }
-  if (!sheets.length) {
+  if (!entries.length) {
     list.innerHTML = `<div class="empty small"><p>Keine Zettel gefunden.</p></div>`;
     return;
   }
 
-  list.innerHTML = sheets.map(s => {
+  list.innerHTML = entries.map(e => e.html).join('');
+}
+
+function sheetCardHtml(s) {
+  {
     const total = sheetWorkedMinutes(s);
     const isMontage = s.type === 'montage';
     const title = isMontage
@@ -85,7 +95,7 @@ function renderSheetList() {
           <span class="sc-badges">${status}</span>
         </div>
       </button>`;
-  }).join('');
+  }
 }
 
 // ---------- Neuer Zettel ----------
@@ -132,6 +142,7 @@ function createSheet(type) {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     orderNo: '', customer: '', vessel: '',
+    worker: appData.settings.name || '',
     days: [newDay(todayISO())],
     travelOut: type === 'montage' ? defaultTravel('travelOut') : {},
     travelBack: type === 'montage' ? defaultTravel('travelBack') : {},
@@ -149,9 +160,11 @@ function createSheet(type) {
 
 // Neuer Zettel für den nächsten Tag desselben Auftrags:
 // übernimmt Auftrag, Kunde, Schiff, Abwesenheit und Hotel – keine Zeiten, keine Fahrten
-function nextDaySheet(id) {
+function nextDaySheet(id, from) {
   const src = appData.sheets.find(s => s.id === id);
   if (!src) return;
+  // Aus dem Ordner / der Zusammenstellung heraus → danach dorthin zurück
+  const ret = from || (currentView === 'order' || editorReturn === 'order' ? 'order' : null);
   const dates = src.days.map(d => d.date).filter(Boolean).sort();
   const lastDay = src.days[src.days.length - 1] || {};
   const day = newDay(dates.length ? addDaysISO(dates[dates.length - 1], 1) : todayISO());
@@ -167,6 +180,7 @@ function nextDaySheet(id) {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     orderNo: src.orderNo || '', customer: src.customer || '', vessel: src.vessel || '',
+    worker: appData.settings.name || '',
     days: [day],
     travelOut: src.type === 'montage' ? defaultTravel('travelOut') : {},
     travelBack: src.type === 'montage' ? defaultTravel('travelBack') : {},
@@ -179,8 +193,8 @@ function nextDaySheet(id) {
   appData.sheets.push(sheet);
   saveData(true);
   closeModal();
-  openEditor(sheet.id);
-  showToast('Zettel für ' + formatDate(day.date) + ' angelegt');
+  openEditor(sheet.id, ret);
+  showToast('Zettel für ' + formatDate(day.date) + ' angelegt' + (src.type === 'montage' && isFolder(src.orderNo) ? ' (im Ordner ' + normOrderNo(src.orderNo) + ')' : ''));
 }
 
 async function deleteSheet(id) {
@@ -189,7 +203,10 @@ async function deleteSheet(id) {
   if (!ok) return;
   appData.sheets = appData.sheets.filter(s => s.id !== id);
   saveData(true);
-  showView('sheets');
+  // Aus einem Ordner gelöscht → zurück in den Ordner
+  const back = editorReturn === 'order' && activeOrderNo ? 'order' : 'sheets';
+  editorReturn = null;
+  showView(back);
   showToast('Zettel gelöscht');
 }
 
