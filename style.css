@@ -577,6 +577,15 @@ fieldset[disabled] .entry-add, fieldset[disabled] > .btn.block, fieldset[disable
   .editor-footer { flex-wrap: wrap; }
 }
 
+/* ---------- Kostenstellen (Werkstatt) ---------- */
+.entry .cost-in { flex: 0 0 132px; width: 132px; font-weight: 700; text-transform: uppercase; letter-spacing: .2px; }
+.entry-spacer { flex: 1; }
+.entry-spacer { display: flex; justify-content: flex-end; min-width: 0; }
+.entry-ot.short { padding: 4px 6px; font-size: 11.5px; }
+@media (max-width: 560px) { .entry .cost-in { flex-basis: 136px; width: 136px; padding: 8px 6px; font-size: 14px; letter-spacing: 0; } }
+.code-row .cost-k { width: 130px; flex: 0 0 130px; font-weight: 700; text-transform: uppercase; padding: 8px; min-height: 40px; }
+@media (max-width: 560px) { .code-row .cost-k { width: 110px; flex-basis: 110px; } }
+
 /* ---------- Ordner ---------- */
 .type-pill svg, .inline-ico { width: 14px; height: 14px; vertical-align: -2px; margin-right: 2px; }
 .folder-card { border-left-color: var(--warn); background: linear-gradient(0deg, var(--surface), var(--surface)), var(--surface); }

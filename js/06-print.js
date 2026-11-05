@@ -5,6 +5,8 @@
 
 // Einheitliche Spaltenbreiten für alle Tagesblöcke und die Summen
 const PRINT_COLS = '<colgroup><col style="width:9%"><col style="width:9%"><col style="width:7%"><col style="width:10%"><col style="width:10%"><col></colgroup>';
+// Werkstatt: breitere Spalte für die Kostenstelle (z.B. SR26/000244)
+const PRINT_COLS_COST = '<colgroup><col style="width:8%"><col style="width:8%"><col style="width:15%"><col style="width:9%"><col style="width:9%"><col></colgroup>';
 
 function yesNoText(v) { return v === true ? 'Ja' : v === false ? 'Nein' : '–'; }
 
@@ -42,6 +44,7 @@ function sheetTravels(sheet) {
 function buildPrintDoc(doc) {
   const s = appData.settings;
   const num = m => m ? formatHours(m).replace(' h', '') : '';
+  const cols = doc.isMontage ? PRINT_COLS : PRINT_COLS_COST;
   const totals = { worked: 0, normal: 0, ot: 0 };
   const byCode = {};
 
@@ -85,8 +88,8 @@ function buildPrintDoc(doc) {
           <span class="pr-day-info">${escapeHtml(info.join('   |   '))}</span>
         </div>
         <table class="pr-times">
-          ${PRINT_COLS}
-          <thead><tr><th>Von</th><th>Bis</th><th>Art</th><th class="num">Normal</th><th class="num">Überst.</th><th>Ausgeführte Arbeiten</th></tr></thead>
+          ${cols}
+          <thead><tr><th>Von</th><th>Bis</th><th>${doc.isMontage ? 'Art' : 'Kostenst.'}</th><th class="num">Normal</th><th class="num">Überst.</th><th>Ausgeführte Arbeiten</th></tr></thead>
           <tbody>${rows}</tbody>
           <tfoot><tr>
             <td colspan="3">Summe Tag</td>
@@ -98,7 +101,10 @@ function buildPrintDoc(doc) {
       </div>`;
   }).join('');
 
-  const legend = s.codes.map(c => `${escapeHtml(c.code)} = ${escapeHtml(c.label)}`).join(' · ');
+  // Legende: Zeitarten (Montage) bzw. verwendete Kostenstellen mit Bezeichnung (Werkstatt)
+  const legend = doc.isMontage
+    ? s.codes.map(c => `${escapeHtml(c.code)} = ${escapeHtml(c.label)}`).join(' · ')
+    : Object.keys(byCode).map(k => getCostCenter(k)).filter(c => c && c.label).map(c => `${escapeHtml(c.no)} = ${escapeHtml(c.label)}`).join(' · ');
   const codeTotals = Object.keys(byCode).map(k => `<span><b>${escapeHtml(k)}</b> ${formatHours(byCode[k])}</span>`).join('');
   const sigImg = sig => sig && sig.img ? `<img src="${sig.img}" alt="">` : '';
   const sigMeta = sig => sig ? escapeHtml([sig.name, sig.at ? new Date(sig.at).toLocaleDateString('de-DE') : ''].filter(Boolean).join(', ')) : '';
@@ -128,7 +134,7 @@ function buildPrintDoc(doc) {
       ${dayRows}
 
       <table class="pr-totals">
-        ${PRINT_COLS}
+        ${cols}
         <tr><td colspan="3">Summe aller Tage</td><td class="num">${formatHours(totals.normal).replace(' h', '')}</td><td class="num">${formatHours(totals.ot).replace(' h', '')}</td><td>Normal- / Überstunden</td></tr>
         <tr class="grand"><td colspan="3">Gesamtstunden</td><td colspan="2" class="num">${formatHours(totals.worked)}</td><td class="pr-codes">${codeTotals}</td></tr>
       </table>

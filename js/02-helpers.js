@@ -119,6 +119,33 @@ function isoWeek(iso) {
   return Math.ceil(((t - yearStart) / 86400000 + 1) / 7);
 }
 
+// ---------- Auftragsnummern (Format SR26/000249) ----------
+// "249" → "SR26/000249" (Jahr aus dem Datum), "26/249" / "sr26/249" / "SR26000249" → "SR26/000249".
+// allowDigitsOnly=false: reine Zahlen bleiben stehen (z.B. dreistellige Kostenstellen).
+function formatOrderNo(input, dateIso, allowDigitsOnly = true) {
+  const raw = String(input || '').trim();
+  if (!raw) return '';
+  let m = raw.match(/^(?:sr)?\s*(\d{2})\s*\/\s*(\d{1,6})$/i);
+  if (m) return 'SR' + m[1] + '/' + m[2].padStart(6, '0');
+  m = raw.match(/^sr\s*(\d{2})(\d{6})$/i);
+  if (m) return 'SR' + m[1] + '/' + m[2];
+  if (allowDigitsOnly && /^\d{1,6}$/.test(raw)) {
+    const yy = (dateIso || todayISO()).slice(2, 4);
+    return 'SR' + yy + '/' + raw.padStart(6, '0');
+  }
+  return raw;
+}
+
+// Kostenstelle „P“ / „Pause“ zählt nicht als Arbeitszeit
+function isPauseCost(cost) {
+  return /^(p|pause)$/i.test(String(cost || '').trim());
+}
+
+function getCostCenter(no) {
+  const n = String(no || '').trim().toLowerCase();
+  return (appData.settings.costCenters || []).find(c => String(c.no).trim().toLowerCase() === n) || null;
+}
+
 // ---------- Zeitarten ----------
 function getCode(code) {
   return appData.settings.codes.find(c => c.code === code) || null;
@@ -197,7 +224,12 @@ function daySplit(sheet, di) {
   const byEntry = day.entries.map(() => null);
   order.forEach(i => {
     const e = day.entries[i];
-    const line = { kind: 'entry', index: i, entry: e, minutes: entryMinutes(e), counts: codeCounts(e.code), code: e.code };
+    const isCost = sheet.type === 'werkstatt' && e.cost !== undefined;
+    const line = {
+      kind: 'entry', index: i, entry: e, minutes: entryMinutes(e),
+      counts: isCost ? !isPauseCost(e.cost) : codeCounts(e.code),
+      code: isCost ? (String(e.cost || '').trim() || '–') : e.code
+    };
     byEntry[i] = line;
     lines.push(line);
   });

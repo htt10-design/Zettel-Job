@@ -57,6 +57,20 @@ function renderSettings() {
     </div>
 
     <div class="card">
+      <h3 class="card-title">Kostenstellen (Werkstatt)</h3>
+      <p class="muted small-text">Werden bei Werkstattzetteln je Zeile vorgeschlagen. Auftragsnummern wie SR26/000244 kannst du auch direkt eintippen. Pause = P.</p>
+      <div class="codes-list">
+        ${(s.costCenters || []).map((c, i) => `
+          <div class="code-row">
+            <input class="cost-k" type="text" value="${escapeHtml(c.no)}" onchange="updateCostCenter(${i}, 'no', this.value)" aria-label="Nummer" placeholder="Nr.">
+            <input class="code-l" type="text" value="${escapeHtml(c.label)}" onchange="updateCostCenter(${i}, 'label', this.value)" aria-label="Bezeichnung" placeholder="Bezeichnung">
+            <button class="icon-btn small danger-hover" onclick="removeCostCenter(${i})" aria-label="Löschen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+          </div>`).join('') || '<p class="muted small-text">Noch keine Kostenstellen angelegt.</p>'}
+      </div>
+      <button class="btn btn-soft" onclick="addCostCenter()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Kostenstelle hinzufügen</button>
+    </div>
+
+    <div class="card">
       <h3 class="card-title">Meine Unterschrift</h3>
       <p class="muted small-text">Wird bei „Unterschrift Monteur“ mit einem Tipp eingesetzt.</p>
       ${s.ownSignature
@@ -152,6 +166,31 @@ async function removeCode(i) {
   renderSettings();
 }
 
+// ---------- Kostenstellen ----------
+function addCostCenter() {
+  appData.settings.costCenters.push({ no: '', label: '' });
+  saveData();
+  renderSettings();
+  const inputs = document.querySelectorAll('.code-row .cost-k');
+  if (inputs.length) inputs[inputs.length - 1].focus();
+}
+
+function updateCostCenter(i, key, value) {
+  const c = appData.settings.costCenters[i];
+  if (!c) return;
+  c[key] = key === 'no' ? formatOrderNo(value, null, false) : String(value).trim();
+  saveData();
+  renderSettings();
+}
+
+async function removeCostCenter(i) {
+  const c = appData.settings.costCenters[i];
+  if (c && c.no && !(await confirmDialog(`Kostenstelle „${c.no}“ löschen? Bereits eingetragene Zeiten bleiben erhalten.`, 'Löschen', true))) return;
+  appData.settings.costCenters.splice(i, 1);
+  saveData();
+  renderSettings();
+}
+
 async function removeOwnSignature() {
   if (!(await confirmDialog('Gespeicherte Unterschrift entfernen?', 'Entfernen', true))) return;
   appData.settings.ownSignature = null;
@@ -205,6 +244,9 @@ window.updateCode = updateCode;
 window.addCode = addCode;
 window.removeCode = removeCode;
 window.removeOwnSignature = removeOwnSignature;
+window.addCostCenter = addCostCenter;
+window.updateCostCenter = updateCostCenter;
+window.removeCostCenter = removeCostCenter;
 window.exportBackup = exportBackup;
 window.importBackup = importBackup;
 window.resetAll = resetAll;

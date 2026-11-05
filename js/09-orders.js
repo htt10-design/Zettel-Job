@@ -144,7 +144,7 @@ function openComposeModal() {
     <div class="menu-rows">${list}</div>
     <div class="compose-manual">
       <label class="field"><span>Oder Auftragsnummer eingeben</span>
-        <input type="text" id="compose-no" list="dl-orders" placeholder="z.B. 24-1187" autocomplete="off"
+        <input type="text" id="compose-no" list="dl-orders" placeholder="SR26/000249 oder nur 249" autocomplete="off"
           onkeydown="if(event.key==='Enter'){event.preventDefault();composeFromInput();}">
       </label>
       <datalist id="dl-orders">${orders.map(o => `<option value="${escapeHtml(o.no)}">`).join('')}</datalist>
@@ -156,7 +156,7 @@ function openComposeModal() {
 }
 
 function composeFromInput() {
-  const no = normOrderNo(document.getElementById('compose-no').value);
+  const no = normOrderNo(formatOrderNo(document.getElementById('compose-no').value));
   if (!no) { showToast('Bitte Auftragsnummer wählen oder eingeben'); return; }
   if (!orderSheets(no).length) { showToast(`Keine Montagezettel mit Auftrag „${no}“`); return; }
   closeModal();

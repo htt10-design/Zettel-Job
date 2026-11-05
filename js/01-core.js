@@ -36,6 +36,7 @@ function createDefaultData() {
       targets: DEFAULT_TARGETS.slice(),
       startBalance: 0,
       codes: DEFAULT_CODES.map(c => ({ ...c })),
+      costCenters: [], // Kostenstellen für Werkstatt: { no, label }
       ownSignature: null
     },
     sheets: [],
@@ -52,6 +53,7 @@ function normalizeData(data) {
   const s = data.settings;
   if (!Array.isArray(s.targets) || s.targets.length !== 7) s.targets = DEFAULT_TARGETS.slice();
   if (!Array.isArray(s.codes) || !s.codes.length) s.codes = DEFAULT_CODES.map(c => ({ ...c }));
+  if (!Array.isArray(s.costCenters)) s.costCenters = [];
   if (!Array.isArray(data.sheets)) data.sheets = [];
   if (!Array.isArray(data.daysOff)) data.daysOff = [];
   if (!data.orders || typeof data.orders !== 'object' || Array.isArray(data.orders)) data.orders = {};

@@ -186,7 +186,26 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     // Werkstattzettel
     await page.evaluate(() => { closeEditor(); createSheet('werkstatt'); });
     await page.waitForTimeout(200);
+    // Werkstatt: Kostenstellen statt Zeitarten, P = Pause zählt nicht
+    await page.evaluate(() => { getActiveSheet().days[0].date = '2026-11-04'; appData.settings.costCenters = [{ no: '120', label: 'Instandhaltung' }]; renderEditor(); });
+    for (const [i, [f, t, c]] of [['700', '1000', 'sr26/244'], ['1000', '1015', 'p'], ['1015', '1600', '120']].entries()) {
+      await page.click('.day-card[data-day="0"] .entry-add .btn');
+      const row = page.locator('.day-card[data-day="0"] .entry').nth(i);
+      await row.locator('.t-in').nth(0).fill(f); await row.locator('.t-in').nth(0).dispatchEvent('change');
+      await row.locator('.t-in').nth(1).fill(t); await row.locator('.t-in').nth(1).dispatchEvent('change');
+      await row.locator('.cost-in').fill(c); await row.locator('.cost-in').dispatchEvent('change');
+    }
+    const ws = await page.evaluate(() => { const s = getActiveSheet(); return { costs: s.days[0].entries.map(e => e.cost), t: sheetTotals(s), by: sheetMinutesByCode(s) }; });
+    assert(JSON.stringify(ws.costs) === '["SR26/000244","P","120"]', `Kostenstellen ${JSON.stringify(ws.costs)}`, errors);
+    assert(ws.t.worked === 525 && ws.t.normal === 480 && ws.t.ot === 45, `Werkstatt-Summen ${JSON.stringify(ws.t)}`, errors);
+    assert(ws.by['SR26/000244'] === 180 && ws.by['120'] === 345, `Summen je Kostenstelle ${JSON.stringify(ws.by)}`, errors);
+    const fmt = await page.evaluate(() => [formatOrderNo('249', '2026-11-04'), formatOrderNo('26/249'), formatOrderNo('SR26000249'), formatOrderNo('120', null, false), formatOrderNo('24-1187')].join(' '));
+    assert(fmt === 'SR26/000249 SR26/000249 SR26/000249 120 24-1187', `Auftragsnummer-Format ${fmt}`, errors);
     await page.screenshot({ path: path.join(OUT, `${label}-07-werkstatt.png`), fullPage: true });
+    await page.evaluate(() => { document.getElementById('print-area').innerHTML = buildPrintHtml(getActiveSheet()); });
+    await page.emulateMedia({ media: 'print' });
+    await page.screenshot({ path: path.join(OUT, `${label}-07b-werkstatt-druck.png`), fullPage: true });
+    await page.emulateMedia({ media: 'screen' });
     await page.evaluate(() => closeEditor());
     await page.waitForTimeout(300);
     await page.screenshot({ path: path.join(OUT, `${label}-08-liste.png`), fullPage: true });

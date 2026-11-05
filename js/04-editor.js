@@ -56,6 +56,7 @@ function field(label, bind, value, opts = {}) {
     opts.inputmode ? `inputmode="${opts.inputmode}"` : '',
     opts.list ? `list="${opts.list}"` : '',
     opts.rerender ? 'data-rerender="1"' : '',
+    opts.orderno ? `data-orderno="${opts.orderno}"` : '',
     'autocomplete="off"'
   ].filter(Boolean).join(' ');
   return `<label class="field ${opts.cls || ''}"><span>${escapeHtml(label)}</span><input ${attrs}></label>`;
@@ -88,6 +89,7 @@ function lineDurText(line) {
 function entryRow(e, di, ei, line) {
   const p = `days.${di}.entries.${ei}`;
   const ot = line ? line.ot : 0;
+  const isW = getActiveSheet().type === 'werkstatt';
   const bad = (e.from && parseTime(e.from) == null) || (e.to && parseTime(e.to) == null);
   const counts = codeCounts(e.code);
   return `
@@ -96,21 +98,23 @@ function entryRow(e, di, ei, line) {
         <input class="t-in" data-bind="${p}.from" data-time="1" value="${escapeHtml(e.from || '')}" placeholder="0630" inputmode="numeric" autocomplete="off" aria-label="Von">
         <span class="dash">–</span>
         <input class="t-in" data-bind="${p}.to" data-time="1" value="${escapeHtml(e.to || '')}" placeholder="0700" inputmode="numeric" autocomplete="off" aria-label="Bis">
-        <select class="code-sel" data-bind="${p}.code" data-rerender="1" aria-label="Zeitart">${codeOptions(e.code)}</select>
+        ${isW ? `<span class="entry-spacer"><span class="entry-ot short" data-ot="${di}.${ei}" data-short="1" title="Überstunden" ${ot ? '' : 'hidden'}>${otText(ot, true)}</span></span>` : `<select class="code-sel" data-bind="${p}.code" data-rerender="1" aria-label="Zeitart">${codeOptions(e.code)}</select>`}
         <span class="entry-dur" data-dur="${di}.${ei}">${lineDurText(line)}</span>
         <button type="button" class="icon-btn small danger-hover" onclick="removeEntry(${di},${ei})" aria-label="Zeile löschen">
           <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
       </div>
       <div class="entry-desc-row">
+        ${isW ? `<input class="cost-in" data-bind="${p}.cost" data-orderno="cost" data-rerender="1" value="${escapeHtml(e.cost ?? '')}" placeholder="Kostenstelle" list="dl-costs" autocomplete="off" aria-label="Kostenstelle">` : ''}
         <input class="entry-desc" data-bind="${p}.desc" value="${escapeHtml(e.desc || '')}" placeholder="Was wurde gemacht?" autocomplete="off">
-        <span class="entry-ot" data-ot="${di}.${ei}" ${ot ? '' : 'hidden'}>${otText(ot)}</span>
+        ${isW ? '' : `<span class="entry-ot" data-ot="${di}.${ei}" ${ot ? '' : 'hidden'}>${otText(ot)}</span>`}
       </div>
     </div>`;
 }
 
-function otText(min) {
-  return min ? 'Überstd. ' + formatHours(min) : '';
+function otText(min, short) {
+  if (!min) return '';
+  return short ? '+' + formatHours(min) : 'Überstd. ' + formatHours(min);
 }
 
 // Fahrzeit aus An-/Rückfahrt als feste (nicht editierbare) Zeile im Tag
@@ -180,7 +184,9 @@ function dayCard(day, di, sheet) {
           <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Zeile
         </button>
         <div class="quick-codes">
-          ${appData.settings.codes.slice(0, 5).map(c => `<button type="button" class="chip mini" onclick="addEntry(${di},'${escapeHtml(c.code)}')" title="${escapeHtml(c.label)}">+${escapeHtml(c.code)}</button>`).join('')}
+          ${sheet.type === 'werkstatt'
+            ? recentCosts().slice(0, 4).map(c => `<button type="button" class="chip mini" onclick="addEntry(${di},null,${escapeHtml(JSON.stringify(c))})" title="${escapeHtml((getCostCenter(c) || {}).label || '')}">+${escapeHtml(c)}</button>`).join('')
+            : appData.settings.codes.slice(0, 5).map(c => `<button type="button" class="chip mini" onclick="addEntry(${di},'${escapeHtml(c.code)}')" title="${escapeHtml(c.label)}">+${escapeHtml(c.code)}</button>`).join('')}
         </div>
       </div>
       ${montageExtras}
@@ -247,7 +253,21 @@ function datalists() {
   });
   if (appData.settings.home) places.add(appData.settings.home);
   const dl = (id, set) => `<datalist id="${id}">${Array.from(set).map(v => `<option value="${escapeHtml(v)}">`).join('')}</datalist>`;
-  return dl('dl-places', places) + dl('dl-hotels', hotels) + dl('dl-customers', customers) + dl('dl-vessels', vessels);
+  const costs = `<datalist id="dl-costs">${recentCosts().map(c => { const cc = getCostCenter(c); return `<option value="${escapeHtml(c)}">${cc && cc.label ? escapeHtml(cc.label) : ''}</option>`; }).join('')}<option value="P">Pause</option></datalist>`;
+  return dl('dl-places', places) + dl('dl-hotels', hotels) + dl('dl-customers', customers) + dl('dl-vessels', vessels) + costs;
+}
+
+// Kostenstellen-Vorschläge: zuletzt benutzte zuerst, dann die aus den Einstellungen
+function recentCosts() {
+  const used = [];
+  appData.sheets.filter(s => s.type === 'werkstatt')
+    .sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''))
+    .forEach(s => s.days.forEach(d => d.entries.forEach(e => {
+      const c = String(e.cost || '').trim();
+      if (c && !isPauseCost(c) && !used.includes(c)) used.push(c);
+    })));
+  (appData.settings.costCenters || []).forEach(c => { const n = String(c.no || '').trim(); if (n && !used.includes(n)) used.push(n); });
+  return used;
 }
 
 // ---------- Rendern ----------
@@ -290,7 +310,7 @@ function renderEditor(keepScroll) {
       <div class="card">
         <h3 class="card-title">Auftrag</h3>
         <div class="grid-2">
-          ${field('Auftragsnummer', 'orderNo', sheet.orderNo, { placeholder: 'z.B. 24-1187', inputmode: 'text', rerender: true, list: 'dl-orders-ed' })}
+          ${field('Auftragsnummer', 'orderNo', sheet.orderNo, { placeholder: 'SR26/000249 oder nur 249', inputmode: 'text', rerender: true, list: 'dl-orders-ed', orderno: 'order' })}
           ${field('Auftraggeber / Kunde', 'customer', sheet.customer, { placeholder: 'Firma', list: 'dl-customers' })}
           ${field('Schiffsname / Anlage', 'vessel', sheet.vessel, { placeholder: 'z.B. MS Hanna', list: 'dl-vessels', cls: 'span-2' })}
         </div>
@@ -300,7 +320,7 @@ function renderEditor(keepScroll) {
   }
 
   // Tage
-  html += `<div class="section-head"><h3>Zeiten &amp; Arbeiten</h3><span class="muted small-text">Zeit als 0630 eintippen</span></div>`;
+  html += `<div class="section-head"><h3>Zeiten &amp; Arbeiten</h3><span class="muted small-text">${isMontage ? 'Zeit als 0630 eintippen' : 'Kostenstelle je Zeile · Pause = P'}</span></div>`;
   html += sheet.days.map((d, di) => dayCard(d, di, sheet)).join('');
 
   if (isMontage) {
@@ -366,7 +386,7 @@ function refreshEditorSums() {
   const sheet = getActiveSheet();
   if (!sheet) return;
   const body = document.getElementById('editor-body');
-  const setOt = (el, min) => { if (el) { el.textContent = otText(min); el.hidden = !min; } };
+  const setOt = (el, min) => { if (el) { el.textContent = otText(min, !!el.dataset.short); el.hidden = !min; } };
   sheet.days.forEach((d, di) => {
     const split = daySplit(sheet, di);
     const s = body.querySelector(`[data-daysum="${di}"]`);
@@ -417,6 +437,12 @@ function handleEditorInput(ev) {
     if (m != null) { el.value = formatClock(m); setPath(sheet, bind, el.value); }
     el.closest('.entry').classList.toggle('invalid', !!el.value && m == null);
   }
+  if (ev.type === 'change' && el.dataset.orderno) {
+    const day = sheet.days[0];
+    let v = formatOrderNo(el.value, day && day.date, el.dataset.orderno === 'order');
+    if (el.dataset.orderno === 'cost' && isPauseCost(v)) v = 'P';
+    if (v !== el.value) { el.value = v; setPath(sheet, bind, v); touchSheet(sheet); }
+  }
   if (ev.type === 'change' && el.dataset.rerender) { renderEditor(true); return; }
   refreshEditorSums();
 }
@@ -450,17 +476,20 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ---------- Aktionen ----------
-function addEntry(di, code) {
+function addEntry(di, code, cost) {
   const sheet = getActiveSheet();
   const day = sheet.days[di];
   const last = day.entries[day.entries.length - 1];
-  day.entries.push({
+  const entry = {
     id: uid(),
     from: last && last.to ? last.to : '',
     to: '',
     code: code || (last ? last.code : 'AZ'),
     desc: ''
-  });
+  };
+  // Werkstatt: Kostenstelle statt Zeitart (letzte wird übernommen)
+  if (sheet.type === 'werkstatt') entry.cost = cost != null ? cost : (last && last.cost != null ? last.cost : '');
+  day.entries.push(entry);
   touchSheet(sheet);
   renderEditor(true);
   // Fokus auf das passende Feld der neuen Zeile
