@@ -9,14 +9,28 @@ const PRINT_COLS = '<colgroup><col style="width:9%"><col style="width:9%"><col s
 const PRINT_COLS_COST = '<colgroup><col style="width:8%"><col style="width:8%"><col style="width:15%"><col style="width:9%"><col style="width:9%"><col></colgroup>';
 
 // Motordaten (nur wenn etwas eingetragen ist)
-function engineRows(e) {
-  e = e || {};
-  if (!e.make && !e.model && !e.number && !e.hours) return '';
-  return `
+// engines: [{ label, make, model, number, hours }] – label leer bei nur einem Motor
+function engineRows(engines) {
+  engines = (engines || []).filter(engineHasData);
+  if (!engines.length) return '';
+  if (engines.length === 1 && !engines[0].label) {
+    const e = engines[0];
+    return `
         <tr><th>Fabrikat</th><td>${escapeHtml(e.make || '–')}</td>
             <th>Motorbezeichnung</th><td>${escapeHtml(e.model || '–')}</td></tr>
         <tr><th>Motornummer</th><td>${escapeHtml(e.number || '–')}</td>
             <th>Betriebsstunden</th><td>${escapeHtml(e.hours || '–')}</td></tr>`;
+  }
+  // Mehrere Motoren: je Motor eine Zeile
+  return engines.map(e => `
+        <tr><th>Motor ${escapeHtml(e.label || '')}</th>
+            <td colspan="3">${escapeHtml([e.make, e.model].filter(Boolean).join(' ') || '–')}
+              · Nr. ${escapeHtml(e.number || '–')} · Betriebsstd. ${escapeHtml(e.hours || '–')}</td></tr>`).join('');
+}
+
+// Motoren eines Zettels mit Kurznamen für den Druck
+function sheetEngineList(sheet) {
+  return (sheet.engines || []).map((e, i) => ({ ...e, label: engineLabel(sheet, i) }));
 }
 
 function yesNoText(v) { return v === true ? 'Ja' : v === false ? 'Nein' : '–'; }
@@ -140,7 +154,7 @@ function buildPrintDoc(doc) {
         <tr><th>Auftragsnummer</th><td>${escapeHtml(doc.orderNo || '–')}</td>
             <th>Auftraggeber / Kunde</th><td>${escapeHtml(doc.customer || '–')}</td></tr>
         <tr><th>Schiff / Anlage</th><td colspan="3">${escapeHtml(doc.vessel || '–')}</td></tr>
-        ${engineRows(doc.engine)}
+        ${engineRows(doc.engines)}
       </table>` : ''}
 
       ${dayRows}
@@ -184,7 +198,7 @@ function buildPrintHtml(sheet) {
     subtitle: sheetDateRange(sheet),
     isMontage,
     orderNo: sheet.orderNo, customer: sheet.customer, vessel: sheet.vessel,
-    engine: sheet.engine,
+    engines: sheetEngineList(sheet),
     items: sheet.days.map((d, di) => ({ sheet, di })),
     travels: sheetTravels(sheet),
     material: sheet.material,

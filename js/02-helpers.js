@@ -146,6 +146,41 @@ function getCostCenter(no) {
   return (appData.settings.costCenters || []).find(c => String(c.no).trim().toLowerCase() === n) || null;
 }
 
+// ---------- Motoren ----------
+// Ein Zettel hat 1–4 Motoren (sheet.engines). Ab zwei Motoren werden sie benannt:
+// BB/SB (Backbord/Steuerbord), A/B/C/D oder 1/2/3/4 (sheet.engineNaming).
+const ENGINE_NAMINGS = {
+  bbsb: { label: 'BB / SB', names: ['BB', 'SB'], long: ['Backbord', 'Steuerbord'] },
+  ab: { label: 'A / B', names: ['A', 'B', 'C', 'D'] },
+  num: { label: '1 / 2', names: ['1', '2', '3', '4'] }
+};
+
+function engineNaming(sheet) {
+  return ENGINE_NAMINGS[sheet.engineNaming] || ENGINE_NAMINGS.bbsb;
+}
+
+function maxEngines(sheet) {
+  return engineNaming(sheet).names.length;
+}
+
+// Kurzname eines Motors ("BB", "A", "1"); bei nur einem Motor leer
+function engineLabel(sheet, i) {
+  if ((sheet.engines || []).length < 2) return '';
+  return engineNaming(sheet).names[i] || String(i + 1);
+}
+
+// Langer Titel für Überschriften ("Motor BB – Backbord")
+function engineTitle(sheet, i) {
+  const short = engineLabel(sheet, i);
+  if (!short) return 'Motor';
+  const long = (engineNaming(sheet).long || [])[i];
+  return 'Motor ' + short + (long ? ' – ' + long : '');
+}
+
+function engineHasData(e) {
+  return !!(e && (e.make || e.model || e.number || e.hours));
+}
+
 // ---------- Zeitarten ----------
 function getCode(code) {
   return appData.settings.codes.find(c => c.code === code) || null;

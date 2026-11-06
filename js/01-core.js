@@ -118,7 +118,12 @@ function normalizeSheet(sh) {
   });
   if (!sh.travelOut) sh.travelOut = {};
   if (!sh.travelBack) sh.travelBack = {};
-  if (!sh.engine || typeof sh.engine !== 'object') sh.engine = {};
+  // Motoren: früher ein einzelnes sheet.engine → jetzt Liste sheet.engines
+  if (!Array.isArray(sh.engines)) {
+    sh.engines = [sh.engine && typeof sh.engine === 'object' ? { ...sh.engine } : {}];
+  }
+  if (!sh.engines.length) sh.engines = [{}];
+  delete sh.engine;
   return sh;
 }
 

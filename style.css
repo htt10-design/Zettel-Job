@@ -598,6 +598,18 @@ fieldset[disabled] .entry-add, fieldset[disabled] > .btn.block, fieldset[disable
 fieldset[disabled] .insert-btn { display: none; }
 .sub-title { margin: 16px 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
 
+/* ---------- Mehrere Motoren ---------- */
+.engine-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.engine-title-row .sub-title { margin-bottom: 8px; }
+.seg.mini { min-height: 34px; padding: 2px; }
+.seg.mini button { padding: 4px 10px; font-size: 12.5px; white-space: nowrap; }
+.seg.mini button:disabled { opacity: .35; }
+.engine-block.multi { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px 12px; margin-bottom: 10px; background: var(--surface-2); }
+.engine-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.engine-tag { background: var(--accent); color: #fff; font-weight: 800; font-size: 12px; border-radius: 7px; padding: 3px 8px; min-width: 30px; text-align: center; }
+[data-theme="dark"] .engine-tag { color: #06243b; }
+.engine-name { flex: 1; font-weight: 700; font-size: 14px; }
+
 /* ---------- Ordner ---------- */
 .type-pill svg, .inline-ico { width: 14px; height: 14px; vertical-align: -2px; margin-right: 2px; }
 .folder-card { border-left-color: var(--warn); background: linear-gradient(0deg, var(--surface), var(--surface)), var(--surface); }

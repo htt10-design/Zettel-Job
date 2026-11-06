@@ -171,6 +171,26 @@ function openOrder(no) {
   showView('order');
 }
 
+// Motoren aller Zettel eines Auftrags, je Position (BB/SB, A/B …) zusammengefasst;
+// Betriebsstunden als Verlauf „erster → letzter“ Stand
+function orderEngines(sheets) {
+  const max = Math.max(1, ...sheets.map(s => (s.engines || []).length));
+  const res = [];
+  for (let i = 0; i < max; i++) {
+    const list = sheets.map(s => (s.engines || [])[i]).filter(Boolean);
+    const hours = list.map(e => String(e.hours || '').trim()).filter(Boolean);
+    const labelSheet = sheets.find(s => (s.engines || []).length > 1) || sheets[0];
+    res.push({
+      label: max > 1 ? engineLabel(labelSheet, i) || String(i + 1) : '',
+      make: distinctJoin(list.map(e => e.make)),
+      model: distinctJoin(list.map(e => e.model)),
+      number: distinctJoin(list.map(e => e.number)),
+      hours: hours.length > 1 && hours[0] !== hours[hours.length - 1] ? hours[0] + ' → ' + hours[hours.length - 1] : (hours[0] || '')
+    });
+  }
+  return res;
+}
+
 // ---------- Übersicht ----------
 function orderData(no) {
   const sheets = orderSheets(no);
@@ -191,13 +211,7 @@ function orderData(no) {
     no: normOrderNo(no), sheets, items, totals, travels, km, allowance,
     customer: distinctJoin(sheets.map(s => s.customer)),
     vessel: distinctJoin(sheets.map(s => s.vessel)),
-    engine: {
-      make: distinctJoin(sheets.map(s => (s.engine || {}).make)),
-      model: distinctJoin(sheets.map(s => (s.engine || {}).model)),
-      number: distinctJoin(sheets.map(s => (s.engine || {}).number)),
-      // Betriebsstunden: Stand vom ersten bis letzten Tag
-      hours: (() => { const h = sheets.map(s => String((s.engine || {}).hours || '').trim()).filter(Boolean); return h.length > 1 && h[0] !== h[h.length - 1] ? h[0] + ' → ' + h[h.length - 1] : (h[0] || ''); })()
-    },
+    engines: orderEngines(sheets),
     material: sheets.some(s => s.material === true) ? true : (sheets.some(s => s.material === false) ? false : null),
     materialNotes: sheets.filter(s => s.material === true && s.materialNote).map(s => formatDateShort(sheetFirstDate(s)) + ' ' + s.materialNote),
     finished: lastSheet ? lastSheet.finished : null,
@@ -319,7 +333,7 @@ function buildOrderPrintHtml(no) {
     subtitle: o.range + ' · ' + o.items.length + ' Tag' + (o.items.length > 1 ? 'e' : ''),
     isMontage: true,
     orderNo: o.no, customer: o.customer, vessel: o.vessel,
-    engine: o.engine,
+    engines: o.engines,
     items: o.items.map(i => ({ sheet: i.sheet, di: i.di })),
     travels: o.travels,
     material: o.material,
