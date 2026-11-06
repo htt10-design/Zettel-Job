@@ -338,7 +338,7 @@ function dayInfo(iso) {
   const sources = [];
   let worked = 0;
   appData.sheets.forEach(sh => sh.days.forEach((d, di) => {
-    if (d.date !== iso) return;
+    if (d.date !== iso || !isOwnSheet(sh)) return;
     const m = dayWorkedMinutes(sh, di);
     if (m || d.entries.length) sources.push({ sheet: sh, minutes: m });
     worked += m;
@@ -354,6 +354,12 @@ function dayInfo(iso) {
   });
   const delta = (counted ? worked - target : 0) + correction;
   return { date: iso, worked, target: counted ? target : 0, delta, sources, offs, counted };
+}
+
+// Gehört der Zettel dem angemeldeten Techniker? (Zettel ohne Namen zählen immer)
+function isOwnSheet(sh) {
+  const me = String(appData.settings.name || '').trim().toLowerCase();
+  return !sh.worker || !me || String(sh.worker).trim().toLowerCase() === me;
 }
 
 // Alle Daten, an denen irgendetwas erfasst ist

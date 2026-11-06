@@ -1,0 +1,518 @@
+// =====================================================================
+// 10-jobs: Rollen (Servicetechniker / Sachbearbeiter) und Aufträge
+//
+// - Beim Start wählt man, als was man sich anmeldet (appData.role).
+//   Alles läuft lokal auf diesem Gerät – für mehrere Geräte/Techniker
+//   braucht es später einen Server; sheet.worker / job.assignedTo sind
+//   dafür schon vorbereitet.
+// - Sachbearbeiter: legt Aufträge an (Auftragsnummer, Kunde, Schiff,
+//   Motoren, Beschreibung, PDF/Fotos), sieht alle Zettel aller Techniker.
+// - Techniker: sieht offene Aufträge, legt daraus mit einem Tipp einen
+//   vorausgefüllten Montagezettel an, kann Beschreibung/PDF ansehen.
+// Dateien liegen im IndexedDB-Store "files" (saveFile/getFile in 01-core),
+// job.files enthält nur { id, name, type, size }.
+// =====================================================================
+
+let activeJobId = null;
+let jobFilter = 'offen';
+let workerFilter = '';
+
+const MAX_FILE_MB = 25;
+
+function isOffice() { return appData.role === 'office'; }
+
+// Angemeldeter Name je Rolle
+function currentUserName() {
+  return isOffice() ? (appData.settings.officeName || '') : (appData.settings.name || '');
+}
+
+// ---------- Rolle / Anmeldung ----------
+function applyRole() {
+  const role = appData.role || 'tech';
+  document.body.classList.toggle('role-office', role === 'office');
+  document.body.classList.toggle('role-tech', role !== 'office');
+  const badge = document.getElementById('role-badge');
+  if (badge) {
+    badge.textContent = appData.role ? (role === 'office' ? 'Büro' : 'Technik') : '';
+    badge.hidden = !appData.role;
+  }
+}
+
+// Schritt 1: Rolle wählen
+function openRoleChooser() {
+  const first = !appData.role;
+  openModal(`
+    <h2 class="modal-title">${first ? 'Willkommen bei Zettel-Job' : 'Rolle wechseln'}</h2>
+    <p class="modal-text muted">Als was möchtest du dich anmelden?</p>
+    <div class="type-choice">
+      <button class="type-btn ${appData.role === 'tech' ? 'current' : ''}" onclick="chooseRole('tech')">
+        <svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg>
+        <strong>Servicetechniker</strong>
+        <span>Eigene Zeiten und Arbeiten erfassen, Zettel, Stunden, Aufträge ansehen</span>
+      </button>
+      <button class="type-btn ${appData.role === 'office' ? 'current' : ''}" onclick="chooseRole('office')">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        <strong>Sachbearbeiter</strong>
+        <span>Aufträge anlegen (Motordaten, Beschreibung, PDF), alle Zettel aller Techniker einsehen</span>
+      </button>
+    </div>
+    <p class="muted small-text">Hinweis: Die Daten liegen auf diesem Gerät. Der Austausch zwischen mehreren Geräten folgt später.</p>
+    ${first ? '' : '<div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button></div>'}`, { locked: first });
+}
+
+// Schritt 2: Name für die gewählte Rolle (vorausgefüllt mit dem zuletzt benutzten)
+function chooseRole(role) {
+  const s = appData.settings;
+  const name = role === 'office' ? s.officeName || '' : s.name || '';
+  openModal(`
+    <h2 class="modal-title">${role === 'office' ? 'Sachbearbeiter' : 'Servicetechniker'}</h2>
+    <label class="field"><span>Dein Name</span>
+      <input type="text" id="login-name" value="${escapeHtml(name)}" placeholder="Vor- und Nachname" autocomplete="name" autofocus
+        onkeydown="if(event.key==='Enter'){event.preventDefault();loginAs('${role}');}">
+    </label>
+    <p class="muted small-text">${role === 'office' ? 'Erscheint z.B. als Ersteller der Aufträge.' : 'Steht als Monteur auf deinen Zetteln.'}</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="openRoleChooser()">Zurück</button>
+      <button class="btn btn-primary" onclick="loginAs('${role}')">Anmelden</button>
+    </div>`, { locked: !appData.role });
+}
+
+function loginAs(role) {
+  const input = document.getElementById('login-name');
+  const name = input ? input.value.trim() : '';
+  appData.role = role;
+  if (name) {
+    if (role === 'office') appData.settings.officeName = name;
+    else appData.settings.name = name;
+  }
+  saveData(true);
+  applyRole();
+  closeModal();
+  showView(role === 'office' ? 'jobs' : 'sheets');
+  showToast(`Angemeldet als ${role === 'office' ? 'Sachbearbeiter' : 'Servicetechniker'}${name ? ' – ' + name : ''}`);
+}
+
+// ---------- Hilfsfunktionen Aufträge ----------
+function getJob(id) {
+  return appData.jobs.find(j => j.id === id) || null;
+}
+
+function getActiveJob() {
+  return getJob(activeJobId);
+}
+
+// Auftrag zu einer Auftragsnummer (für Zettel)
+function jobForOrder(no) {
+  if (!normOrderNo(no)) return null;
+  return appData.jobs.find(j => sameOrder(j.orderNo, no)) || null;
+}
+
+// Alle Montagezettel zu einem Auftrag
+function jobSheets(job) {
+  return normOrderNo(job.orderNo) ? orderSheets(job.orderNo) : [];
+}
+
+function formatFileSize(bytes) {
+  if (!bytes) return '';
+  if (bytes < 1024 * 1024) return Math.max(1, Math.round(bytes / 1024)) + ' KB';
+  return (bytes / 1024 / 1024).toLocaleString('de-DE', { maximumFractionDigits: 1 }) + ' MB';
+}
+
+function fileIcon(type) {
+  return /pdf/i.test(type || '')
+    ? '<svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/><path d="M9 14h1.5a1.5 1.5 0 0 0 0-3H9v6"/></svg>'
+    : '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-8 8"/></svg>';
+}
+
+// Liste der Anhänge (Öffnen für alle, Löschen nur im Büro)
+function fileListHtml(job, canDelete) {
+  if (!job.files.length) return '<p class="muted small-text">Keine Dateien angehängt.</p>';
+  return `<div class="file-list">${job.files.map(f => `
+    <div class="file-row">
+      <button type="button" class="file-open" onclick="openJobFile('${f.id}')">
+        ${fileIcon(f.type)}<span><b>${escapeHtml(f.name)}</b><small>${escapeHtml(formatFileSize(f.size))}</small></span>
+      </button>
+      ${canDelete ? `<button type="button" class="icon-btn small danger-hover" onclick="removeJobFile('${job.id}','${f.id}')" aria-label="Datei entfernen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>` : ''}
+    </div>`).join('')}</div>`;
+}
+
+async function openJobFile(fileId) {
+  try {
+    const blob = await getFile(fileId);
+    if (!blob) { showToast('Datei nicht gefunden'); return; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 60000);
+  } catch (e) {
+    console.error(e);
+    showToast('Datei konnte nicht geöffnet werden');
+  }
+}
+
+// ---------- Liste ----------
+function setJobFilter(f) {
+  jobFilter = f;
+  renderJobs();
+}
+
+function renderJobs() {
+  const office = isOffice();
+  const q = (document.getElementById('job-search') || {}).value || '';
+  const ql = q.trim().toLowerCase();
+  let jobs = appData.jobs.slice();
+  if (jobFilter !== 'alle') jobs = jobs.filter(j => (j.status || 'offen') === jobFilter);
+  if (ql) jobs = jobs.filter(j => [j.orderNo, j.customer, j.vessel, j.description, j.assignedTo].some(v => String(v || '').toLowerCase().includes(ql)));
+  jobs.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  const counts = { offen: 0, erledigt: 0 };
+  appData.jobs.forEach(j => { counts[j.status || 'offen'] = (counts[j.status || 'offen'] || 0) + 1; });
+
+  const cards = jobs.map(j => {
+    const sheets = jobSheets(j);
+    const hours = sheets.reduce((t, s) => t + sheetTotals(s).worked, 0);
+    const workers = distinctJoin(sheets.map(s => s.worker));
+    const mine = !office && j.assignedTo && currentUserName() && j.assignedTo.toLowerCase() === currentUserName().toLowerCase();
+    return `
+      <button class="sheet-card job-card ${j.status === 'erledigt' ? 'done' : ''}" onclick="openJob('${j.id}')">
+        <div class="sc-top">
+          <span class="type-pill">Auftrag${mine ? ' · für dich' : ''}</span>
+          <span class="badge ${j.status === 'erledigt' ? 'badge-ok' : 'badge-open'}">${j.status === 'erledigt' ? 'Erledigt' : 'Offen'}</span>
+        </div>
+        <div class="sc-title">${escapeHtml(j.orderNo || 'ohne Auftragsnummer')}</div>
+        <div class="sc-sub">${escapeHtml([j.vessel, j.customer].filter(Boolean).join(' · ') || 'ohne Kunde')}</div>
+        ${j.description ? `<div class="job-desc-snip">${escapeHtml(j.description.slice(0, 140))}${j.description.length > 140 ? '…' : ''}</div>` : ''}
+        <div class="sc-bottom">
+          <span class="sc-hours">${sheets.length ? formatHours(hours) + ` <small>· ${sheets.length} Zettel${workers ? ' · ' + escapeHtml(workers) : ''}</small>` : '<small>noch keine Zettel</small>'}</span>
+          <span class="sc-badges">${j.files.length ? `<span class="badge">📎 ${j.files.length}</span>` : ''}${j.assignedTo ? `<span class="badge">${escapeHtml(j.assignedTo)}</span>` : ''}</span>
+        </div>
+      </button>`;
+  }).join('');
+
+  document.getElementById('jobs-body').innerHTML = `
+    ${office ? `<button class="btn btn-primary block" onclick="createJob()">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Neuen Auftrag anlegen</button>` : ''}
+    <div class="toolbar">
+      <div class="search">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+        <input type="search" id="job-search" placeholder="Suchen: Auftrag, Kunde, Schiff …" value="${escapeHtml(q)}" oninput="renderJobsKeepFocus()">
+      </div>
+      <div class="chips">
+        <button class="chip ${jobFilter === 'offen' ? 'active' : ''}" onclick="setJobFilter('offen')">Offen (${counts.offen || 0})</button>
+        <button class="chip ${jobFilter === 'erledigt' ? 'active' : ''}" onclick="setJobFilter('erledigt')">Erledigt (${counts.erledigt || 0})</button>
+        <button class="chip ${jobFilter === 'alle' ? 'active' : ''}" onclick="setJobFilter('alle')">Alle</button>
+      </div>
+    </div>
+    <div class="sheet-list">${cards || `<div class="empty small"><p>${appData.jobs.length ? 'Keine Aufträge in dieser Ansicht.' : office ? 'Noch keine Aufträge angelegt.' : 'Noch keine Aufträge vom Büro vorhanden.'}</p></div>`}</div>`;
+}
+
+// Suche ohne Fokusverlust
+function renderJobsKeepFocus() {
+  const el = document.getElementById('job-search');
+  const pos = el ? el.selectionStart : 0;
+  renderJobs();
+  const n = document.getElementById('job-search');
+  if (n) { n.focus(); n.setSelectionRange(pos, pos); }
+}
+
+// ---------- Anlegen / Öffnen ----------
+function createJob() {
+  const job = {
+    id: uid(),
+    createdAt: new Date().toISOString(),
+    createdBy: appData.settings.officeName || '',
+    orderNo: '', customer: '', vessel: '',
+    engines: [{}],
+    description: '',
+    files: [],
+    status: 'offen',
+    assignedTo: ''
+  };
+  appData.jobs.push(job);
+  saveData(true);
+  openJob(job.id);
+}
+
+function openJob(id) {
+  activeJobId = id;
+  showView('job');
+}
+
+// ---------- Detail ----------
+function renderJob() {
+  const job = getActiveJob();
+  if (!job) { showView('jobs'); return; }
+  const office = isOffice();
+  setTopbarTitle(job.orderNo ? 'Auftrag ' + job.orderNo : 'Neuer Auftrag');
+  const sheets = jobSheets(job);
+  const workers = Array.from(new Set(appData.sheets.map(s => s.worker).filter(Boolean)));
+
+  // Zettel zum Auftrag, nach Techniker gruppiert
+  const byWorker = {};
+  sheets.forEach(s => { const w = s.worker || 'ohne Namen'; (byWorker[w] = byWorker[w] || []).push(s); });
+  const sheetsHtml = sheets.length ? Object.keys(byWorker).map(w => {
+    const list = byWorker[w];
+    const t = list.reduce((a, s) => { const x = sheetTotals(s); a.worked += x.worked; a.ot += x.ot; return a; }, { worked: 0, ot: 0 });
+    return `
+      <div class="job-worker">
+        <div class="h-week-head"><span>${escapeHtml(w)}</span><span>${formatHours(t.worked)}${t.ot ? ' · ' + formatHours(t.ot) + ' Überstd.' : ''}</span></div>
+        ${list.map(s => `
+          <button class="o-day" onclick="openEditor('${s.id}','job')">
+            <span class="h-date">${escapeHtml(sheetDateRange(s))}</span>
+            <span class="h-src">${s.signCustomer ? '<span class="src ok">unterschr.</span>' : ''}${s.finished === true ? '<span class="src">beendet</span>' : ''}</span>
+            <span class="o-num">${formatHours(sheetTotals(s).normal)}</span>
+            <span class="o-num ot">${sheetTotals(s).ot ? formatHours(sheetTotals(s).ot) : '–'}</span>
+          </button>`).join('')}
+      </div>`;
+  }).join('') : '<p class="muted small-text">Zu dieser Auftragsnummer gibt es noch keine Zettel.</p>';
+
+  let html;
+  if (office) {
+    html = `
+      <div class="card">
+        <div class="job-status-row">
+          <h3 class="card-title">Auftrag</h3>
+          <div class="seg mini-seg">
+            <button type="button" class="${job.status !== 'erledigt' ? 'on' : ''}" onclick="setJobStatus('offen')">Offen</button>
+            <button type="button" class="${job.status === 'erledigt' ? 'on' : ''}" onclick="setJobStatus('erledigt')">Erledigt</button>
+          </div>
+        </div>
+        <div class="grid-2">
+          ${field('Auftragsnummer', 'orderNo', job.orderNo, { placeholder: 'SR26/000249 oder nur 249', orderno: 'order', rerender: true })}
+          ${field('Auftraggeber / Kunde', 'customer', job.customer, { placeholder: 'Firma', list: 'dl-job-customers' })}
+          ${field('Schiffsname / Anlage', 'vessel', job.vessel, { placeholder: 'z.B. MS Hanna', list: 'dl-job-vessels' })}
+          ${field('Techniker (optional)', 'assignedTo', job.assignedTo, { placeholder: 'Name', list: 'dl-job-workers' })}
+        </div>
+        ${engineSection(job, 'jobAddEngine', 'jobRemoveEngine')}
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Beschreibung</h3>
+        <label class="field"><textarea data-bind="description" rows="6" placeholder="Was ist zu tun? Ansprechpartner, Liegeplatz, Besonderheiten …">${escapeHtml(job.description || '')}</textarea></label>
+        <h4 class="sub-title">Dateien (PDF, Fotos)</h4>
+        ${fileListHtml(job, true)}
+        <button type="button" class="btn btn-soft" onclick="document.getElementById('job-file').click()">
+          <svg viewBox="0 0 24 24"><path d="M21 12.5l-8.5 8.5a5 5 0 0 1-7-7L14 5.5a3.5 3.5 0 0 1 5 5L10.5 19a2 2 0 0 1-3-3L15 8.5"/></svg> Datei anhängen</button>
+        <input type="file" id="job-file" accept="application/pdf,image/*" multiple hidden onchange="addJobFiles(this)">
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Zettel der Techniker</h3>
+        ${sheetsHtml}
+        ${sheets.length ? `<button type="button" class="btn btn-soft" onclick="openOrder(${escapeHtml(JSON.stringify(normOrderNo(job.orderNo)))})">Zusammenstellung &amp; Druck</button>` : ''}
+      </div>
+
+      <div class="editor-footer">
+        <button type="button" class="btn btn-danger-ghost" onclick="deleteJob('${job.id}')">Auftrag löschen</button>
+        <button type="button" class="btn btn-primary" onclick="showView('jobs')">Fertig</button>
+      </div>
+      <datalist id="dl-job-customers">${Array.from(new Set(appData.sheets.concat(appData.jobs).map(x => x.customer).filter(Boolean))).map(v => `<option value="${escapeHtml(v)}">`).join('')}</datalist>
+      <datalist id="dl-job-vessels">${Array.from(new Set(appData.sheets.concat(appData.jobs).map(x => x.vessel).filter(Boolean))).map(v => `<option value="${escapeHtml(v)}">`).join('')}</datalist>
+      <datalist id="dl-job-workers">${workers.map(v => `<option value="${escapeHtml(v)}">`).join('')}</datalist>
+      ${engineDatalists()}`;
+  } else {
+    // Techniker: nur ansehen + Zettel anlegen
+    const engines = (job.engines || []).filter(engineHasData);
+    const mySheets = sheets.filter(s => !s.worker || !currentUserName() || s.worker.toLowerCase() === currentUserName().toLowerCase());
+    html = `
+      <div class="card">
+        <div class="job-status-row">
+          <h3 class="card-title">Auftrag ${escapeHtml(job.orderNo || '')}</h3>
+          <span class="badge ${job.status === 'erledigt' ? 'badge-ok' : 'badge-open'}">${job.status === 'erledigt' ? 'Erledigt' : 'Offen'}</span>
+        </div>
+        <dl class="job-facts">
+          <dt>Kunde</dt><dd>${escapeHtml(job.customer || '–')}</dd>
+          <dt>Schiff / Anlage</dt><dd>${escapeHtml(job.vessel || '–')}</dd>
+          ${job.assignedTo ? `<dt>Techniker</dt><dd>${escapeHtml(job.assignedTo)}</dd>` : ''}
+        </dl>
+        ${engines.length ? `<h4 class="sub-title">${engines.length > 1 ? engines.length + ' Motoren' : 'Motor'}</h4>
+          <div class="engine-facts">${engines.map((e, i) => `
+            <div class="engine-fact"><b>${escapeHtml(e.name || (engines.length > 1 ? 'Motor ' + (i + 1) : 'Motor'))}</b>
+              <span>${escapeHtml([e.make, e.model].filter(Boolean).join(' ') || '–')}</span>
+              <span>Nr. ${escapeHtml(e.number || '–')} · Betriebsstd. ${escapeHtml(e.hours || '–')}</span></div>`).join('')}</div>` : ''}
+      </div>
+      <div class="card">
+        <h3 class="card-title">Beschreibung</h3>
+        <p class="job-desc">${job.description ? escapeHtml(job.description) : '<span class="muted">Keine Beschreibung.</span>'}</p>
+        ${job.files.length ? `<h4 class="sub-title">Dateien</h4>${fileListHtml(job, false)}` : ''}
+      </div>
+      <button type="button" class="btn btn-primary block" onclick="createSheetFromJob('${job.id}')">
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Zettel für diesen Auftrag anlegen</button>
+      ${mySheets.length ? `<div class="card"><h3 class="card-title">Meine Zettel zu diesem Auftrag</h3>${mySheets.map(s => `
+        <button class="o-day" onclick="openEditor('${s.id}','job')">
+          <span class="h-date">${escapeHtml(sheetDateRange(s))}</span><span class="h-src"></span>
+          <span class="o-num">${formatHours(sheetTotals(s).normal)}</span>
+          <span class="o-num ot">${sheetTotals(s).ot ? formatHours(sheetTotals(s).ot) : '–'}</span>
+        </button>`).join('')}</div>` : ''}`;
+  }
+  document.getElementById('job-body').innerHTML = html;
+}
+
+// Vorschlagslisten für Motordaten (wie im Zettel-Editor)
+function engineDatalists() {
+  const sets = { name: new Set(['BB', 'SB', 'Backbord', 'Steuerbord']), make: new Set(), model: new Set(), number: new Set() };
+  appData.sheets.concat(appData.jobs).forEach(x => (x.engines || []).forEach(e => Object.keys(sets).forEach(k => { if (e[k]) sets[k].add(e[k]); })));
+  const ids = { name: 'dl-eng-name', make: 'dl-eng-make', model: 'dl-eng-model', number: 'dl-eng-number' };
+  return Object.keys(sets).map(k => `<datalist id="${ids[k]}">${Array.from(sets[k]).map(v => `<option value="${escapeHtml(v)}">`).join('')}</datalist>`).join('');
+}
+
+// ---------- Eingaben im Auftrag (Büro) ----------
+function handleJobInput(ev) {
+  const el = ev.target;
+  const bind = el.dataset && el.dataset.bind;
+  if (!bind) return;
+  const job = getActiveJob();
+  if (!job || !isOffice()) return;
+  setPath(job, bind, el.value);
+  if (ev.type === 'change' && el.dataset.orderno) {
+    const v = formatOrderNo(el.value, todayISO(), true);
+    if (v !== el.value) { el.value = v; setPath(job, bind, v); }
+  }
+  job.updatedAt = new Date().toISOString();
+  saveData();
+  if (ev.type === 'change' && el.dataset.rerender) renderJob();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const body = document.getElementById('job-body');
+  body.addEventListener('input', handleJobInput);
+  body.addEventListener('change', handleJobInput);
+});
+
+function setJobStatus(status) {
+  const job = getActiveJob();
+  job.status = status;
+  saveData(true);
+  renderJob();
+}
+
+function jobAddEngine() {
+  const job = getActiveJob();
+  const first = job.engines[0] || {};
+  job.engines.push({ name: '', make: first.make || '', model: first.model || '', number: '', hours: '' });
+  saveData();
+  renderJob();
+}
+
+async function jobRemoveEngine(i) {
+  const job = getActiveJob();
+  if (engineHasData(job.engines[i]) && !(await confirmDialog('Motor mit den eingetragenen Daten entfernen?', 'Entfernen', true))) return;
+  job.engines.splice(i, 1);
+  if (!job.engines.length) job.engines = [{}];
+  saveData();
+  renderJob();
+}
+
+async function addJobFiles(input) {
+  const job = getActiveJob();
+  const files = Array.from(input.files || []);
+  input.value = '';
+  let added = 0;
+  for (const f of files) {
+    if (f.size > MAX_FILE_MB * 1024 * 1024) { showToast(`„${f.name}“ ist größer als ${MAX_FILE_MB} MB`); continue; }
+    const id = uid();
+    try {
+      await saveFile(id, f);
+      job.files.push({ id, name: f.name, type: f.type || '', size: f.size });
+      added++;
+    } catch (e) {
+      console.error(e);
+      showToast(`„${f.name}“ konnte nicht gespeichert werden`);
+    }
+  }
+  saveData(true);
+  renderJob();
+  if (added) showToast(added === 1 ? 'Datei angehängt' : `${added} Dateien angehängt`);
+}
+
+async function removeJobFile(jobId, fileId) {
+  const job = getJob(jobId);
+  const f = job && job.files.find(x => x.id === fileId);
+  if (!f || !(await confirmDialog(`Datei „${f.name}“ entfernen?`, 'Entfernen', true))) return;
+  job.files = job.files.filter(x => x.id !== fileId);
+  deleteFile(fileId).catch(() => {});
+  saveData(true);
+  renderJob();
+}
+
+async function deleteJob(id) {
+  const job = getJob(id);
+  if (!job) return;
+  if (!(await confirmDialog(`Auftrag ${job.orderNo || ''} löschen? Die Zettel der Techniker bleiben erhalten.`, 'Löschen', true))) return;
+  job.files.forEach(f => deleteFile(f.id).catch(() => {}));
+  appData.jobs = appData.jobs.filter(j => j.id !== id);
+  saveData(true);
+  showView('jobs');
+  showToast('Auftrag gelöscht');
+}
+
+// ---------- Techniker: Zettel aus Auftrag ----------
+function createSheetFromJob(id) {
+  const job = getJob(id);
+  if (!job) return;
+  // Gibt es schon Zettel zum Auftrag? → Folgetag des letzten eigenen Zettels
+  const own = jobSheets(job).filter(s => !s.worker || !currentUserName() || s.worker.toLowerCase() === currentUserName().toLowerCase());
+  if (own.length) { nextDaySheet(own[own.length - 1].id, 'job'); return; }
+  createSheet('montage');
+  const sheet = getActiveSheet();
+  sheet.orderNo = normOrderNo(job.orderNo);
+  sheet.customer = job.customer || '';
+  sheet.vessel = job.vessel || '';
+  sheet.engines = copyEngines(job.engines);
+  editorReturn = 'job';
+  saveData(true);
+  renderEditor();
+  showToast('Zettel mit den Auftragsdaten angelegt');
+}
+
+// ---------- Büro: Kopf der Zettel-Liste mit Techniker-Filter ----------
+function renderOfficeHead() {
+  const el = document.getElementById('office-head');
+  if (!el) return;
+  if (!isOffice()) { el.innerHTML = ''; return; }
+  const workers = Array.from(new Set(appData.sheets.map(s => s.worker || '').filter(Boolean))).sort();
+  const total = appData.sheets.filter(s => !workerFilter || (s.worker || '') === workerFilter);
+  el.innerHTML = `
+    <div class="card office-card">
+      <div><b>Alle Zettel aller Techniker</b><span class="muted small-text"> · ${total.length} Zettel · nur ansehen</span></div>
+      <label class="field"><span>Techniker</span>
+        <select onchange="workerFilter = this.value; renderSheetList()">
+          <option value="">Alle Techniker</option>
+          ${workers.map(w => `<option ${w === workerFilter ? 'selected' : ''}>${escapeHtml(w)}</option>`).join('')}
+          ${appData.sheets.some(s => !s.worker) ? `<option value="__none" ${workerFilter === '__none' ? 'selected' : ''}>ohne Namen</option>` : ''}
+        </select>
+      </label>
+    </div>`;
+}
+
+// Filter der Zettel-Liste je Rolle:
+// Büro → Techniker-Auswahl; Techniker → nur eigene Zettel (bzw. ohne Namen)
+function sheetVisibleForRole(s) {
+  if (isOffice()) {
+    if (!workerFilter) return true;
+    if (workerFilter === '__none') return !s.worker;
+    return (s.worker || '') === workerFilter;
+  }
+  const me = currentUserName().toLowerCase();
+  return !s.worker || !me || s.worker.toLowerCase() === me;
+}
+
+window.openRoleChooser = openRoleChooser;
+window.loginAs = loginAs;
+window.chooseRole = chooseRole;
+window.renderJobs = renderJobs;
+window.renderJobsKeepFocus = renderJobsKeepFocus;
+window.setJobFilter = setJobFilter;
+window.createJob = createJob;
+window.openJob = openJob;
+window.setJobStatus = setJobStatus;
+window.jobAddEngine = jobAddEngine;
+window.jobRemoveEngine = jobRemoveEngine;
+window.addJobFiles = addJobFiles;
+window.removeJobFile = removeJobFile;
+window.openJobFile = openJobFile;
+window.deleteJob = deleteJob;
+window.createSheetFromJob = createSheetFromJob;

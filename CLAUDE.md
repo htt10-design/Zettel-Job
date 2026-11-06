@@ -30,6 +30,7 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
 | 07-hours | Stundenübersicht (Monat/KW/Jahr), Überstundenkonto, freie Tage / Urlaub / Krank / Feiertag / Korrektur |
 | 08-settings | Name, Standort, Kennzeichen, Sollzeiten, Startsaldo, Zeitarten, eigene Unterschrift, Backup |
 | 09-orders | „Auftrag zusammenstellen“ (nur auf Befehl): alle Montagezettel einer Auftragsnummer → Übersicht, Auslöse-Summen, gemeinsamer Druck, Unterschriften in `appData.orders`; Ordner je Auftragsnummer |
+| 10-jobs | Rollen (Anmeldung Servicetechniker / Sachbearbeiter, `appData.role`), Aufträge vom Büro (`appData.jobs`: Auftragsnr., Kunde, Schiff, Motoren, Beschreibung, Dateien), Zettel aus Auftrag, Büro-Ansicht aller Zettel |
 
 ## Zettel-Modell
 
@@ -51,6 +52,16 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
   die Dauer verschoben.
 - Auftragsnummern-Format `SR26/000249`: `formatOrderNo()` ergänzt beim Verlassen des Feldes
   ("249" → SR{Jahr des Zettels}/000249, "26/249" → SR26/000249). Reine Zahlen bei Kostenstellen bleiben stehen.
+
+## Rollen & Aufträge
+
+- Beim ersten Start Anmeldung: Servicetechniker (`settings.name`) oder Sachbearbeiter (`settings.officeName`); wechselbar.
+  CSS-Klassen `tech-only` / `office-only` blenden je Rolle aus (body.role-tech / body.role-office).
+- Alles lokal auf einem Gerät – Austausch zwischen Geräten (Server) folgt später.
+- Büro: Aufträge anlegen/bearbeiten, alle Zettel nur ansehen (Editor gesperrt), Filter nach Techniker (`sheet.worker`).
+- Techniker: sieht nur eigene Zettel (`isOwnSheet`, Zettel ohne Namen zählen mit); Stunden nur aus eigenen Zetteln;
+  „Zettel für diesen Auftrag anlegen“ füllt Auftragsnr., Kunde, Schiff, Motoren; Auftragsinfo (Beschreibung/PDF) im Zettel.
+- Dateianhänge im IndexedDB-Store `files` (DB-Version 2), `job.files` nur Metadaten; Backup enthält sie als Data-URL.
 
 ## Stundenregeln
 

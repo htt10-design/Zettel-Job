@@ -6,6 +6,7 @@
 const ZJ_DB_NAME = 'zettel-job';
 const ZJ_DB_STORE = 'store';
 const ZJ_DB_KEY = 'appData';
+const ZJ_DB_FILES = 'files'; // Dateianhänge (PDF/Fotos) der Aufträge, getrennt von appData
 
 // Standard-Zeitarten. Erweiterbar über die Einstellungen.
 // counts = zählt als Arbeitszeit (für Stunden- und Überstundenberechnung)
@@ -79,6 +80,8 @@ function createDefaultData() {
       costCentersVersion: 1, // Version der eingetragenen Standard-Kostenstellen
       ownSignature: null
     },
+    role: null,   // 'tech' (Servicetechniker) | 'office' (Sachbearbeiter) – Auswahl beim Start
+    jobs: [],     // vom Sachbearbeiter angelegte Aufträge
     sheets: [],
     daysOff: [],
     orders: {} // Zusammenstellungen je Auftragsnummer (Unterschriften)
@@ -105,6 +108,13 @@ function normalizeData(data) {
   delete s.costCentersSeeded; // fehlerhafte Markierung der Vorversion
   if (!Array.isArray(data.sheets)) data.sheets = [];
   if (!Array.isArray(data.daysOff)) data.daysOff = [];
+  if (!Array.isArray(data.jobs)) data.jobs = [];
+  data.jobs.forEach(j => {
+    if (!Array.isArray(j.engines) || !j.engines.length) j.engines = [{}];
+    if (!Array.isArray(j.files)) j.files = [];
+    if (!j.status) j.status = 'offen';
+  });
+  if (data.role !== 'tech' && data.role !== 'office') data.role = null;
   if (!data.orders || typeof data.orders !== 'object' || Array.isArray(data.orders)) data.orders = {};
   data.sheets.forEach(normalizeSheet);
   return data;
@@ -130,10 +140,11 @@ function normalizeSheet(sh) {
 // ---------- IndexedDB ----------
 function openDb() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(ZJ_DB_NAME, 1);
+    const request = indexedDB.open(ZJ_DB_NAME, 2);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains(ZJ_DB_STORE)) db.createObjectStore(ZJ_DB_STORE);
+      if (!db.objectStoreNames.contains(ZJ_DB_FILES)) db.createObjectStore(ZJ_DB_FILES);
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -172,6 +183,20 @@ async function writeData() {
   }
 }
 
+// ---------- Dateianhänge (IndexedDB-Store "files", Schlüssel = Datei-ID) ----------
+async function fileStore(mode, fn) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(ZJ_DB_FILES, mode);
+    const req = fn(tx.objectStore(ZJ_DB_FILES));
+    tx.oncomplete = () => resolve(req && req.result);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+function saveFile(id, blob) { return fileStore('readwrite', st => st.put(blob, id)); }
+function getFile(id) { return fileStore('readonly', st => st.get(id)); }
+function deleteFile(id) { return fileStore('readwrite', st => st.delete(id)); }
+
 // Speichert gebündelt (bei vielen Tastendrücken nicht jedes Mal schreiben)
 function saveData(immediate) {
   clearTimeout(saveTimer);
@@ -188,7 +213,9 @@ function flushSave() {
 async function initApp() {
   appData = await loadData();
   applyTheme();
-  renderSheetList();
+  applyRole();
+  if (appData.role === 'office') showView('jobs'); else renderSheetList();
+  if (!appData.role) openRoleChooser();
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW-Registrierung fehlgeschlagen', e));
   }
@@ -206,9 +233,9 @@ function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
   document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   const inEditor = name === 'editor';
-  const inSub = inEditor || name === 'order';
+  const inSub = inEditor || name === 'order' || name === 'job';
   document.getElementById('btn-back').hidden = !inSub;
-  document.getElementById('btn-print').hidden = !inSub;
+  document.getElementById('btn-print').hidden = !inSub || name === 'job';
   document.getElementById('btn-sheet-menu').hidden = !inEditor;
   document.getElementById('bottom-nav').classList.toggle('hidden', inSub);
   document.body.classList.toggle('in-editor', inSub);
@@ -218,6 +245,8 @@ function showView(name) {
   if (name === 'hours') renderHours();
   if (name === 'settings') renderSettings();
   if (name === 'order') renderOrder();
+  if (name === 'jobs') renderJobs();
+  if (name === 'job') renderJob();
   window.scrollTo(0, 0);
 }
 
@@ -228,6 +257,7 @@ function setTopbarTitle(text) {
 // Zurück-Knopf oben links
 function goBack() {
   if (currentView === 'editor') closeEditor();
+  else if (currentView === 'job') showView('jobs');
   else showView('sheets');
 }
 
@@ -267,7 +297,10 @@ function openModal(html, opts = {}) {
   const card = document.getElementById('modal-card');
   card.className = 'modal-card' + (opts.wide ? ' wide' : '');
   card.innerHTML = html;
-  document.getElementById('modal').classList.add('open');
+  const modal = document.getElementById('modal');
+  // locked: kein Schließen durch Tippen daneben (z.B. Anmeldung)
+  if (opts.locked) modal.dataset.locked = '1'; else delete modal.dataset.locked;
+  modal.classList.add('open');
   const first = card.querySelector('[autofocus]');
   if (first) setTimeout(() => first.focus(), 50);
 }

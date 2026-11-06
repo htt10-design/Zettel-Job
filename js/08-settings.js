@@ -10,8 +10,22 @@ function renderSettings() {
   const theme = s.theme || 'auto';
   const wdOrder = [1, 2, 3, 4, 5, 6, 0];
 
+  const office = isOffice();
   document.getElementById('settings-body').innerHTML = `
-    <div class="card">
+    <div class="card login-card">
+      <div>
+        <span class="muted small-text">Angemeldet als</span>
+        <b>${office ? 'Sachbearbeiter' : 'Servicetechniker'}${currentUserName() ? ' – ' + escapeHtml(currentUserName()) : ''}</b>
+      </div>
+      <button class="btn btn-soft" onclick="openRoleChooser()">Rolle wechseln</button>
+    </div>
+
+    ${office ? `<div class="card">
+      <h3 class="card-title">Meine Daten</h3>
+      <label class="field"><span>Name (Sachbearbeiter)</span><input type="text" value="${escapeHtml(s.officeName || '')}" onchange="setSetting('officeName', this.value); applyRole()" placeholder="Vor- und Nachname"></label>
+    </div>` : ''}
+
+    <div class="card tech-only">
       <h3 class="card-title">Meine Daten</h3>
       <div class="grid-2">
         <label class="field"><span>Name (Monteur)</span><input type="text" value="${escapeHtml(s.name)}" onchange="setSetting('name', this.value)" placeholder="Vor- und Nachname"></label>
@@ -29,7 +43,7 @@ function renderSettings() {
       </div>
     </div>
 
-    <div class="card">
+    <div class="card tech-only">
       <h3 class="card-title">Arbeitszeit &amp; Überstunden</h3>
       <p class="muted small-text">Sollstunden je Wochentag. Alles darüber zählt als Überstunden.</p>
       <div class="target-grid">
@@ -78,7 +92,7 @@ function renderSettings() {
       </div>
     </div>
 
-    <div class="card">
+    <div class="card tech-only">
       <h3 class="card-title">Meine Unterschrift</h3>
       <p class="muted small-text">Wird bei „Unterschrift Monteur“ mit einem Tipp eingesetzt.</p>
       ${s.ownSignature
@@ -219,9 +233,19 @@ async function removeOwnSignature() {
 }
 
 // ---------- Backup ----------
-function exportBackup() {
+async function exportBackup() {
   const name = 'zettel-job-backup-' + todayISO() + '.json';
-  downloadFile(name, JSON.stringify(appData, null, 2), 'application/json');
+  // Dateianhänge der Aufträge als Data-URL mitsichern
+  const files = {};
+  for (const j of appData.jobs) {
+    for (const f of j.files) {
+      try {
+        const blob = await getFile(f.id);
+        if (blob) files[f.id] = await new Promise(r => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(blob); });
+      } catch (e) { console.warn('Datei nicht gesichert', f.name, e); }
+    }
+  }
+  downloadFile(name, JSON.stringify(Object.assign({}, appData, { files }), null, 2), 'application/json');
   showToast('Backup gespeichert');
 }
 
@@ -237,9 +261,16 @@ function importBackup(input) {
     if (!data || !Array.isArray(data.sheets)) { showToast('Datei ist kein Zettel-Job-Backup'); return; }
     const ok = await confirmDialog(`Backup mit ${data.sheets.length} Zettel(n) laden? Die aktuellen Daten auf diesem Gerät werden ersetzt.`, 'Laden', true);
     if (!ok) return;
+    const files = data.files || {};
+    delete data.files;
     appData = normalizeData(data);
+    // Dateianhänge zurückschreiben
+    for (const id of Object.keys(files)) {
+      try { await saveFile(id, await (await fetch(files[id])).blob()); } catch (e) { console.warn('Datei nicht wiederhergestellt', id, e); }
+    }
     await saveData(true);
     applyTheme();
+    applyRole();
     renderSettings();
     showToast('Backup geladen');
   };
@@ -248,7 +279,9 @@ function importBackup(input) {
 
 async function resetAll() {
   if (!(await confirmDialog('Wirklich ALLE Zettel, Stunden und Einstellungen löschen? Vorher am besten ein Backup speichern.', 'Alles löschen', true))) return;
+  const role = appData.role;
   appData = createDefaultData();
+  appData.role = role;
   await saveData(true);
   applyTheme();
   renderSettings();

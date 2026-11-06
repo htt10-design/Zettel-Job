@@ -25,6 +25,7 @@
           <svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg>
         </span>
         <span class="brand-text">Zettel-Job</span>
+        <span class="role-badge" id="role-badge" onclick="openRoleChooser()" title="Rolle wechseln"></span>
       </div>
       <div class="topbar-actions">
         <button class="icon-btn" id="btn-print" onclick="printCurrent()" aria-label="Drucken / PDF" hidden>
@@ -43,7 +44,8 @@
     <main>
       <!-- Ansicht: Zettel-Liste -->
       <section class="view active" id="view-sheets">
-        <div class="balance-strip" id="sheets-balance" onclick="showView('hours')"></div>
+        <div class="balance-strip tech-only" id="sheets-balance" onclick="showView('hours')"></div>
+        <div class="office-head office-only" id="office-head"></div>
         <div class="toolbar">
           <div class="search">
             <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
@@ -62,7 +64,7 @@
           </div>
         </div>
         <div id="sheet-list" class="sheet-list"></div>
-        <button class="fab" onclick="openNewSheetModal()" aria-label="Neuer Zettel">
+        <button class="fab tech-only" onclick="openNewSheetModal()" aria-label="Neuer Zettel">
           <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
           <span>Neuer Zettel</span>
         </button>
@@ -76,6 +78,16 @@
       <!-- Ansicht: Auftrag zusammengestellt -->
       <section class="view" id="view-order">
         <div id="order-body"></div>
+      </section>
+
+      <!-- Ansicht: Aufträge (Liste) -->
+      <section class="view" id="view-jobs">
+        <div id="jobs-body"></div>
+      </section>
+
+      <!-- Ansicht: Auftrag (Detail / Bearbeiten) -->
+      <section class="view" id="view-job">
+        <div id="job-body"></div>
       </section>
 
       <!-- Ansicht: Stunden & Überstunden -->
@@ -95,7 +107,11 @@
         <svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg>
         <span>Zettel</span>
       </button>
-      <button class="nav-item" data-view="hours" onclick="showView('hours')">
+      <button class="nav-item" data-view="jobs" onclick="showView('jobs')">
+        <svg viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M3 13h18"/></svg>
+        <span>Aufträge</span>
+      </button>
+      <button class="nav-item tech-only" data-view="hours" onclick="showView('hours')">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
         <span>Stunden</span>
       </button>
@@ -107,7 +123,7 @@
   </div>
 
   <!-- Modal-Container (Inhalt wird per JS gesetzt) -->
-  <div class="modal-backdrop" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal-backdrop" id="modal" onclick="if(event.target===this && !this.dataset.locked)closeModal()">
     <div class="modal-card" id="modal-card"></div>
   </div>
 
@@ -149,5 +165,6 @@
   <script src="js/07-hours.js"></script>
   <script src="js/08-settings.js"></script>
   <script src="js/09-orders.js"></script>
+  <script src="js/10-jobs.js"></script>
 </body>
 </html>

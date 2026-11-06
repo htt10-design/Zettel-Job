@@ -27,6 +27,7 @@ function closeEditor() {
   const back = editorReturn;
   editorReturn = null;
   if (back === 'order' && activeOrderNo) showView('order');
+  else if (back === 'job' && getActiveJob()) showView('job');
   else showView('sheets');
 }
 
@@ -229,6 +230,13 @@ function travelBlock(title, key, t, withDate) {
 }
 
 function signatureBox(label, sign, who) {
+  // Büro: Unterschriften nur ansehen
+  if (isOffice()) {
+    return sign && sign.img
+      ? `<div class="sign-box signed"><span class="sign-label">${escapeHtml(label)}</span><img src="${sign.img}" alt="Unterschrift">
+         <div class="sign-meta">${escapeHtml(sign.name || '')}${sign.name ? ' · ' : ''}${escapeHtml(new Date(sign.at).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }))}</div></div>`
+      : `<div class="sign-box empty static"><span class="sign-label">${escapeHtml(label)}</span><span>Nicht unterschrieben</span></div>`;
+  }
   if (sign && sign.img) {
     return `
       <div class="sign-box signed">
@@ -244,6 +252,18 @@ function signatureBox(label, sign, who) {
       <svg viewBox="0 0 24 24"><path d="M3 17c3-4 5-6 7-6s0 6 2 6 3-3 5-3 2 2 4 2"/><path d="M3 21h18"/></svg>
       <span>Tippen zum Unterschreiben</span>
     </button>`;
+}
+
+// Hinweis-Box mit Beschreibung und Dateien des Auftrags (vom Sachbearbeiter angelegt)
+function jobInfoBox(sheet) {
+  const job = jobForOrder(sheet.orderNo);
+  if (!job || (!job.description && !job.files.length)) return '';
+  return `
+    <details class="job-info" open>
+      <summary>Auftragsinfo vom Büro${job.files.length ? ` · 📎 ${job.files.length}` : ''}</summary>
+      ${job.description ? `<p class="job-desc">${escapeHtml(job.description)}</p>` : ''}
+      ${job.files.length ? fileListHtml(job, false) : ''}
+    </details>`;
 }
 
 function datalists() {
@@ -285,7 +305,9 @@ function renderEditor(keepScroll) {
   if (!sheet) { showView('sheets'); return; }
   const scrollY = window.scrollY;
   const isMontage = sheet.type === 'montage';
-  const locked = !!(sheet.signCustomer && sheet.signCustomer.img);
+  const signed = !!(sheet.signCustomer && sheet.signCustomer.img);
+  const office = isOffice();
+  const locked = signed || office; // Büro sieht Zettel nur an
   setTopbarTitle(isMontage ? 'Montagezettel' : 'Werkstattzettel');
 
   const totals = sheetTotals(sheet);
@@ -294,7 +316,13 @@ function renderEditor(keepScroll) {
 
   let html = datalists();
 
-  if (locked) {
+  if (office) {
+    html += `
+      <div class="lock-banner office">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/></svg>
+        <div><strong>Ansicht als Sachbearbeiter</strong><span>Zettel von ${escapeHtml(sheet.worker || 'unbekanntem Techniker')}${signed ? ' · vom Kunden unterschrieben' : ''} – nur ansehen.</span></div>
+      </div>`;
+  } else if (locked) {
     html += `
       <div class="lock-banner">
         <svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
@@ -324,6 +352,7 @@ function renderEditor(keepScroll) {
           ${field('Schiffsname / Anlage', 'vessel', sheet.vessel, { placeholder: 'z.B. MS Hanna', list: 'dl-vessels', cls: 'span-2' })}
         </div>
         ${engineSection(sheet)}
+        ${jobInfoBox(sheet)}
         ${isFolder(sheet.orderNo) ? `<p class="folder-hint">Dieser Zettel liegt im Ordner <b>Auftrag ${escapeHtml(normOrderNo(sheet.orderNo))}</b>.</p>` : ''}
         <datalist id="dl-orders-ed">${allOrders().map(o => `<option value="${escapeHtml(o.no)}">`).join('')}</datalist>
       </div>`;
@@ -382,7 +411,7 @@ function renderEditor(keepScroll) {
     <div class="editor-footer">
       <button type="button" class="btn btn-ghost" onclick="printActiveSheet()">
         <svg viewBox="0 0 24 24"><path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/></svg> Drucken / PDF</button>
-      ${isMontage ? `<button type="button" class="btn btn-soft" onclick="nextDaySheet('${sheet.id}')">
+      ${isMontage && !office ? `<button type="button" class="btn btn-soft" onclick="nextDaySheet('${sheet.id}')">
         <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Nächster Tag</button>` : ''}
       <button type="button" class="btn btn-primary" onclick="closeEditor()">Fertig</button>
     </div>`;
@@ -518,7 +547,7 @@ function addEntry(di, code, cost) {
 }
 
 // ---------- Motoren ----------
-function engineSection(sheet) {
+function engineSection(sheet, addFn = 'addEngine', removeFn = 'removeEngine') {
   const engines = sheet.engines && sheet.engines.length ? sheet.engines : (sheet.engines = [{}]);
   const multi = engines.length > 1;
   const blocks = engines.map((e, i) => `
@@ -527,7 +556,7 @@ function engineSection(sheet) {
         <span class="engine-tag">${i + 1}</span>
         <input class="engine-name-in" type="text" data-bind="engines.${i}.name" value="${escapeHtml(e.name || '')}"
           placeholder="Motor ${i + 1} – Bezeichnung (optional)" list="dl-eng-name" autocomplete="off" aria-label="Bezeichnung Motor ${i + 1}">
-        <button type="button" class="icon-btn small danger-hover" onclick="removeEngine(${i})" aria-label="Motor entfernen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>` : ''}
+        <button type="button" class="icon-btn small danger-hover" onclick="${removeFn}(${i})" aria-label="Motor entfernen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>` : ''}
       <div class="grid-2">
         ${field('Fabrikat', `engines.${i}.make`, e.make, { placeholder: 'z.B. MTU', list: 'dl-eng-make' })}
         ${field('Motorbezeichnung', `engines.${i}.model`, e.model, { placeholder: 'z.B. 12V 4000 M73', list: 'dl-eng-model' })}
@@ -538,7 +567,7 @@ function engineSection(sheet) {
   return `
     <h4 class="sub-title">${multi ? engines.length + ' Motoren' : 'Motor'}</h4>
     ${blocks}
-    ${engines.length < MAX_ENGINES ? `<button type="button" class="link-btn" onclick="addEngine()">+ ${multi ? 'weiterer' : '2.'} Motor</button>` : ''}`;
+    ${engines.length < MAX_ENGINES ? `<button type="button" class="link-btn" onclick="${addFn}()">+ ${multi ? 'weiterer' : '2.'} Motor</button>` : ''}`;
 }
 
 function addEngine() {

@@ -237,7 +237,7 @@ function renderOrder() {
   const folder = isFolder(o.no);
   if (!o.sheets.length) {
     body.innerHTML = `<div class="empty"><h3>Keine Zettel</h3><p>Zu diesem Auftrag gibt es keine Montagezettel mehr.</p>
-      ${folder ? `<div class="btn-row center"><button class="btn btn-primary" onclick="newSheetInFolder(${escapeHtml(JSON.stringify(o.no))})">Neuer Zettel im Ordner</button>
+      ${folder ? `<div class="btn-row center"><button class="btn btn-primary tech-only" onclick="newSheetInFolder(${escapeHtml(JSON.stringify(o.no))})">Neuer Zettel im Ordner</button>
       <button class="btn btn-ghost" onclick="dissolveFolder(${escapeHtml(JSON.stringify(o.no))})">Ordner auflösen</button></div>` : ''}</div>`;
     return;
   }
@@ -277,7 +277,7 @@ function renderOrder() {
       </div>
       ${folder
         ? `<div class="folder-actions">
-             <button class="btn btn-soft" onclick="newSheetInFolder(${noJs})"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Neuer Zettel im Ordner</button>
+             <button class="btn btn-soft tech-only" onclick="newSheetInFolder(${noJs})"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Neuer Zettel im Ordner</button>
              <button class="link-btn" onclick="dissolveFolder(${noJs})">Ordner auflösen</button>
            </div>
            <p class="muted small-text">Alle Zettel mit Auftragsnummer ${escapeHtml(o.no)} – auch neue – liegen in diesem Ordner.</p>`

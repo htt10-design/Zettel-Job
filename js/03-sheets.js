@@ -43,13 +43,18 @@ function renderSheetList() {
 
   // Zettel, deren Auftrag in einem Ordner liegt, erscheinen nur im Ordner
   const folders = sheetFilter === 'werkstatt' ? [] : folderList()
-    .filter(f => !q || f.no.toLowerCase().includes(q) || f.sheets.some(matches));
-  sheets = sheets.filter(s => !(s.type === 'montage' && isFolder(s.orderNo)) && matches(s));
+    .filter(f => (!q || f.no.toLowerCase().includes(q) || f.sheets.some(matches)) && (!f.sheets.length || f.sheets.some(sheetVisibleForRole)));
+  renderOfficeHead();
+  sheets = sheets.filter(s => sheetVisibleForRole(s) && !(s.type === 'montage' && isFolder(s.orderNo)) && matches(s));
 
   const entries = sheets.map(s => ({ date: sheetFirstDate(s) || s.createdAt || '', html: sheetCardHtml(s) }))
     .concat(folders.map(f => ({ date: f.last || '', html: folderCardHtml(f) })))
     .sort((a, b) => b.date.localeCompare(a.date));
 
+  if (!appData.sheets.length && isOffice()) {
+    list.innerHTML = `<div class="empty"><h3>Noch keine Zettel</h3><p>Hier erscheinen die Zettel aller Techniker.</p></div>`;
+    return;
+  }
   if (!appData.sheets.length) {
     list.innerHTML = `
       <div class="empty">
@@ -75,7 +80,7 @@ function sheetCardHtml(s) {
     const title = isMontage
       ? (s.customer || s.vessel || 'Montage ohne Kunde')
       : (s.days[0] && s.days[0].entries.find(e => e.desc) ? s.days[0].entries.find(e => e.desc).desc : 'Werkstatt');
-    const sub = isMontage ? [s.vessel && s.customer ? s.vessel : '', s.orderNo ? 'Auftrag ' + s.orderNo : ''].filter(Boolean).join(' · ') : '';
+    const sub = [isMontage && s.vessel && s.customer ? s.vessel : '', isMontage && s.orderNo ? 'Auftrag ' + s.orderNo : '', isOffice() ? (s.worker || 'ohne Namen') : ''].filter(Boolean).join(' · ');
     let status = '';
     if (isMontage) {
       if (s.signCustomer) status = '<span class="badge badge-ok">Unterschrieben</span>';
@@ -171,7 +176,8 @@ function copyEngines(engines) {
 // (Kunde, Schiff, Motoren) vom letzten Zettel dieses Auftrags übernehmen
 function fillFromOrder(sheet) {
   if (sheet.type !== 'montage' || !normOrderNo(sheet.orderNo)) return false;
-  const src = orderSheets(sheet.orderNo).filter(s => s !== sheet).pop();
+  // letzter Zettel des Auftrags, sonst der vom Büro angelegte Auftrag
+  const src = orderSheets(sheet.orderNo).filter(s => s !== sheet).pop() || jobForOrder(sheet.orderNo);
   if (!src) return false;
   let changed = false;
   if (!sheet.customer && src.customer) { sheet.customer = src.customer; changed = true; }
@@ -188,7 +194,8 @@ function nextDaySheet(id, from) {
   const src = appData.sheets.find(s => s.id === id);
   if (!src) return;
   // Aus dem Ordner / der Zusammenstellung heraus → danach dorthin zurück
-  const ret = from || (currentView === 'order' || editorReturn === 'order' ? 'order' : null);
+  const ret = from || (currentView === 'order' || editorReturn === 'order' ? 'order'
+    : (currentView === 'job' || editorReturn === 'job' ? 'job' : null));
   const dates = src.days.map(d => d.date).filter(Boolean).sort();
   const lastDay = src.days[src.days.length - 1] || {};
   const day = newDay(dates.length ? addDaysISO(dates[dates.length - 1], 1) : todayISO());
@@ -232,7 +239,7 @@ async function deleteSheet(id) {
   appData.sheets = appData.sheets.filter(s => s.id !== id);
   saveData(true);
   // Aus einem Ordner gelöscht → zurück in den Ordner
-  const back = editorReturn === 'order' && activeOrderNo ? 'order' : 'sheets';
+  const back = editorReturn === 'order' && activeOrderNo ? 'order' : (editorReturn === 'job' && getActiveJob() ? 'job' : 'sheets');
   editorReturn = null;
   showView(back);
   showToast('Zettel gelöscht');

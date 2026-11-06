@@ -42,6 +42,12 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
 
     await page.goto(url);
     await page.waitForTimeout(800);
+    await page.screenshot({ path: path.join(OUT, `${label}-00-anmeldung.png`) });
+    // Anmeldung als Servicetechniker
+    await page.click('.type-btn >> nth=0');
+    await page.fill('#login-name', 'Max Monteur');
+    await page.click('#modal .btn-primary');
+    await page.waitForTimeout(300);
     await page.screenshot({ path: path.join(OUT, `${label}-01-leer.png`) });
 
     // Neuer Montagezettel über die Oberfläche
@@ -294,12 +300,67 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     assert(legacy === '1|MAN|false', `Alte Motordaten übernommen ${legacy}`, errors);
     await page.evaluate(() => { appData.sheets = appData.sheets.filter(x => !x.days.some(d => d.date === '2026-11-09' || d.date === '2026-11-10')); closeEditor(); });
 
+    // ---------- Sachbearbeiter ----------
+    await page.evaluate(() => { closeModal(); openRoleChooser(); });
+    await page.click('.type-btn >> nth=1');
+    await page.fill('#login-name', 'Petra Büro');
+    await page.click('#modal .btn-primary');
+    await page.waitForTimeout(300);
+    const officeView = await page.evaluate(() => [appData.role, currentView, document.body.classList.contains('role-office')].join('|'));
+    assert(officeView === 'office|jobs|true', `Anmeldung Büro ${officeView}`, errors);
+    await page.click('#jobs-body .btn-primary');
+    await page.waitForTimeout(200);
+    await page.fill('#job-body [data-bind="orderNo"]', '777');
+    await page.locator('#job-body [data-bind="orderNo"]').dispatchEvent('change');
+    await page.fill('#job-body [data-bind="customer"]', 'Reederei West');
+    await page.fill('#job-body [data-bind="vessel"]', 'MS Greta');
+    await page.fill('#job-body [data-bind="engines.0.make"]', 'MAN');
+    await page.fill('#job-body [data-bind="engines.0.number"]', 'MAN-4711');
+    await page.fill('#job-body [data-bind="description"]', 'Generalüberholung Zylinderköpfe.\nLiegeplatz Kai 3.');
+    await page.setInputFiles('#job-file', { name: 'Auftrag.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n%Test\n') });
+    await page.waitForTimeout(400);
+    const job = await page.evaluate(async () => { const j = getActiveJob(); const b = await getFile(j.files[0].id); return [j.orderNo, j.customer, j.engines[0].number, j.files.length, j.files[0].name, b && b.size].join('|'); });
+    assert(job.startsWith('SR26/000777|Reederei West|MAN-4711|1|Auftrag.pdf|'), `Auftrag angelegt ${job}`, errors);
+    await page.screenshot({ path: path.join(OUT, `${label}-22-buero-auftrag.png`), fullPage: true });
+    await page.evaluate(() => showView('jobs'));
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: path.join(OUT, `${label}-23-buero-auftraege.png`), fullPage: true });
+    // Büro sieht alle Zettel, nur ansehen
+    await page.evaluate(() => showView('sheets'));
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: path.join(OUT, `${label}-24-buero-zettel.png`), fullPage: true });
+    const ro = await page.evaluate(() => { openEditor(appData.sheets.find(s => s.type === 'werkstatt').id); return !!document.querySelector('fieldset.editor-form[disabled]') && !!document.querySelector('.lock-banner.office'); });
+    assert(ro, 'Büro sieht Zettel nur an', errors);
+    await page.evaluate(() => closeEditor());
+
+    // ---------- Techniker: Zettel aus Auftrag ----------
+    await page.evaluate(() => { openRoleChooser(); });
+    await page.click('.type-btn >> nth=0');
+    const loginPrefill = await page.inputValue('#login-name');
+    assert(loginPrefill === 'Max Monteur', `Technikername vorausgefüllt ${loginPrefill}`, errors);
+    await page.click('#modal .btn-primary');
+    await page.waitForTimeout(200);
+    await page.evaluate(() => showView('jobs'));
+    await page.click('.job-card');
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: path.join(OUT, `${label}-25-techniker-auftrag.png`), fullPage: true });
+    await page.click('#job-body .btn-primary.block');
+    await page.waitForTimeout(200);
+    const fromJob = await page.evaluate(() => { const s = getActiveSheet(); return [s.orderNo, s.customer, s.vessel, s.engines[0].make, s.engines[0].number, s.worker, editorReturn, !!document.querySelector('.job-info')].join('|'); });
+    assert(fromJob === 'SR26/000777|Reederei West|MS Greta|MAN|MAN-4711|Max Monteur|job|true', `Zettel aus Auftrag ${fromJob}`, errors);
+    await page.screenshot({ path: path.join(OUT, `${label}-26-zettel-aus-auftrag.png`), fullPage: true });
+    const back3 = await page.evaluate(() => { const id = activeSheetId; closeEditor(); appData.sheets = appData.sheets.filter(x => x.id !== id); return currentView; });
+    assert(back3 === 'job', `Zurück zum Auftrag ${back3}`, errors);
+    await page.evaluate(() => showView('sheets'));
+
     // Persistenz: neu laden, Daten müssen noch da sein
     await page.evaluate(() => saveData(true));
     await page.reload();
     await page.waitForTimeout(800);
     const n = await page.evaluate(() => appData.sheets.length);
     assert(n === 3, `nach Reload 3 Zettel erwartet, sind ${n}`, errors);
+    const after = await page.evaluate(() => [appData.role, appData.jobs.length, document.getElementById('modal').classList.contains('open')].join('|'));
+    assert(after === 'tech|1|false', `Rolle/Aufträge nach Reload ${after}`, errors);
 
     await ctx.close();
   }
