@@ -222,6 +222,44 @@ async function initApp() {
 }
 
 document.addEventListener('DOMContentLoaded', initApp);
+
+// ---------- Installation (Android/Chrome) ----------
+// Chrome meldet über „beforeinstallprompt“, dass die App installiert werden kann.
+let installPromptEvent = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  installPromptEvent = e;
+  if (appData && currentView === 'settings') renderSettings();
+});
+window.addEventListener('appinstalled', () => {
+  installPromptEvent = null;
+  showToast('Zettel-Job wurde installiert');
+  if (appData && currentView === 'settings') renderSettings();
+});
+
+function isStandalone() {
+  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true;
+}
+
+async function installApp() {
+  if (installPromptEvent) {
+    installPromptEvent.prompt();
+    const choice = await installPromptEvent.userChoice.catch(() => null);
+    installPromptEvent = null;
+    if (choice && choice.outcome === 'accepted') showToast('Wird installiert …');
+    renderSettings();
+    return;
+  }
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  openModal(`
+    <h2 class="modal-title">App installieren</h2>
+    ${ios
+      ? `<ol class="install-steps"><li>Seite in <b>Safari</b> öffnen</li><li>Unten auf das <b>Teilen</b>-Symbol tippen</li><li><b>„Zum Home-Bildschirm“</b> wählen</li></ol>`
+      : `<ol class="install-steps"><li>In Chrome oben rechts auf <b>⋮</b> tippen</li><li><b>„App installieren“</b> bzw. „Zum Startbildschirm hinzufügen“ wählen</li><li>Kurz warten, bis Android „installiert“ meldet – das Symbol liegt dann in der App-Übersicht</li></ol>
+         <p class="muted small-text">Zeigt Chrome „bereits installiert“, obwohl die App fehlt: Chrome ganz schließen und neu öffnen – die App hat eine neue Kennung und kann neu installiert werden.</p>`}
+    <div class="modal-actions"><button class="btn btn-primary" onclick="closeModal()">OK</button></div>`);
+}
+window.installApp = installApp;
 document.addEventListener('visibilitychange', () => { if (document.hidden) flushSave(); });
 window.addEventListener('pagehide', flushSave);
 

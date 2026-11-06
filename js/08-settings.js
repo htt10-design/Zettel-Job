@@ -20,6 +20,11 @@ function renderSettings() {
       <button class="btn btn-soft" onclick="openRoleChooser()">Rolle wechseln</button>
     </div>
 
+    ${isStandalone() ? '' : `<div class="card install-card">
+      <div><b>Als App installieren</b><span class="muted small-text">Eigenes Symbol, ohne Browserleiste, offline nutzbar</span></div>
+      <button class="btn btn-primary" onclick="installApp()">${installPromptEvent ? 'Jetzt installieren' : 'So geht’s'}</button>
+    </div>`}
+
     ${office ? `<div class="card">
       <h3 class="card-title">Meine Daten</h3>
       <label class="field"><span>Name (Sachbearbeiter)</span><input type="text" value="${escapeHtml(s.officeName || '')}" onchange="setSetting('officeName', this.value); applyRole()" placeholder="Vor- und Nachname"></label>

@@ -665,6 +665,11 @@ body.in-editor .role-badge { display: none; }
 .job-info summary { cursor: pointer; font-weight: 700; color: var(--accent-strong); font-size: 13.5px; }
 .job-info .job-desc { margin-top: 8px; font-size: 14px; }
 
+/* ---------- Installieren ---------- */
+.install-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.install-card > div { display: flex; flex-direction: column; }
+.install-steps { margin: 0 0 10px; padding-left: 20px; line-height: 1.7; }
+
 /* ---------- Druck ---------- */
 #print-area { display: none; }
 
