@@ -3,6 +3,12 @@
 // =====================================================================
 
 let sheetFilter = 'all';
+let sheetRange = 'week'; // 'week' = nur aktuelle Woche, 'all' = alle Zettel
+
+function setSheetRange(r) {
+  sheetRange = r;
+  renderSheetList();
+}
 
 function setSheetFilter(f) {
   sheetFilter = f;
@@ -47,9 +53,25 @@ function renderSheetList() {
   renderOfficeHead();
   sheets = sheets.filter(s => sheetVisibleForRole(s) && !(s.type === 'montage' && isFolder(s.orderNo)) && matches(s));
 
-  const entries = sheets.map(s => ({ date: sheetFirstDate(s) || s.createdAt || '', html: sheetCardHtml(s) }))
-    .concat(folders.map(f => ({ date: f.last || '', html: folderCardHtml(f) })))
+  renderMyJobs();
+  // Aktuelle Woche (Mo–So); bei Suche immer alles durchsuchen
+  const wStart = weekStartISO(todayISO());
+  const wEnd = addDaysISO(wStart, 6);
+  const inWeek = iso => !iso || (iso >= wStart && iso <= wEnd);
+  const sheetInWeek = s => s.days.some(d => inWeek(d.date));
+  const allEntries = sheets.map(s => ({ date: sheetFirstDate(s) || s.createdAt || '', html: sheetCardHtml(s), week: sheetInWeek(s) }))
+    .concat(folders.map(f => ({ date: f.last || '', html: folderCardHtml(f), week: !f.sheets.length || f.sheets.some(sheetInWeek) })))
     .sort((a, b) => b.date.localeCompare(a.date));
+  const weekOnly = sheetRange === 'week' && !q;
+  const entries = weekOnly ? allEntries.filter(e => e.week) : allEntries;
+  const hidden = allEntries.length - entries.length;
+  const rangeHead = q ? '' : `
+    <div class="range-head">
+      <span>${weekOnly ? `<b>Diese Woche</b> · KW ${isoWeek(wStart)} (${formatDateShort(wStart)}–${formatDateShort(wEnd)})` : '<b>Alle Zettel</b>'}</span>
+      ${weekOnly
+        ? (hidden ? `<button class="link-btn" onclick="setSheetRange('all')">Ältere anzeigen (${hidden})</button>` : '')
+        : `<button class="link-btn" onclick="setSheetRange('week')">Nur diese Woche</button>`}
+    </div>`;
 
   if (!appData.sheets.length && isOffice()) {
     list.innerHTML = `<div class="empty"><h3>Noch keine Zettel</h3><p>Hier erscheinen die Zettel aller Techniker.</p></div>`;
@@ -66,11 +88,11 @@ function renderSheetList() {
     return;
   }
   if (!entries.length) {
-    list.innerHTML = `<div class="empty small"><p>Keine Zettel gefunden.</p></div>`;
+    list.innerHTML = rangeHead + `<div class="empty small"><p>${weekOnly ? 'Diese Woche noch keine Zettel.' : 'Keine Zettel gefunden.'}</p></div>`;
     return;
   }
 
-  list.innerHTML = entries.map(e => e.html).join('');
+  list.innerHTML = rangeHead + entries.map(e => e.html).join('');
 }
 
 function sheetCardHtml(s) {
@@ -246,6 +268,7 @@ async function deleteSheet(id) {
 }
 
 window.setSheetFilter = setSheetFilter;
+window.setSheetRange = setSheetRange;
 window.openNewSheetModal = openNewSheetModal;
 window.createSheet = createSheet;
 window.nextDaySheet = nextDaySheet;

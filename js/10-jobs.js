@@ -3,7 +3,7 @@
 //
 // - Beim Start wählt man, als was man sich anmeldet (appData.role).
 //   Alles läuft lokal auf diesem Gerät – für mehrere Geräte/Techniker
-//   braucht es später einen Server; sheet.worker / job.assignedTo sind
+//   braucht es später einen Server; sheet.worker / job.assigned sind
 //   dafür schon vorbereitet.
 // - Sachbearbeiter: legt Aufträge an (Auftragsnummer, Kunde, Schiff,
 //   Motoren, Beschreibung, PDF/Fotos), sieht alle Zettel aller Techniker.
@@ -92,6 +92,79 @@ function loginAs(role) {
   showToast(`Angemeldet als ${role === 'office' ? 'Sachbearbeiter' : 'Servicetechniker'}${name ? ' – ' + name : ''}`);
 }
 
+// ---------- Zuteilung ----------
+function sameName(a, b) {
+  return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+}
+
+function isAssignedToMe(job) {
+  const me = currentUserName();
+  return !!me && (job.assigned || []).some(n => sameName(n, me));
+}
+
+// Alle bekannten Monteure (aus Zetteln, Zuteilungen, eigenem Namen)
+function knownTechnicians() {
+  const names = [];
+  const add = n => { n = String(n || '').trim(); if (n && !names.some(x => sameName(x, n))) names.push(n); };
+  appData.sheets.forEach(s => add(s.worker));
+  appData.jobs.forEach(j => (j.assigned || []).forEach(add));
+  add(appData.settings.name);
+  return names.sort((a, b) => a.localeCompare(b, 'de'));
+}
+
+function planText(job) {
+  if (!job.planFrom && !job.planTo) return '';
+  if (job.planFrom && job.planTo && job.planFrom !== job.planTo) return formatDateShort(job.planFrom) + '–' + formatDate(job.planTo, false);
+  return formatDate(job.planFrom || job.planTo);
+}
+
+function addAssignee() {
+  const job = getActiveJob();
+  const input = document.getElementById('assign-name');
+  const name = input.value.trim();
+  if (!name) { input.focus(); return; }
+  if (!job.assigned.some(n => sameName(n, name))) job.assigned.push(name);
+  saveData(true);
+  renderJob();
+  const n = document.getElementById('assign-name');
+  if (n) n.focus();
+}
+
+function removeAssignee(i) {
+  const job = getActiveJob();
+  job.assigned.splice(i, 1);
+  saveData(true);
+  renderJob();
+}
+
+// Startseite Monteur: offene Aufträge, die mir zugeteilt sind
+function renderMyJobs() {
+  const el = document.getElementById('my-jobs');
+  if (!el) return;
+  if (isOffice()) { el.innerHTML = ''; return; }
+  const jobs = appData.jobs.filter(j => j.status !== 'erledigt' && isAssignedToMe(j))
+    .sort((a, b) => (a.planFrom || '9999').localeCompare(b.planFrom || '9999'));
+  if (!jobs.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <div class="my-jobs">
+      <div class="range-head"><span><b>Dir zugeteilt</b> · ${jobs.length} Auftrag${jobs.length > 1 ? 'e' : ''}</span>
+        <button class="link-btn" onclick="showView('jobs')">Alle Aufträge</button></div>
+      ${jobs.map(j => {
+        const n = jobSheets(j).filter(isOwnSheet).length;
+        return `
+        <div class="my-job" onclick="openJob('${j.id}')">
+          <div class="mj-main">
+            <b>${escapeHtml(j.orderNo || 'ohne Auftragsnummer')}</b>
+            <span>${escapeHtml([j.vessel, j.customer].filter(Boolean).join(' · ') || 'ohne Kunde')}</span>
+            <small>${escapeHtml([planText(j), n ? n + ' Zettel geschrieben' : '', j.files.length ? '📎 ' + j.files.length : ''].filter(Boolean).join(' · '))}</small>
+          </div>
+          <button class="btn btn-primary" onclick="event.stopPropagation();createSheetFromJob('${j.id}')">
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Zettel schreiben</button>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
 // ---------- Hilfsfunktionen Aufträge ----------
 function getJob(id) {
   return appData.jobs.find(j => j.id === id) || null;
@@ -166,8 +239,9 @@ function renderJobs() {
   const ql = q.trim().toLowerCase();
   let jobs = appData.jobs.slice();
   if (jobFilter !== 'alle') jobs = jobs.filter(j => (j.status || 'offen') === jobFilter);
-  if (ql) jobs = jobs.filter(j => [j.orderNo, j.customer, j.vessel, j.description, j.assignedTo].some(v => String(v || '').toLowerCase().includes(ql)));
+  if (ql) jobs = jobs.filter(j => [j.orderNo, j.customer, j.vessel, j.description, (j.assigned || []).join(' ')].some(v => String(v || '').toLowerCase().includes(ql)));
   jobs.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  if (!office) jobs.sort((a, b) => (isAssignedToMe(b) ? 1 : 0) - (isAssignedToMe(a) ? 1 : 0));
   const counts = { offen: 0, erledigt: 0 };
   appData.jobs.forEach(j => { counts[j.status || 'offen'] = (counts[j.status || 'offen'] || 0) + 1; });
 
@@ -175,7 +249,7 @@ function renderJobs() {
     const sheets = jobSheets(j);
     const hours = sheets.reduce((t, s) => t + sheetTotals(s).worked, 0);
     const workers = distinctJoin(sheets.map(s => s.worker));
-    const mine = !office && j.assignedTo && currentUserName() && j.assignedTo.toLowerCase() === currentUserName().toLowerCase();
+    const mine = !office && isAssignedToMe(j);
     return `
       <button class="sheet-card job-card ${j.status === 'erledigt' ? 'done' : ''}" onclick="openJob('${j.id}')">
         <div class="sc-top">
@@ -183,11 +257,11 @@ function renderJobs() {
           <span class="badge ${j.status === 'erledigt' ? 'badge-ok' : 'badge-open'}">${j.status === 'erledigt' ? 'Erledigt' : 'Offen'}</span>
         </div>
         <div class="sc-title">${escapeHtml(j.orderNo || 'ohne Auftragsnummer')}</div>
-        <div class="sc-sub">${escapeHtml([j.vessel, j.customer].filter(Boolean).join(' · ') || 'ohne Kunde')}</div>
+        <div class="sc-sub">${escapeHtml([j.vessel, j.customer].filter(Boolean).join(' · ') || 'ohne Kunde')}${planText(j) ? ' · ' + escapeHtml(planText(j)) : ''}</div>
         ${j.description ? `<div class="job-desc-snip">${escapeHtml(j.description.slice(0, 140))}${j.description.length > 140 ? '…' : ''}</div>` : ''}
         <div class="sc-bottom">
           <span class="sc-hours">${sheets.length ? formatHours(hours) + ` <small>· ${sheets.length} Zettel${workers ? ' · ' + escapeHtml(workers) : ''}</small>` : '<small>noch keine Zettel</small>'}</span>
-          <span class="sc-badges">${j.files.length ? `<span class="badge">📎 ${j.files.length}</span>` : ''}${j.assignedTo ? `<span class="badge">${escapeHtml(j.assignedTo)}</span>` : ''}</span>
+          <span class="sc-badges">${j.files.length ? `<span class="badge">📎 ${j.files.length}</span>` : ''}${(j.assigned || []).map(n => `<span class="badge">${escapeHtml(n)}</span>`).join('')}</span>
         </div>
       </button>`;
   }).join('');
@@ -229,7 +303,8 @@ function createJob() {
     description: '',
     files: [],
     status: 'offen',
-    assignedTo: ''
+    assigned: [],
+    planFrom: '', planTo: ''
   };
   appData.jobs.push(job);
   saveData(true);
@@ -248,7 +323,7 @@ function renderJob() {
   const office = isOffice();
   setTopbarTitle(job.orderNo ? 'Auftrag ' + job.orderNo : 'Neuer Auftrag');
   const sheets = jobSheets(job);
-  const workers = Array.from(new Set(appData.sheets.map(s => s.worker).filter(Boolean)));
+  const workers = knownTechnicians().filter(n => !(job.assigned || []).some(a => sameName(a, n)));
 
   // Zettel zum Auftrag, nach Techniker gruppiert
   const byWorker = {};
@@ -284,7 +359,19 @@ function renderJob() {
           ${field('Auftragsnummer', 'orderNo', job.orderNo, { placeholder: 'SR26/000249 oder nur 249', orderno: 'order', rerender: true })}
           ${field('Auftraggeber / Kunde', 'customer', job.customer, { placeholder: 'Firma', list: 'dl-job-customers' })}
           ${field('Schiffsname / Anlage', 'vessel', job.vessel, { placeholder: 'z.B. MS Hanna', list: 'dl-job-vessels' })}
-          ${field('Techniker (optional)', 'assignedTo', job.assignedTo, { placeholder: 'Name', list: 'dl-job-workers' })}
+        </div>
+        <h4 class="sub-title">Monteure zuteilen</h4>
+        <div class="assign-chips">
+          ${job.assigned.length ? job.assigned.map((n, i) => `<span class="assign-chip">${escapeHtml(n)}<button type="button" onclick="removeAssignee(${i})" aria-label="${escapeHtml(n)} entfernen">×</button></span>`).join('') : '<span class="muted small-text">Noch niemand zugeteilt.</span>'}
+        </div>
+        <div class="assign-add">
+          <input type="text" id="assign-name" list="dl-job-workers" placeholder="Name des Monteurs" autocomplete="off"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();addAssignee();}">
+          <button type="button" class="btn btn-soft" onclick="addAssignee()">Zuteilen</button>
+        </div>
+        <div class="grid-2 plan-dates">
+          ${field('Einsatz von (optional)', 'planFrom', job.planFrom, { type: 'date', rerender: true })}
+          ${field('bis', 'planTo', job.planTo, { type: 'date', rerender: true })}
         </div>
         ${engineSection(job, 'jobAddEngine', 'jobRemoveEngine')}
       </div>
@@ -326,7 +413,8 @@ function renderJob() {
         <dl class="job-facts">
           <dt>Kunde</dt><dd>${escapeHtml(job.customer || '–')}</dd>
           <dt>Schiff / Anlage</dt><dd>${escapeHtml(job.vessel || '–')}</dd>
-          ${job.assignedTo ? `<dt>Techniker</dt><dd>${escapeHtml(job.assignedTo)}</dd>` : ''}
+          ${job.assigned.length ? `<dt>Monteure</dt><dd>${escapeHtml(job.assigned.join(', '))}</dd>` : ''}
+          ${planText(job) ? `<dt>Einsatz</dt><dd>${escapeHtml(planText(job))}</dd>` : ''}
         </dl>
         ${engines.length ? `<h4 class="sub-title">${engines.length > 1 ? engines.length + ' Motoren' : 'Motor'}</h4>
           <div class="engine-facts">${engines.map((e, i) => `
@@ -516,3 +604,5 @@ window.removeJobFile = removeJobFile;
 window.openJobFile = openJobFile;
 window.deleteJob = deleteJob;
 window.createSheetFromJob = createSheetFromJob;
+window.addAssignee = addAssignee;
+window.removeAssignee = removeAssignee;

@@ -48,6 +48,8 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     await page.fill('#login-name', 'Max Monteur');
     await page.click('#modal .btn-primary');
     await page.waitForTimeout(300);
+    // Testdaten liegen in KW 45/2026 → Liste unabhängig vom heutigen Datum komplett zeigen
+    await page.evaluate(() => { sheetRange = 'all'; renderSheetList(); });
     await page.screenshot({ path: path.join(OUT, `${label}-01-leer.png`) });
 
     // Neuer Montagezettel über die Oberfläche
@@ -319,6 +321,12 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     await page.fill('#job-body [data-bind="description"]', 'Generalüberholung Zylinderköpfe.\nLiegeplatz Kai 3.');
     await page.setInputFiles('#job-file', { name: 'Auftrag.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4\n%Test\n') });
     await page.waitForTimeout(400);
+    // Monteur zuteilen + Einsatzzeitraum
+    await page.fill('#assign-name', 'Max Monteur');
+    await page.click('.assign-add .btn');
+    await page.waitForTimeout(150);
+    const assigned = await page.evaluate(() => getActiveJob().assigned.join(','));
+    assert(assigned === 'Max Monteur', `Zuteilung ${assigned}`, errors);
     const job = await page.evaluate(async () => { const j = getActiveJob(); const b = await getFile(j.files[0].id); return [j.orderNo, j.customer, j.engines[0].number, j.files.length, j.files[0].name, b && b.size].join('|'); });
     assert(job.startsWith('SR26/000777|Reederei West|MAN-4711|1|Auftrag.pdf|'), `Auftrag angelegt ${job}`, errors);
     await page.screenshot({ path: path.join(OUT, `${label}-22-buero-auftrag.png`), fullPage: true });
@@ -340,6 +348,26 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     assert(loginPrefill === 'Max Monteur', `Technikername vorausgefüllt ${loginPrefill}`, errors);
     await page.click('#modal .btn-primary');
     await page.waitForTimeout(200);
+    // Startseite Monteur: „Dir zugeteilt“
+    await page.evaluate(() => showView('sheets'));
+    await page.waitForTimeout(150);
+    const myJobs = await page.evaluate(() => document.querySelectorAll('#my-jobs .my-job').length);
+    assert(myJobs === 1, `Dir zugeteilt: ${myJobs}`, errors);
+    await page.screenshot({ path: path.join(OUT, `${label}-27-dir-zugeteilt.png`), fullPage: true });
+    // Wochenansicht: nur Zettel dieser Woche, ältere optional
+    const wk = await page.evaluate(() => {
+      const old = appData.sheets.length;
+      createSheet('werkstatt'); const id = activeSheetId; closeEditor();
+      createSheet('werkstatt'); const oldId = activeSheetId; getActiveSheet().days[0].date = '2020-01-06'; getActiveSheet().days[0].entries.push({ id: uid(), from: '07:00', to: '08:00', cost: '120', code: 'AZ', desc: 'ALT-2020' }); closeEditor();
+      sheetRange = 'week'; renderSheetList();
+      const listHtml = document.getElementById('sheet-list').innerHTML;
+      const weekCards = document.querySelectorAll('#sheet-list .sheet-card').length >= 1 && !listHtml.includes('ALT-2020');
+      const hasMore = !!document.querySelector('.range-head .link-btn');
+      appData.sheets = appData.sheets.filter(x => x.id !== id && x.id !== oldId);
+      sheetRange = 'all'; renderSheetList();
+      return [weekCards, hasMore, appData.sheets.length === old].join('|');
+    });
+    assert(wk === 'true|true|true', `Wochenansicht ${wk}`, errors);
     await page.evaluate(() => showView('jobs'));
     await page.click('.job-card');
     await page.waitForTimeout(200);

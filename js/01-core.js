@@ -113,6 +113,9 @@ function normalizeData(data) {
     if (!Array.isArray(j.engines) || !j.engines.length) j.engines = [{}];
     if (!Array.isArray(j.files)) j.files = [];
     if (!j.status) j.status = 'offen';
+    // Zuteilung: früher ein Name (assignedTo) → jetzt Liste mehrerer Monteure
+    if (!Array.isArray(j.assigned)) j.assigned = j.assignedTo ? [String(j.assignedTo).trim()].filter(Boolean) : [];
+    delete j.assignedTo;
   });
   if (data.role !== 'tech' && data.role !== 'office') data.role = null;
   if (!data.orders || typeof data.orders !== 'object' || Array.isArray(data.orders)) data.orders = {};

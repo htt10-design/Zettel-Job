@@ -670,6 +670,29 @@ body.in-editor .role-badge { display: none; }
 .install-card > div { display: flex; flex-direction: column; }
 .install-steps { margin: 0 0 10px; padding-left: 20px; line-height: 1.7; }
 
+/* ---------- Woche / Zuteilung ---------- */
+.range-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin: 2px 4px 8px; font-size: 13.5px; color: var(--muted); }
+.range-head b { color: var(--text); }
+.range-head .link-btn { padding: 0; white-space: nowrap; }
+.my-jobs { margin-bottom: 16px; }
+.my-job {
+  display: flex; align-items: center; gap: 12px; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--pos);
+  border-radius: var(--radius); padding: 12px 14px; margin-bottom: 8px; box-shadow: var(--shadow);
+}
+.mj-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mj-main b { font-size: 15.5px; }
+.mj-main span { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mj-main small { font-size: 12px; color: var(--accent-strong); font-weight: 600; margin-top: 2px; }
+.my-job .btn { padding: 9px 12px; min-height: 40px; font-size: 13.5px; white-space: nowrap; }
+.assign-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.assign-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--accent-soft); color: var(--accent-strong); font-weight: 700; font-size: 13px; border-radius: 999px; padding: 4px 6px 4px 12px; }
+.assign-chip button { border: 0; background: transparent; color: inherit; font-size: 17px; line-height: 1; padding: 0 4px; }
+.assign-add { display: flex; gap: 8px; margin-bottom: 12px; }
+.assign-add input { flex: 1; min-width: 0; border: 1.5px solid var(--border); background: var(--surface-2); border-radius: var(--radius-sm); padding: 10px 12px; min-height: 44px; outline: none; }
+.assign-add input:focus { border-color: var(--accent); background: var(--surface); }
+.plan-dates { margin-bottom: 4px; }
+
 /* ---------- Druck ---------- */
 #print-area { display: none; }
 

@@ -109,6 +109,14 @@ function formatDateShort(iso) {
   return String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + '.';
 }
 
+// Montag der Woche eines Datums (ISO-Woche beginnt Montag)
+function weekStartISO(iso) {
+  const d = parseISODate(iso) || new Date();
+  const wd = (d.getDay() + 6) % 7; // Mo=0 … So=6
+  d.setDate(d.getDate() - wd);
+  return toISODate(d);
+}
+
 // ISO-Kalenderwoche
 function isoWeek(iso) {
   const d = parseISODate(iso);

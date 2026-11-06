@@ -61,6 +61,10 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
 - Büro: Aufträge anlegen/bearbeiten, alle Zettel nur ansehen (Editor gesperrt), Filter nach Techniker (`sheet.worker`).
 - Techniker: sieht nur eigene Zettel (`isOwnSheet`, Zettel ohne Namen zählen mit); Stunden nur aus eigenen Zetteln;
   „Zettel für diesen Auftrag anlegen“ füllt Auftragsnr., Kunde, Schiff, Motoren; Auftragsinfo (Beschreibung/PDF) im Zettel.
+- Zuteilung: `job.assigned` (Liste von Monteur-Namen; altes `assignedTo` wird übernommen), optional `planFrom`/`planTo`.
+  Monteur sieht auf der Startseite „Dir zugeteilt“ (`renderMyJobs`, Namensvergleich ohne Groß/Klein) mit „Zettel schreiben“.
+- Startseite zeigt standardmäßig nur die aktuelle Woche Mo–So (`sheetRange`, `weekStartISO`); „Ältere anzeigen“ blendet
+  den Rest ein, eine Suche durchsucht immer alles.
 - Dateianhänge im IndexedDB-Store `files` (DB-Version 2), `job.files` nur Metadaten; Backup enthält sie als Data-URL.
 
 ## Stundenregeln
