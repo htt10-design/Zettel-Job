@@ -150,11 +150,11 @@ function renderMyJobs() {
       <div class="range-head"><span><b>Dir zugeteilt</b> · ${jobs.length} Auftrag${jobs.length > 1 ? 'e' : ''}</span>
         <button class="link-btn" onclick="showView('jobs')">Alle Aufträge</button></div>
       ${jobs.map(j => {
-        const n = jobSheets(j).filter(isOwnSheet).length;
+        const n = jobAllSheets(j).filter(isOwnSheet).length;
         return `
         <div class="my-job" onclick="openJob('${j.id}')">
           <div class="mj-main">
-            <b>${escapeHtml(j.orderNo || 'ohne Auftragsnummer')}</b>
+            <b>${escapeHtml(j.orderNo || 'ohne Auftragsnummer')}${j.kind !== 'montage' ? ` <em class="kind-tag">${JOB_KINDS[j.kind]}</em>` : ''}</b>
             <span>${escapeHtml([j.vessel, j.customer].filter(Boolean).join(' · ') || 'ohne Kunde')}</span>
             <small>${escapeHtml([planText(j), n ? n + ' Zettel geschrieben' : '', j.files.length ? '📎 ' + j.files.length : ''].filter(Boolean).join(' · '))}</small>
           </div>
@@ -183,6 +183,36 @@ function jobForOrder(no) {
 // Alle Montagezettel zu einem Auftrag
 function jobSheets(job) {
   return normOrderNo(job.orderNo) ? orderSheets(job.orderNo) : [];
+}
+
+const JOB_KINDS = { montage: 'Montage', werkstatt: 'Werkstatt', mix: 'Gemischt' };
+
+// Werkstattzettel mit mindestens einer Zeile, deren Kostenstelle die Auftragsnummer ist
+function jobWorkshopSheets(job) {
+  if (!normOrderNo(job.orderNo)) return [];
+  return appData.sheets.filter(s => s.type === 'werkstatt' && s.days.some(d => d.entries.some(e => sameOrder(e.cost, job.orderNo))))
+    .sort((a, b) => (sheetFirstDate(a) || '').localeCompare(sheetFirstDate(b) || ''));
+}
+
+// Alle Zettel zum Auftrag (Montage + Werkstatt), chronologisch
+function jobAllSheets(job) {
+  return jobSheets(job).concat(jobWorkshopSheets(job))
+    .sort((a, b) => (sheetFirstDate(a) || '').localeCompare(sheetFirstDate(b) || ''));
+}
+
+// Stunden eines Zettels für diesen Auftrag: Montage = ganzer Zettel,
+// Werkstatt = nur Zeilen mit der Auftragsnummer als Kostenstelle
+function jobSheetHours(job, sheet) {
+  if (sheet.type !== 'werkstatt') return sheetTotals(sheet);
+  const t = { worked: 0, normal: 0, ot: 0 };
+  sheet.days.forEach((d, di) => daySplit(sheet, di).lines.forEach(l => {
+    if (l.kind === 'entry' && l.counts && sameOrder(l.code, job.orderNo)) { t.worked += l.minutes; t.normal += l.normal; t.ot += l.ot; }
+  }));
+  return t;
+}
+
+function jobHours(job, sheets) {
+  return (sheets || jobAllSheets(job)).reduce((t, s) => { const x = jobSheetHours(job, s); t.worked += x.worked; t.normal += x.normal; t.ot += x.ot; return t; }, { worked: 0, normal: 0, ot: 0 });
 }
 
 function formatFileSize(bytes) {
@@ -246,14 +276,14 @@ function renderJobs() {
   appData.jobs.forEach(j => { counts[j.status || 'offen'] = (counts[j.status || 'offen'] || 0) + 1; });
 
   const cards = jobs.map(j => {
-    const sheets = jobSheets(j);
-    const hours = sheets.reduce((t, s) => t + sheetTotals(s).worked, 0);
+    const sheets = jobAllSheets(j);
+    const hours = jobHours(j, sheets).worked;
     const workers = distinctJoin(sheets.map(s => s.worker));
     const mine = !office && isAssignedToMe(j);
     return `
       <button class="sheet-card job-card ${j.status === 'erledigt' ? 'done' : ''}" onclick="openJob('${j.id}')">
         <div class="sc-top">
-          <span class="type-pill">Auftrag${mine ? ' · für dich' : ''}</span>
+          <span class="type-pill">${JOB_KINDS[j.kind] || 'Auftrag'}${mine ? ' · für dich' : ''}</span>
           <span class="badge ${j.status === 'erledigt' ? 'badge-ok' : 'badge-open'}">${j.status === 'erledigt' ? 'Erledigt' : 'Offen'}</span>
         </div>
         <div class="sc-title">${escapeHtml(j.orderNo || 'ohne Auftragsnummer')}</div>
@@ -303,6 +333,7 @@ function createJob() {
     description: '',
     files: [],
     status: 'offen',
+    kind: 'montage',
     assigned: [],
     planFrom: '', planTo: ''
   };
@@ -322,7 +353,8 @@ function renderJob() {
   if (!job) { showView('jobs'); return; }
   const office = isOffice();
   setTopbarTitle(job.orderNo ? 'Auftrag ' + job.orderNo : 'Neuer Auftrag');
-  const sheets = jobSheets(job);
+  const sheets = jobAllSheets(job);
+  const montageSheets = sheets.filter(s => s.type === 'montage');
   const workers = knownTechnicians().filter(n => !(job.assigned || []).some(a => sameName(a, n)));
 
   // Zettel zum Auftrag, nach Techniker gruppiert
@@ -330,24 +362,30 @@ function renderJob() {
   sheets.forEach(s => { const w = s.worker || 'ohne Namen'; (byWorker[w] = byWorker[w] || []).push(s); });
   const sheetsHtml = sheets.length ? Object.keys(byWorker).map(w => {
     const list = byWorker[w];
-    const t = list.reduce((a, s) => { const x = sheetTotals(s); a.worked += x.worked; a.ot += x.ot; return a; }, { worked: 0, ot: 0 });
+    const t = jobHours(job, list);
     return `
       <div class="job-worker">
         <div class="h-week-head"><span>${escapeHtml(w)}</span><span>${formatHours(t.worked)}${t.ot ? ' · ' + formatHours(t.ot) + ' Überstd.' : ''}</span></div>
         ${list.map(s => `
           <button class="o-day" onclick="openEditor('${s.id}','job')">
             <span class="h-date">${escapeHtml(sheetDateRange(s))}</span>
-            <span class="h-src">${s.signCustomer ? '<span class="src ok">unterschr.</span>' : ''}${s.finished === true ? '<span class="src">beendet</span>' : ''}</span>
-            <span class="o-num">${formatHours(sheetTotals(s).normal)}</span>
-            <span class="o-num ot">${sheetTotals(s).ot ? formatHours(sheetTotals(s).ot) : '–'}</span>
+            <span class="h-src"><span class="src ${s.type === 'werkstatt' ? 'off' : ''}">${s.type === 'werkstatt' ? 'Werkstatt' : 'Montage'}</span>${s.signCustomer ? '<span class="src ok">unterschr.</span>' : ''}${s.finished === true ? '<span class="src">beendet</span>' : ''}</span>
+            <span class="o-num">${formatHours(jobSheetHours(job, s).normal)}</span>
+            <span class="o-num ot">${jobSheetHours(job, s).ot ? formatHours(jobSheetHours(job, s).ot) : '–'}</span>
           </button>`).join('')}
       </div>`;
-  }).join('') : '<p class="muted small-text">Zu dieser Auftragsnummer gibt es noch keine Zettel.</p>';
+  }).join('') + (sheets.some(s => s.type === 'werkstatt') ? '<p class="muted small-text">Werkstatt: gezählt werden nur Zeilen mit dieser Auftragsnummer als Kostenstelle.</p>' : '')
+    : '<p class="muted small-text">Zu dieser Auftragsnummer gibt es noch keine Zettel.</p>';
 
   let html;
   if (office) {
     html = `
       <div class="card">
+        <label class="field"><span>Auftragsart</span>
+          <div class="seg">
+            ${Object.keys(JOB_KINDS).map(k => `<button type="button" class="${job.kind === k ? 'on' : ''}" onclick="setJobKind('${k}')">${JOB_KINDS[k]}</button>`).join('')}
+          </div>
+        </label>
         <div class="job-status-row">
           <h3 class="card-title">Auftrag</h3>
           <div class="seg mini-seg">
@@ -358,7 +396,7 @@ function renderJob() {
         <div class="grid-2">
           ${field('Auftragsnummer', 'orderNo', job.orderNo, { placeholder: 'SR26/000249 oder nur 249', orderno: 'order', rerender: true })}
           ${field('Auftraggeber / Kunde', 'customer', job.customer, { placeholder: 'Firma', list: 'dl-job-customers' })}
-          ${field('Schiffsname / Anlage', 'vessel', job.vessel, { placeholder: 'z.B. MS Hanna', list: 'dl-job-vessels' })}
+          ${job.kind !== 'werkstatt' ? field('Schiffsname / Anlage', 'vessel', job.vessel, { placeholder: 'z.B. MS Hanna', list: 'dl-job-vessels' }) : ''}
         </div>
         <h4 class="sub-title">Monteure zuteilen</h4>
         <div class="assign-chips">
@@ -389,7 +427,7 @@ function renderJob() {
       <div class="card">
         <h3 class="card-title">Zettel der Techniker</h3>
         ${sheetsHtml}
-        ${sheets.length ? `<button type="button" class="btn btn-soft" onclick="openOrder(${escapeHtml(JSON.stringify(normOrderNo(job.orderNo)))})">Zusammenstellung &amp; Druck</button>` : ''}
+        ${montageSheets.length ? `<button type="button" class="btn btn-soft" onclick="openOrder(${escapeHtml(JSON.stringify(normOrderNo(job.orderNo)))})">Zusammenstellung &amp; Druck</button>` : ''}
       </div>
 
       <div class="editor-footer">
@@ -403,11 +441,11 @@ function renderJob() {
   } else {
     // Techniker: nur ansehen + Zettel anlegen
     const engines = (job.engines || []).filter(engineHasData);
-    const mySheets = sheets.filter(s => !s.worker || !currentUserName() || s.worker.toLowerCase() === currentUserName().toLowerCase());
+    const mySheets = sheets.filter(isOwnSheet);
     html = `
       <div class="card">
         <div class="job-status-row">
-          <h3 class="card-title">Auftrag ${escapeHtml(job.orderNo || '')}</h3>
+          <h3 class="card-title">${escapeHtml(JOB_KINDS[job.kind] || 'Auftrag')} ${escapeHtml(job.orderNo || '')}</h3>
           <span class="badge ${job.status === 'erledigt' ? 'badge-ok' : 'badge-open'}">${job.status === 'erledigt' ? 'Erledigt' : 'Offen'}</span>
         </div>
         <dl class="job-facts">
@@ -428,12 +466,12 @@ function renderJob() {
         ${job.files.length ? `<h4 class="sub-title">Dateien</h4>${fileListHtml(job, false)}` : ''}
       </div>
       <button type="button" class="btn btn-primary block" onclick="createSheetFromJob('${job.id}')">
-        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Zettel für diesen Auftrag anlegen</button>
+        <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> ${job.kind === 'werkstatt' ? 'Werkstattzeit für diesen Auftrag eintragen' : 'Zettel für diesen Auftrag anlegen'}</button>
       ${mySheets.length ? `<div class="card"><h3 class="card-title">Meine Zettel zu diesem Auftrag</h3>${mySheets.map(s => `
         <button class="o-day" onclick="openEditor('${s.id}','job')">
           <span class="h-date">${escapeHtml(sheetDateRange(s))}</span><span class="h-src"></span>
-          <span class="o-num">${formatHours(sheetTotals(s).normal)}</span>
-          <span class="o-num ot">${sheetTotals(s).ot ? formatHours(sheetTotals(s).ot) : '–'}</span>
+          <span class="o-num">${formatHours(jobSheetHours(job, s).normal)}</span>
+          <span class="o-num ot">${jobSheetHours(job, s).ot ? formatHours(jobSheetHours(job, s).ot) : '–'}</span>
         </button>`).join('')}</div>` : ''}`;
   }
   document.getElementById('job-body').innerHTML = html;
@@ -538,22 +576,64 @@ async function deleteJob(id) {
 }
 
 // ---------- Techniker: Zettel aus Auftrag ----------
-function createSheetFromJob(id) {
+// kind: bei gemischten Aufträgen 'montage' | 'werkstatt' (sonst wird gefragt)
+function createSheetFromJob(id, kind) {
   const job = getJob(id);
   if (!job) return;
-  // Gibt es schon Zettel zum Auftrag? → Folgetag des letzten eigenen Zettels
-  const own = jobSheets(job).filter(s => !s.worker || !currentUserName() || s.worker.toLowerCase() === currentUserName().toLowerCase());
-  if (own.length) { nextDaySheet(own[own.length - 1].id, 'job'); return; }
+  const from = currentView === 'job' ? 'job' : null;
+  const k = job.kind === 'mix' ? kind : (job.kind || 'montage');
+  if (!k) {
+    openModal(`
+      <h2 class="modal-title">Auftrag ${escapeHtml(job.orderNo || '')}</h2>
+      <p class="modal-text muted">Gemischter Auftrag – was machst du heute?</p>
+      <div class="type-choice">
+        <button class="type-btn" onclick="closeModal();createSheetFromJob('${job.id}','montage')">
+          <svg viewBox="0 0 24 24"><path d="M3 17h18l-2 4H5z"/><path d="M5 17V9h8l3 4v4"/><path d="M8 9V5h3v4"/></svg>
+          <strong>Montage</strong><span>Montagezettel mit Anfahrt, Hotel, Auslöse, Unterschrift</span>
+        </button>
+        <button class="type-btn" onclick="closeModal();createSheetFromJob('${job.id}','werkstatt')">
+          <svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg>
+          <strong>Werkstatt</strong><span>Zeile im heutigen Werkstattzettel mit der Auftragsnummer als Kostenstelle</span>
+        </button>
+      </div>
+      <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button></div>`);
+    return;
+  }
+  if (k === 'werkstatt') { addWorkshopEntryForJob(job, from); return; }
+  // Montage: Gibt es schon eigene Montagezettel zum Auftrag? → Folgetag des letzten
+  const own = jobSheets(job).filter(isOwnSheet);
+  if (own.length) { nextDaySheet(own[own.length - 1].id, from); return; }
   createSheet('montage');
   const sheet = getActiveSheet();
   sheet.orderNo = normOrderNo(job.orderNo);
   sheet.customer = job.customer || '';
   sheet.vessel = job.vessel || '';
   sheet.engines = copyEngines(job.engines);
-  editorReturn = 'job';
+  editorReturn = from;
   saveData(true);
   renderEditor();
   showToast('Zettel mit den Auftragsdaten angelegt');
+}
+
+// Werkstatt: neue Zeile mit der Auftragsnummer als Kostenstelle im eigenen
+// Werkstattzettel von heute (wird bei Bedarf angelegt)
+function addWorkshopEntryForJob(job, from) {
+  const today = todayISO();
+  const existing = appData.sheets.find(s => s.type === 'werkstatt' && isOwnSheet(s) && s.days.some(d => d.date === today));
+  if (existing) openEditor(existing.id, from);
+  else { createSheet('werkstatt'); editorReturn = from; }
+  const sheet = getActiveSheet();
+  const di = Math.max(0, sheet.days.findIndex(d => d.date === today));
+  addEntry(di, null, normOrderNo(job.orderNo));
+  showToast(`Werkstatt-Zeile für ${normOrderNo(job.orderNo) || 'den Auftrag'} angelegt`);
+}
+
+function setJobKind(k) {
+  const job = getActiveJob();
+  if (!JOB_KINDS[k]) return;
+  job.kind = k;
+  saveData(true);
+  renderJob();
 }
 
 // ---------- Büro: Kopf der Zettel-Liste mit Techniker-Filter ----------
@@ -604,5 +684,6 @@ window.removeJobFile = removeJobFile;
 window.openJobFile = openJobFile;
 window.deleteJob = deleteJob;
 window.createSheetFromJob = createSheetFromJob;
+window.setJobKind = setJobKind;
 window.addAssignee = addAssignee;
 window.removeAssignee = removeAssignee;

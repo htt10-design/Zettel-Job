@@ -379,6 +379,33 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     await page.screenshot({ path: path.join(OUT, `${label}-26-zettel-aus-auftrag.png`), fullPage: true });
     const back3 = await page.evaluate(() => { const id = activeSheetId; closeEditor(); appData.sheets = appData.sheets.filter(x => x.id !== id); return currentView; });
     assert(back3 === 'job', `Zurück zum Auftrag ${back3}`, errors);
+    // Werkstatt- und gemischte Aufträge
+    const ws2 = await page.evaluate(() => {
+      const before = appData.sheets.length;
+      appData.jobs.push({ id: 'jw', kind: 'werkstatt', orderNo: 'SR26/000888', customer: 'Werft Nord', vessel: '', engines: [{}], description: 'Zylinderkopf überholen', files: [], status: 'offen', assigned: ['Max Monteur'] });
+      appData.jobs.push({ id: 'jm', kind: 'mix', orderNo: 'SR26/000889', customer: 'Reederei Mix', vessel: 'MS Mix', engines: [{}], description: '', files: [], status: 'offen', assigned: [] });
+      showView('jobs'); openJob('jw');
+      createSheetFromJob('jw');
+      const sh = getActiveSheet();
+      sh.days[0].entries[sh.days[0].entries.length - 1].from = '07:00';
+      sh.days[0].entries[sh.days[0].entries.length - 1].to = '09:30';
+      const ret1 = editorReturn;
+      closeEditor();
+      createSheetFromJob('jw'); // zweites Mal → gleicher Werkstattzettel von heute
+      const sh2 = getActiveSheet();
+      const lines = sh2.days[0].entries.filter(e => e.cost === 'SR26/000888').length;
+      const same = sh2.id === sh.id;
+      closeEditor();
+      const h = jobHours(getJob('jw')).worked;
+      openJob('jm'); createSheetFromJob('jm');
+      const askMix = document.querySelectorAll('#modal .type-btn').length;
+      closeModal();
+      const r = [sh.type, ret1, same, lines, h, askMix, appData.sheets.length - before].join('|');
+      appData.sheets = appData.sheets.filter(x => x.id !== sh.id);
+      appData.jobs = appData.jobs.filter(j => j.id !== 'jw' && j.id !== 'jm');
+      return r;
+    });
+    assert(ws2 === 'werkstatt|job|true|2|150|2|1', `Werkstatt-/Mix-Auftrag ${ws2}`, errors);
     await page.evaluate(() => showView('sheets'));
 
     // Persistenz: neu laden, Daten müssen noch da sein

@@ -693,6 +693,9 @@ body.in-editor .role-badge { display: none; }
 .assign-add input:focus { border-color: var(--accent); background: var(--surface); }
 .plan-dates { margin-bottom: 4px; }
 
+.kind-tag { font-style: normal; font-size: 11px; font-weight: 700; color: var(--muted); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; vertical-align: 2px; }
+.job-info + .section-head { margin-top: 14px; }
+
 /* ---------- Druck ---------- */
 #print-area { display: none; }
 

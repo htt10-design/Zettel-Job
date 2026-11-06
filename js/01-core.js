@@ -113,6 +113,7 @@ function normalizeData(data) {
     if (!Array.isArray(j.engines) || !j.engines.length) j.engines = [{}];
     if (!Array.isArray(j.files)) j.files = [];
     if (!j.status) j.status = 'offen';
+    if (!['montage', 'werkstatt', 'mix'].includes(j.kind)) j.kind = 'montage'; // Auftragsart
     // Zuteilung: früher ein Name (assignedTo) → jetzt Liste mehrerer Monteure
     if (!Array.isArray(j.assigned)) j.assigned = j.assignedTo ? [String(j.assignedTo).trim()].filter(Boolean) : [];
     delete j.assignedTo;

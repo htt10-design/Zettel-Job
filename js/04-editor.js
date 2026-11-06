@@ -258,9 +258,23 @@ function signatureBox(label, sign, who) {
 function jobInfoBox(sheet) {
   const job = jobForOrder(sheet.orderNo);
   if (!job || (!job.description && !job.files.length)) return '';
+  return jobInfoDetails(job);
+}
+
+// Werkstattzettel: Infos zu allen Aufträgen, die als Kostenstelle vorkommen
+function workshopJobInfo(sheet) {
+  const seen = [];
+  sheet.days.forEach(d => d.entries.forEach(e => {
+    const j = jobForOrder(e.cost);
+    if (j && !seen.includes(j) && (j.description || j.files.length)) seen.push(j);
+  }));
+  return seen.map(jobInfoDetails).join('');
+}
+
+function jobInfoDetails(job) {
   return `
     <details class="job-info" open>
-      <summary>Auftragsinfo vom Büro${job.files.length ? ` · 📎 ${job.files.length}` : ''}</summary>
+      <summary>Auftragsinfo vom Büro${job.orderNo ? ' · ' + escapeHtml(job.orderNo) : ''}${job.files.length ? ` · 📎 ${job.files.length}` : ''}</summary>
       ${job.description ? `<p class="job-desc">${escapeHtml(job.description)}</p>` : ''}
       ${job.files.length ? fileListHtml(job, false) : ''}
     </details>`;
@@ -359,6 +373,7 @@ function renderEditor(keepScroll) {
   }
 
   // Tage
+  if (!isMontage) html += workshopJobInfo(sheet);
   html += `<div class="section-head"><h3>Zeiten &amp; Arbeiten</h3><span class="muted small-text">${isMontage ? 'Zeit als 0630 eintippen' : 'Kostenstelle je Zeile · Pause = P'}</span></div>`;
   html += sheet.days.map((d, di) => dayCard(d, di, sheet)).join('');
 
