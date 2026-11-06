@@ -639,6 +639,55 @@ function setJobKind(k) {
   renderJob();
 }
 
+// ---------- „Nächster Tag“ mit Rückfrage bei gemischten Aufträgen ----------
+// Gemischter Auftrag, zu dem dieser Zettel gehört (Montage: Auftragsnummer,
+// Werkstatt: eine Zeile mit der Auftragsnummer als Kostenstelle)
+function sheetMixJob(sheet) {
+  if (sheet.type === 'montage') {
+    const j = jobForOrder(sheet.orderNo);
+    return j && j.kind === 'mix' ? j : null;
+  }
+  for (const d of sheet.days) for (const e of d.entries) {
+    const j = jobForOrder(e.cost);
+    if (j && j.kind === 'mix') return j;
+  }
+  return null;
+}
+
+// „Nächster Tag“: bei gemischtem Auftrag fragen, wo man am Folgetag war
+function nextDayFor(sheetId, choice) {
+  const sheet = appData.sheets.find(s => s.id === sheetId);
+  if (!sheet) return;
+  const job = sheetMixJob(sheet);
+  if (!job) { nextDaySheet(sheetId); return; }
+  const dates = sheet.days.map(d => d.date).filter(Boolean).sort();
+  const next = dates.length ? addDaysISO(dates[dates.length - 1], 1) : todayISO();
+  const from = editorReturn;
+  if (!choice) {
+    openModal(`
+      <h2 class="modal-title">Nächster Tag · ${escapeHtml(formatDate(next))}</h2>
+      <p class="modal-text muted">Gemischter Auftrag ${escapeHtml(job.orderNo || '')} – wo warst du an dem Tag?</p>
+      <div class="type-choice">
+        <button class="type-btn" onclick="closeModal();nextDayFor('${sheet.id}','montage')">
+          <svg viewBox="0 0 24 24"><path d="M3 17h18l-2 4H5z"/><path d="M5 17V9h8l3 4v4"/><path d="M8 9V5h3v4"/></svg>
+          <strong>Montage</strong><span>Montagezettel mit allen Auftrags- und Motordaten</span>
+        </button>
+        <button class="type-btn" onclick="closeModal();nextDayFor('${sheet.id}','werkstatt')">
+          <svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg>
+          <strong>Werkstatt</strong><span>Zeile im Werkstattzettel mit der Auftragsnummer als Kostenstelle</span>
+        </button>
+      </div>
+      <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button></div>`);
+    return;
+  }
+  newSheetDate = next;
+  if (choice === 'werkstatt') { addWorkshopEntryForJob(job, from); return; }
+  // Montage: vom letzten eigenen Montagezettel des Auftrags (Motordaten usw.), sonst aus dem Auftrag
+  const lastMontage = jobSheets(job).filter(isOwnSheet).pop();
+  if (lastMontage) { nextDaySheet(lastMontage.id, from); return; }
+  createSheetFromJob(job.id, 'montage', next);
+}
+
 // ---------- Büro: Kopf der Zettel-Liste mit Techniker-Filter ----------
 function renderOfficeHead() {
   const el = document.getElementById('office-head');
@@ -688,5 +737,6 @@ window.openJobFile = openJobFile;
 window.deleteJob = deleteJob;
 window.createSheetFromJob = createSheetFromJob;
 window.setJobKind = setJobKind;
+window.nextDayFor = nextDayFor;
 window.addAssignee = addAssignee;
 window.removeAssignee = removeAssignee;

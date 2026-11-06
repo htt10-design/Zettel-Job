@@ -65,7 +65,8 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
 - Zuteilung: `job.assigned` (Liste von Monteur-Namen; altes `assignedTo` wird übernommen), optional `planFrom`/`planTo`.
   Monteur sieht auf der Startseite „Dir zugeteilt“ (`renderMyJobs`, Namensvergleich ohne Groß/Klein) mit „Zettel schreiben“.
 - Auftragsart `job.kind`: montage | werkstatt | mix. Werkstatt → „Zettel schreiben“ legt im eigenen Werkstattzettel von
-  heute eine Zeile mit der Auftragsnummer als Kostenstelle an (`addWorkshopEntryForJob`); mix → Auswahl Montage/Werkstatt.
+  heute eine Zeile mit der Auftragsnummer als Kostenstelle an (`addWorkshopEntryForJob`); mix → Auswahl Montage/Werkstatt;
+  auch „Nächster Tag“ fragt bei gemischten Aufträgen (`nextDayFor`, `sheetMixJob`), auch aus Werkstattzetteln heraus.
   Stunden je Auftrag: Montagezettel ganz + Werkstattzeilen mit passender Kostenstelle (`jobAllSheets`, `jobSheetHours`).
 - Startseite Techniker = `renderTechHome` (11-home); die Liste (`#sheet-browser`) ist nur aufgeklappt sichtbar
   (`homeShowList`). Büro sieht weiter die Liste. In der Liste: nur aktuelle Woche (`sheetRange`) oder alle.

@@ -400,12 +400,28 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
       openJob('jm'); createSheetFromJob('jm');
       const askMix = document.querySelectorAll('#modal .type-btn').length;
       closeModal();
-      const r = [sh.type, ret1, same, lines, h, askMix, appData.sheets.length - before].join('|');
+      // Gemischter Auftrag: „Nächster Tag“ fragt Montage/Werkstatt
+      createSheetFromJob('jm', 'montage', '2026-11-16');
+      const m1 = getActiveSheet();
+      nextDayFor(m1.id);
+      const askNext = document.querySelectorAll('#modal .type-btn').length;
+      closeModal();
+      nextDayFor(m1.id, 'werkstatt');
+      const w1 = getActiveSheet();
+      const wOk = w1.type === 'werkstatt' && w1.days[0].date === '2026-11-17' && w1.days[0].entries.some(e => e.cost === 'SR26/000889');
+      closeEditor();
+      nextDayFor(w1.id, 'montage');
+      const m2 = getActiveSheet();
+      const mOk = m2.type === 'montage' && m2.days[0].date === '2026-11-18' && m2.orderNo === 'SR26/000889' && m2.vessel === 'MS Mix';
+      closeEditor();
+      appData.sheets = appData.sheets.filter(x => ![m1.id, w1.id, m2.id].includes(x.id));
+      const nextMix = [askNext, wOk, mOk].join(',');
+      const r = [sh.type, ret1, same, lines, h, askMix, appData.sheets.length - before, nextMix].join('|');
       appData.sheets = appData.sheets.filter(x => x.id !== sh.id);
       appData.jobs = appData.jobs.filter(j => j.id !== 'jw' && j.id !== 'jm');
       return r;
     });
-    assert(ws2 === 'werkstatt|job|true|2|150|2|1', `Werkstatt-/Mix-Auftrag ${ws2}`, errors);
+    assert(ws2 === 'werkstatt|job|true|2|150|2|1|2,true,true', `Werkstatt-/Mix-Auftrag ${ws2}`, errors);
     await page.evaluate(() => showView('sheets'));
 
     // ---------- Startseite Techniker ----------

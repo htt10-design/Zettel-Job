@@ -426,7 +426,7 @@ function renderEditor(keepScroll) {
     <div class="editor-footer">
       <button type="button" class="btn btn-ghost" onclick="printActiveSheet()">
         <svg viewBox="0 0 24 24"><path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/></svg> Drucken / PDF</button>
-      ${isMontage && !office ? `<button type="button" class="btn btn-soft" onclick="nextDaySheet('${sheet.id}')">
+      ${(isMontage || sheetMixJob(sheet)) && !office ? `<button type="button" class="btn btn-soft" onclick="nextDayFor('${sheet.id}')">
         <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Nächster Tag</button>` : ''}
       <button type="button" class="btn btn-primary" onclick="closeEditor()">Fertig</button>
     </div>`;
@@ -702,7 +702,7 @@ function openSheetMenu() {
     <h2 class="modal-title">Zettel</h2>
     <div class="menu-list">
       <button onclick="closeModal();printActiveSheet()">Drucken / als PDF speichern</button>
-      ${sheet.type === 'montage' ? `<button onclick="nextDaySheet('${sheet.id}')">Nächster Tag (gleicher Auftrag)</button>` : ''}
+      ${sheet.type === 'montage' || sheetMixJob(sheet) ? `<button onclick="closeModal();nextDayFor('${sheet.id}')">Nächster Tag (gleicher Auftrag)</button>` : ''}
       ${sheet.type === 'montage' && sheet.orderNo ? `<button onclick="closeModal();openOrder(${escapeHtml(JSON.stringify(sheet.orderNo))})">Auftrag ${escapeHtml(sheet.orderNo)} zusammenstellen</button>` : ''}
       <button class="danger" onclick="deleteSheet('${sheet.id}')">Zettel löschen</button>
     </div>
