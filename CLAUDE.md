@@ -43,7 +43,8 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
   `settings.costCenters` ({ no, label }); Standardliste `DEFAULT_COST_CENTERS` (01-core) wird einmalig eingetragen
   (`costCentersVersion`; vor dem Merge mit den Defaults auslesen!). Ältere Werkstatt-Zeilen ohne `cost` rechnen weiter über `code`.
 - Motoren je Montagezettel in `sheet.engines` (1–4 × { make, model, number, hours }; altes `sheet.engine` wird in
-  `normalizeSheet` übernommen). Ab 2 Motoren Benennung `sheet.engineNaming`: bbsb (BB/SB) | ab | num (`engineLabel`).
+  `normalizeSheet` übernommen). Optionale eigene Bezeichnung je Motor
+  (`engine.name`), sonst „Motor 1/2…“ (`engineLabel`); `sheet.engineNaming` nur noch Altbestand.
   „Nächster Tag“ übernimmt alles außer Betriebsstunden; Zusammenstellung (`orderEngines`) je Motor mit Verlauf „erster → letzter“.
 - „＋ einfügen“ zwischen zwei Zeilen (`openInsertEntry`): neue Zeile ab Ende der oberen, alle folgenden Zeilen werden um
   die Dauer verschoben.

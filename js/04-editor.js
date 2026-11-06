@@ -258,7 +258,9 @@ function datalists() {
   const dl = (id, set) => `<datalist id="${id}">${Array.from(set).map(v => `<option value="${escapeHtml(v)}">`).join('')}</datalist>`;
   const eng = { make: new Set(), model: new Set(), number: new Set() };
   appData.sheets.forEach(s => (s.engines || []).forEach(e => { Object.keys(eng).forEach(k => { if (e[k]) eng[k].add(e[k]); }); }));
-  const engLists = dl('dl-eng-make', eng.make) + dl('dl-eng-model', eng.model) + dl('dl-eng-number', eng.number);
+  const engNames = new Set(['BB', 'SB', 'Backbord', 'Steuerbord']);
+  appData.sheets.forEach(s => (s.engines || []).forEach(e => { if (e.name) engNames.add(e.name); }));
+  const engLists = dl('dl-eng-name', engNames) + dl('dl-eng-make', eng.make) + dl('dl-eng-model', eng.model) + dl('dl-eng-number', eng.number);
   const costs = `<datalist id="dl-costs">${recentCosts().map(c => { const cc = getCostCenter(c); return `<option value="${escapeHtml(c)}">${cc && cc.label ? escapeHtml(cc.label) : ''}</option>`; }).join('')}<option value="P">Pause</option></datalist>`;
   return dl('dl-places', places) + dl('dl-hotels', hotels) + dl('dl-customers', customers) + dl('dl-vessels', vessels) + costs + engLists;
 }
@@ -514,11 +516,12 @@ function addEntry(di, code, cost) {
 function engineSection(sheet) {
   const engines = sheet.engines && sheet.engines.length ? sheet.engines : (sheet.engines = [{}]);
   const multi = engines.length > 1;
-  const naming = sheet.engineNaming || 'bbsb';
   const blocks = engines.map((e, i) => `
     <div class="engine-block ${multi ? 'multi' : ''}">
-      ${multi ? `<div class="engine-head"><span class="engine-tag">${escapeHtml(engineLabel(sheet, i))}</span>
-        <span class="engine-name">${escapeHtml(engineTitle(sheet, i))}</span>
+      ${multi ? `<div class="engine-head">
+        <span class="engine-tag">${i + 1}</span>
+        <input class="engine-name-in" type="text" data-bind="engines.${i}.name" value="${escapeHtml(e.name || '')}"
+          placeholder="Motor ${i + 1} – Bezeichnung (optional)" list="dl-eng-name" autocomplete="off" aria-label="Bezeichnung Motor ${i + 1}">
         <button type="button" class="icon-btn small danger-hover" onclick="removeEngine(${i})" aria-label="Motor entfernen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>` : ''}
       <div class="grid-2">
         ${field('Fabrikat', `engines.${i}.make`, e.make, { placeholder: 'z.B. MTU', list: 'dl-eng-make' })}
@@ -528,20 +531,16 @@ function engineSection(sheet) {
       </div>
     </div>`).join('');
   return `
-    <div class="engine-title-row">
-      <h4 class="sub-title">${multi ? engines.length + ' Motoren' : 'Motor'}</h4>
-      ${multi ? `<div class="seg mini">${Object.keys(ENGINE_NAMINGS).map(k => `<button type="button" class="${naming === k ? 'on' : ''}" onclick="setEngineNaming('${k}')" ${engines.length > ENGINE_NAMINGS[k].names.length ? 'disabled' : ''}>${ENGINE_NAMINGS[k].label}</button>`).join('')}</div>` : ''}
-    </div>
+    <h4 class="sub-title">${multi ? engines.length + ' Motoren' : 'Motor'}</h4>
     ${blocks}
-    ${engines.length < maxEngines(sheet) ? `<button type="button" class="link-btn" onclick="addEngine()">+ ${multi ? 'weiterer' : '2.'} Motor</button>` : ''}`;
+    ${engines.length < MAX_ENGINES ? `<button type="button" class="link-btn" onclick="addEngine()">+ ${multi ? 'weiterer' : '2.'} Motor</button>` : ''}`;
 }
 
 function addEngine() {
   const sheet = getActiveSheet();
   const first = sheet.engines[0] || {};
   // Fabrikat und Bezeichnung sind meist gleich → vom ersten Motor übernehmen
-  sheet.engines.push({ make: first.make || '', model: first.model || '', number: '', hours: '' });
-  if (!sheet.engineNaming) sheet.engineNaming = 'bbsb';
+  sheet.engines.push({ name: '', make: first.make || '', model: first.model || '', number: '', hours: '' });
   touchSheet(sheet);
   renderEditor(true);
 }
@@ -552,14 +551,6 @@ async function removeEngine(i) {
   if (engineHasData(e) && !(await confirmDialog(`${engineTitle(sheet, i)} mit den eingetragenen Daten entfernen?`, 'Entfernen', true))) return;
   sheet.engines.splice(i, 1);
   if (!sheet.engines.length) sheet.engines = [{}];
-  touchSheet(sheet);
-  renderEditor(true);
-}
-
-function setEngineNaming(k) {
-  const sheet = getActiveSheet();
-  if (!ENGINE_NAMINGS[k] || sheet.engines.length > ENGINE_NAMINGS[k].names.length) return;
-  sheet.engineNaming = k;
   touchSheet(sheet);
   renderEditor(true);
 }
@@ -678,6 +669,5 @@ window.setTravel = setTravel;
 window.openInsertEntry = openInsertEntry;
 window.addEngine = addEngine;
 window.removeEngine = removeEngine;
-window.setEngineNaming = setEngineNaming;
 window.confirmInsertEntry = confirmInsertEntry;
 window.openSheetMenu = openSheetMenu;

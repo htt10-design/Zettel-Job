@@ -181,7 +181,8 @@ function orderEngines(sheets) {
     const hours = list.map(e => String(e.hours || '').trim()).filter(Boolean);
     const labelSheet = sheets.find(s => (s.engines || []).length > 1) || sheets[0];
     res.push({
-      label: max > 1 ? engineLabel(labelSheet, i) || String(i + 1) : '',
+      label: (sheets.map(s => (s.engines || [])[i] && String(s.engines[i].name || '').trim()).filter(Boolean).pop())
+        || (max > 1 ? engineLabel(labelSheet, i) || 'Motor ' + (i + 1) : ''),
       make: distinctJoin(list.map(e => e.make)),
       model: distinctJoin(list.map(e => e.model)),
       number: distinctJoin(list.map(e => e.number)),

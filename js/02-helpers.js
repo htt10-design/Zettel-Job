@@ -147,38 +147,32 @@ function getCostCenter(no) {
 }
 
 // ---------- Motoren ----------
-// Ein Zettel hat 1–4 Motoren (sheet.engines). Ab zwei Motoren werden sie benannt:
-// BB/SB (Backbord/Steuerbord), A/B/C/D oder 1/2/3/4 (sheet.engineNaming).
-const ENGINE_NAMINGS = {
-  bbsb: { label: 'BB / SB', names: ['BB', 'SB'], long: ['Backbord', 'Steuerbord'] },
-  ab: { label: 'A / B', names: ['A', 'B', 'C', 'D'] },
-  num: { label: '1 / 2', names: ['1', '2', '3', '4'] }
-};
+// Ein Zettel hat 1–4 Motoren (sheet.engines). Jeder Motor kann optional eine
+// eigene Bezeichnung haben (engine.name, z.B. „BB“, „Steuerbord“, „Hauptmotor“).
+// Ohne Bezeichnung heißen sie „Motor 1“, „Motor 2“ …
+// Ältere Zettel mit Benennungs-Umschalter (sheet.engineNaming) werden weiter so angezeigt.
+const MAX_ENGINES = 4;
+const LEGACY_ENGINE_NAMES = { bbsb: ['BB', 'SB'], ab: ['A', 'B', 'C', 'D'], num: ['1', '2', '3', '4'] };
 
-function engineNaming(sheet) {
-  return ENGINE_NAMINGS[sheet.engineNaming] || ENGINE_NAMINGS.bbsb;
-}
-
-function maxEngines(sheet) {
-  return engineNaming(sheet).names.length;
-}
-
-// Kurzname eines Motors ("BB", "A", "1"); bei nur einem Motor leer
+// Anzeigename eines Motors; bei nur einem Motor ohne eigene Bezeichnung leer
 function engineLabel(sheet, i) {
-  if ((sheet.engines || []).length < 2) return '';
-  return engineNaming(sheet).names[i] || String(i + 1);
+  const engines = sheet.engines || [];
+  const e = engines[i] || {};
+  const name = String(e.name || '').trim();
+  if (name) return name;
+  if (engines.length < 2) return '';
+  const legacy = LEGACY_ENGINE_NAMES[sheet.engineNaming];
+  if (legacy && legacy[i]) return 'Motor ' + legacy[i];
+  return 'Motor ' + (i + 1);
 }
 
-// Langer Titel für Überschriften ("Motor BB – Backbord")
+// Titel für Überschriften/Rückfragen (nie leer)
 function engineTitle(sheet, i) {
-  const short = engineLabel(sheet, i);
-  if (!short) return 'Motor';
-  const long = (engineNaming(sheet).long || [])[i];
-  return 'Motor ' + short + (long ? ' – ' + long : '');
+  return engineLabel(sheet, i) || 'Motor';
 }
 
 function engineHasData(e) {
-  return !!(e && (e.make || e.model || e.number || e.hours));
+  return !!(e && (e.name || e.make || e.model || e.number || e.hours));
 }
 
 // ---------- Zeitarten ----------

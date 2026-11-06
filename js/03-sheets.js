@@ -181,7 +181,7 @@ function nextDaySheet(id, from) {
     updatedAt: new Date().toISOString(),
     orderNo: src.orderNo || '', customer: src.customer || '', vessel: src.vessel || '',
     // Motoren übernehmen (ohne Betriebsstunden – die ändern sich täglich)
-    engines: (src.engines && src.engines.length ? src.engines : [{}]).map(e => ({ make: e.make || '', model: e.model || '', number: e.number || '', hours: '' })),
+    engines: (src.engines && src.engines.length ? src.engines : [{}]).map(e => ({ name: e.name || '', make: e.make || '', model: e.model || '', number: e.number || '', hours: '' })),
     engineNaming: src.engineNaming || '',
     worker: appData.settings.name || '',
     days: [day],

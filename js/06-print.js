@@ -23,7 +23,7 @@ function engineRows(engines) {
   }
   // Mehrere Motoren: je Motor eine Zeile
   return engines.map(e => `
-        <tr><th>Motor ${escapeHtml(e.label || '')}</th>
+        <tr><th>${escapeHtml(e.label || 'Motor')}</th>
             <td colspan="3">${escapeHtml([e.make, e.model].filter(Boolean).join(' ') || '–')}
               · Nr. ${escapeHtml(e.number || '–')} · Betriebsstd. ${escapeHtml(e.hours || '–')}</td></tr>`).join('');
 }

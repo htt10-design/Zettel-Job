@@ -269,18 +269,18 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     await page.fill('[data-bind="engines.1.hours"]', '12398');
     await page.locator('[data-bind="engines.1.hours"]').dispatchEvent('change');
     const two = await page.evaluate(() => { const s = getActiveSheet(); return [s.engines.length, s.engines[1].make, engineLabel(s, 0), engineLabel(s, 1)].join('|'); });
-    assert(two === '2|MTU|BB|SB', `Zweiter Motor ${two}`, errors);
-    await page.click('.seg.mini button:has-text("A / B")');
-    const ab = await page.evaluate(() => engineLabel(getActiveSheet(), 1));
-    assert(ab === 'B', `Benennung A/B ${ab}`, errors);
-    await page.click('.seg.mini button:has-text("BB / SB")');
+    assert(two === '2|MTU|Motor 1|Motor 2', `Zweiter Motor ohne Bezeichnung ${two}`, errors);
+    // Bezeichnung optional selbst eintragen
+    await page.fill('[data-bind="engines.0.name"]', 'Motor BB');
+    await page.fill('[data-bind="engines.1.name"]', 'Motor SB');
+    await page.locator('[data-bind="engines.1.name"]').dispatchEvent('change');
     await page.screenshot({ path: path.join(OUT, `${label}-21-zwei-motoren.png`), fullPage: true });
     const pr2 = await page.evaluate(() => { const h = buildPrintHtml(getActiveSheet()); return h.includes('Motor BB') && h.includes('Motor SB') && h.includes('5370012346') && h.includes('12398'); });
     assert(pr2, 'Zwei Motoren im Ausdruck', errors);
-    const nextEng = await page.evaluate(() => { const first = activeSheetId; nextDaySheet(first); const s = getActiveSheet(); s.engines[0].hours = '12460'; s.engines[1].hours = '12408'; return s.engines.map(e => [e.make, e.number, e.hours].join('|')).join(' / ') + ' ' + s.engineNaming; });
-    assert(nextEng === 'MTU|5370012345|12460 / MTU|5370012346|12408 bbsb', `Nächster Tag übernimmt Motoren: ${nextEng}`, errors);
+    const nextEng = await page.evaluate(() => { const first = activeSheetId; nextDaySheet(first); const s = getActiveSheet(); s.engines[0].hours = '12460'; s.engines[1].hours = '12408'; return s.engines.map(e => [e.make, e.number, e.hours].join('|')).join(' / ') + ' ' + s.engines.map(e => e.name).join(','); });
+    assert(nextEng === 'MTU|5370012345|12460 / MTU|5370012346|12408 Motor BB,Motor SB', `Nächster Tag übernimmt Motoren: ${nextEng}`, errors);
     const oe = await page.evaluate(() => { const sh = appData.sheets.filter(x => x.days.some(d => d.date === '2026-11-09' || d.date === '2026-11-10')); sh.forEach(x => x.orderNo = 'SR26/000999'); return orderEngines(orderSheets('SR26/000999')).map(e => e.label + ':' + e.hours).join(' '); });
-    assert(oe === 'BB:12450 → 12460 SB:12398 → 12408', `Zusammenstellung Motoren ${oe}`, errors);
+    assert(oe === 'Motor BB:12450 → 12460 Motor SB:12398 → 12408', `Zusammenstellung Motoren ${oe}`, errors);
     const legacy = await page.evaluate(() => { const s = normalizeSheet({ days: [], engine: { make: 'MAN', hours: '100' } }); return s.engines.length + '|' + s.engines[0].make + '|' + ('engine' in s); });
     assert(legacy === '1|MAN|false', `Alte Motordaten übernommen ${legacy}`, errors);
     await page.evaluate(() => { appData.sheets = appData.sheets.filter(x => !x.days.some(d => d.date === '2026-11-09' || d.date === '2026-11-10')); closeEditor(); });
