@@ -453,6 +453,11 @@ function handleEditorInput(ev) {
     if (el.dataset.orderno === 'cost' && isPauseCost(v)) v = 'P';
     if (el.dataset.orderno === 'cost' && getCostCenter(v)) v = getCostCenter(v).no;
     if (v !== el.value) { el.value = v; setPath(sheet, bind, v); touchSheet(sheet); }
+    // Bekannte Auftragsnummer → Kunde, Schiff, Motoren vom letzten Zettel übernehmen (nur leere Felder)
+    if (el.dataset.orderno === 'order' && fillFromOrder(sheet)) {
+      touchSheet(sheet);
+      showToast('Kunde, Schiff und Motordaten vom Auftrag übernommen');
+    }
   }
   if (ev.type === 'change' && el.dataset.rerender) { renderEditor(true); return; }
   refreshEditorSums();

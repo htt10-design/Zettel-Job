@@ -281,6 +281,15 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     assert(nextEng === 'MTU|5370012345|12460 / MTU|5370012346|12408 Motor BB,Motor SB', `Nächster Tag übernimmt Motoren: ${nextEng}`, errors);
     const oe = await page.evaluate(() => { const sh = appData.sheets.filter(x => x.days.some(d => d.date === '2026-11-09' || d.date === '2026-11-10')); sh.forEach(x => x.orderNo = 'SR26/000999'); return orderEngines(orderSheets('SR26/000999')).map(e => e.label + ':' + e.hours).join(' '); });
     assert(oe === 'Motor BB:12450 → 12460 Motor SB:12398 → 12408', `Zusammenstellung Motoren ${oe}`, errors);
+    // Betriebsstunden werden bei „Nächster Tag“ als Vorschlag mit übernommen
+    const hoursCopied = await page.evaluate(() => { nextDaySheet(activeSheetId); const s = getActiveSheet(); const r = s.engines.map(e => e.hours).join(','); appData.sheets = appData.sheets.filter(x => x !== s); return r; });
+    assert(hoursCopied === '12460,12408', `Betriebsstunden übernommen ${hoursCopied}`, errors);
+    // Neuer Zettel mit bekannter Auftragsnummer → Kunde/Schiff/Motoren übernehmen
+    await page.evaluate(() => { createSheet('montage'); getActiveSheet().days[0].date = '2026-11-10'; appData.sheets.filter(x => x.orderNo === 'SR26/000999').forEach(x => { x.customer = 'Reederei Süd'; x.vessel = 'MS Lotte'; }); renderEditor(); });
+    await page.fill('[data-bind="orderNo"]', '999');
+    await page.locator('[data-bind="orderNo"]').dispatchEvent('change');
+    const filled = await page.evaluate(() => { const s = getActiveSheet(); return [s.orderNo, s.customer, s.vessel, s.engines.length, s.engines[1].number].join('|'); });
+    assert(filled === 'SR26/000999|Reederei Süd|MS Lotte|2|5370012346', `Daten vom Auftrag übernommen ${filled}`, errors);
     const legacy = await page.evaluate(() => { const s = normalizeSheet({ days: [], engine: { make: 'MAN', hours: '100' } }); return s.engines.length + '|' + s.engines[0].make + '|' + ('engine' in s); });
     assert(legacy === '1|MAN|false', `Alte Motordaten übernommen ${legacy}`, errors);
     await page.evaluate(() => { appData.sheets = appData.sheets.filter(x => !x.days.some(d => d.date === '2026-11-09' || d.date === '2026-11-10')); closeEditor(); });

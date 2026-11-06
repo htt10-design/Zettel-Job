@@ -45,7 +45,8 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
 - Motoren je Montagezettel in `sheet.engines` (1–4 × { make, model, number, hours }; altes `sheet.engine` wird in
   `normalizeSheet` übernommen). Optionale eigene Bezeichnung je Motor
   (`engine.name`), sonst „Motor 1/2…“ (`engineLabel`); `sheet.engineNaming` nur noch Altbestand.
-  „Nächster Tag“ übernimmt alles außer Betriebsstunden; Zusammenstellung (`orderEngines`) je Motor mit Verlauf „erster → letzter“.
+  „Nächster Tag“ übernimmt alle Motordaten inkl. Betriebsstunden (`copyEngines`); neue Zettel mit bekannter
+  Auftragsnummer füllen leeren Kunde/Schiff/Motoren vom letzten Zettel des Auftrags (`fillFromOrder`); Zusammenstellung (`orderEngines`) je Motor mit Verlauf „erster → letzter“.
 - „＋ einfügen“ zwischen zwei Zeilen (`openInsertEntry`): neue Zeile ab Ende der oberen, alle folgenden Zeilen werden um
   die Dauer verschoben.
 - Auftragsnummern-Format `SR26/000249`: `formatOrderNo()` ergänzt beim Verlassen des Feldes

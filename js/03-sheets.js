@@ -160,6 +160,30 @@ function createSheet(type) {
 
 // Neuer Zettel für den nächsten Tag desselben Auftrags:
 // übernimmt Auftrag, Kunde, Schiff, Abwesenheit und Hotel – keine Zeiten, keine Fahrten
+// Kopie der Motordaten eines Zettels
+function copyEngines(engines) {
+  return (engines && engines.length ? engines : [{}]).map(e => ({
+    name: e.name || '', make: e.make || '', model: e.model || '', number: e.number || '', hours: e.hours || ''
+  }));
+}
+
+// Neuer Zettel bekommt eine schon vorhandene Auftragsnummer → leere Kopfdaten
+// (Kunde, Schiff, Motoren) vom letzten Zettel dieses Auftrags übernehmen
+function fillFromOrder(sheet) {
+  if (sheet.type !== 'montage' || !normOrderNo(sheet.orderNo)) return false;
+  const src = orderSheets(sheet.orderNo).filter(s => s !== sheet).pop();
+  if (!src) return false;
+  let changed = false;
+  if (!sheet.customer && src.customer) { sheet.customer = src.customer; changed = true; }
+  if (!sheet.vessel && src.vessel) { sheet.vessel = src.vessel; changed = true; }
+  if (!(sheet.engines || []).some(engineHasData) && (src.engines || []).some(engineHasData)) {
+    sheet.engines = copyEngines(src.engines);
+    if (src.engineNaming) sheet.engineNaming = src.engineNaming;
+    changed = true;
+  }
+  return changed;
+}
+
 function nextDaySheet(id, from) {
   const src = appData.sheets.find(s => s.id === id);
   if (!src) return;
@@ -180,8 +204,9 @@ function nextDaySheet(id, from) {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     orderNo: src.orderNo || '', customer: src.customer || '', vessel: src.vessel || '',
-    // Motoren übernehmen (ohne Betriebsstunden – die ändern sich täglich)
-    engines: (src.engines && src.engines.length ? src.engines : [{}]).map(e => ({ name: e.name || '', make: e.make || '', model: e.model || '', number: e.number || '', hours: '' })),
+    // Motoren komplett übernehmen (Betriebsstunden als Vorschlag zum Überschreiben),
+    // damit auch jeder Einzelzettel alle Daten enthält
+    engines: copyEngines(src.engines),
     engineNaming: src.engineNaming || '',
     worker: appData.settings.name || '',
     days: [day],
@@ -217,5 +242,6 @@ window.setSheetFilter = setSheetFilter;
 window.openNewSheetModal = openNewSheetModal;
 window.createSheet = createSheet;
 window.nextDaySheet = nextDaySheet;
+window.fillFromOrder = fillFromOrder;
 window.deleteSheet = deleteSheet;
 window.renderSheetList = renderSheetList;
