@@ -176,7 +176,10 @@ function dayCard(day, di, sheet) {
       </div>
       <div class="entries">
         ${split.travel.travelOut ? travelLine(split.travel.travelOut, di) : ''}
-        ${day.entries.length ? day.entries.map((e, ei) => entryRow(e, di, ei, split.byEntry[ei])).join('') : '<p class="muted small-text">Noch keine Zeiten eingetragen.</p>'}
+        ${day.entries.length ? day.entries.map((e, ei) => entryRow(e, di, ei, split.byEntry[ei])
+          + (ei < day.entries.length - 1 && parseTime(e.to) != null
+            ? `<button type="button" class="insert-btn" onclick="openInsertEntry(${di},${ei})" title="Zeile zwischen ${escapeHtml(e.to)} und der nächsten Zeile einfügen – alles darunter wird verschoben">＋ einfügen</button>`
+            : '')).join('') : '<p class="muted small-text">Noch keine Zeiten eingetragen.</p>'}
         ${split.travel.travelBack ? travelLine(split.travel.travelBack, di) : ''}
       </div>
       <div class="entry-add">
@@ -253,8 +256,11 @@ function datalists() {
   });
   if (appData.settings.home) places.add(appData.settings.home);
   const dl = (id, set) => `<datalist id="${id}">${Array.from(set).map(v => `<option value="${escapeHtml(v)}">`).join('')}</datalist>`;
+  const eng = { make: new Set(), model: new Set(), number: new Set() };
+  appData.sheets.forEach(s => { const e = s.engine || {}; Object.keys(eng).forEach(k => { if (e[k]) eng[k].add(e[k]); }); });
+  const engLists = dl('dl-eng-make', eng.make) + dl('dl-eng-model', eng.model) + dl('dl-eng-number', eng.number);
   const costs = `<datalist id="dl-costs">${recentCosts().map(c => { const cc = getCostCenter(c); return `<option value="${escapeHtml(c)}">${cc && cc.label ? escapeHtml(cc.label) : ''}</option>`; }).join('')}<option value="P">Pause</option></datalist>`;
-  return dl('dl-places', places) + dl('dl-hotels', hotels) + dl('dl-customers', customers) + dl('dl-vessels', vessels) + costs;
+  return dl('dl-places', places) + dl('dl-hotels', hotels) + dl('dl-customers', customers) + dl('dl-vessels', vessels) + costs + engLists;
 }
 
 // Kostenstellen-Vorschläge: zuletzt benutzte zuerst, dann die aus den Einstellungen
@@ -314,6 +320,13 @@ function renderEditor(keepScroll) {
           ${field('Auftragsnummer', 'orderNo', sheet.orderNo, { placeholder: 'SR26/000249 oder nur 249', inputmode: 'text', rerender: true, list: 'dl-orders-ed', orderno: 'order' })}
           ${field('Auftraggeber / Kunde', 'customer', sheet.customer, { placeholder: 'Firma', list: 'dl-customers' })}
           ${field('Schiffsname / Anlage', 'vessel', sheet.vessel, { placeholder: 'z.B. MS Hanna', list: 'dl-vessels', cls: 'span-2' })}
+        </div>
+        <h4 class="sub-title">Motor</h4>
+        <div class="grid-2">
+          ${field('Fabrikat', 'engine.make', (sheet.engine || {}).make, { placeholder: 'z.B. MTU', list: 'dl-eng-make' })}
+          ${field('Motorbezeichnung', 'engine.model', (sheet.engine || {}).model, { placeholder: 'z.B. 12V 4000 M73', list: 'dl-eng-model' })}
+          ${field('Motornummer', 'engine.number', (sheet.engine || {}).number, { placeholder: 'Seriennummer', list: 'dl-eng-number' })}
+          ${field('Betriebsstunden', 'engine.hours', (sheet.engine || {}).hours, { placeholder: 'z.B. 12450', inputmode: 'decimal' })}
         </div>
         ${isFolder(sheet.orderNo) ? `<p class="folder-hint">Dieser Zettel liegt im Ordner <b>Auftrag ${escapeHtml(normOrderNo(sheet.orderNo))}</b>.</p>` : ''}
         <datalist id="dl-orders-ed">${allOrders().map(o => `<option value="${escapeHtml(o.no)}">`).join('')}</datalist>
@@ -503,6 +516,62 @@ function addEntry(di, code, cost) {
   }
 }
 
+// ---------- Zeile dazwischen einfügen ----------
+// Neue Zeile beginnt am Ende der Zeile ei; alle folgenden Zeilen werden um die Dauer verschoben.
+function openInsertEntry(di, ei) {
+  const sheet = getActiveSheet();
+  const prev = sheet.days[di].entries[ei];
+  const isW = sheet.type === 'werkstatt';
+  openModal(`
+    <h2 class="modal-title">Zeile einfügen</h2>
+    <p class="modal-text muted">Beginnt um <b>${escapeHtml(prev.to)}</b>. Alle Zeilen darunter werden um die Dauer nach hinten verschoben.</p>
+    <div class="grid-2">
+      <label class="field"><span>Von</span><input type="text" value="${escapeHtml(prev.to)}" disabled></label>
+      <label class="field"><span>Bis</span><input type="text" id="ins-to" inputmode="numeric" placeholder="z.B. 0830" autocomplete="off" autofocus
+        onkeydown="if(event.key==='Enter'){event.preventDefault();confirmInsertEntry(${di},${ei});}"></label>
+      ${isW
+        ? `<label class="field"><span>Kostenstelle</span><input type="text" id="ins-code" list="dl-costs" value="${escapeHtml(prev.cost || '')}" autocomplete="off"></label>`
+        : `<label class="field"><span>Zeitart</span><select id="ins-code">${codeOptions('FZ')}</select></label>`}
+      <label class="field"><span>Beschreibung</span><input type="text" id="ins-desc" placeholder="Optional" autocomplete="off"></label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="confirmInsertEntry(${di},${ei})">Einfügen &amp; verschieben</button>
+    </div>`);
+}
+
+function confirmInsertEntry(di, ei) {
+  const sheet = getActiveSheet();
+  const day = sheet.days[di];
+  const prev = day.entries[ei];
+  const start = parseTime(prev.to);
+  const end = parseTime(document.getElementById('ins-to').value);
+  if (start == null) { showToast('Die obere Zeile hat keine gültige Endzeit'); return; }
+  if (end == null) { showToast('Bitte eine gültige Bis-Zeit eingeben, z.B. 0830'); return; }
+  const dur = end >= start ? end - start : end + 1440 - start;
+  if (!dur) { showToast('Die Dauer ist 0 – bitte eine spätere Zeit eingeben'); return; }
+  const shift = t => { const m = parseTime(t); return m == null ? t : formatClock((m + dur) % 1440); };
+  // alle Zeilen unterhalb verschieben
+  for (let i = ei + 1; i < day.entries.length; i++) {
+    day.entries[i].from = shift(day.entries[i].from);
+    day.entries[i].to = shift(day.entries[i].to);
+  }
+  const codeVal = document.getElementById('ins-code').value;
+  const entry = { id: uid(), from: formatClock(start), to: formatClock((start + dur) % 1440), code: 'FZ', desc: document.getElementById('ins-desc').value.trim() };
+  if (sheet.type === 'werkstatt') {
+    let v = formatOrderNo(codeVal, day.date, false);
+    if (isPauseCost(v)) v = 'P';
+    if (getCostCenter(v)) v = getCostCenter(v).no;
+    entry.cost = v; entry.code = 'AZ';
+  } else entry.code = codeVal;
+  day.entries.splice(ei + 1, 0, entry);
+  touchSheet(sheet);
+  closeModal();
+  renderEditor(true);
+  const moved = day.entries.length - ei - 2;
+  showToast(`Eingefügt${moved > 0 ? ` – ${moved} Zeile${moved > 1 ? 'n' : ''} um ${formatHours(dur)} verschoben` : ''}`);
+}
+
 function removeEntry(di, ei) {
   const sheet = getActiveSheet();
   sheet.days[di].entries.splice(ei, 1);
@@ -558,4 +627,6 @@ window.addEntry = addEntry;
 window.removeEntry = removeEntry;
 window.removeDay = removeDay;
 window.setTravel = setTravel;
+window.openInsertEntry = openInsertEntry;
+window.confirmInsertEntry = confirmInsertEntry;
 window.openSheetMenu = openSheetMenu;

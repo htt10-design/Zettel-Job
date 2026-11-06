@@ -42,6 +42,10 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
 - Werkstattzettel: Zeilen haben `cost` (Kostenstelle) statt Zeitart; `P`/`Pause` zählt nicht. Kostenstellen-Liste in
   `settings.costCenters` ({ no, label }); Standardliste `DEFAULT_COST_CENTERS` (01-core) wird einmalig eingetragen
   (`costCentersVersion`; vor dem Merge mit den Defaults auslesen!). Ältere Werkstatt-Zeilen ohne `cost` rechnen weiter über `code`.
+- Motordaten je Montagezettel in `sheet.engine` ({ make, model, number, hours }); „Nächster Tag“ übernimmt alles außer
+  Betriebsstunden; Zusammenstellung zeigt Betriebsstunden als „erster → letzter“ Stand.
+- „＋ einfügen“ zwischen zwei Zeilen (`openInsertEntry`): neue Zeile ab Ende der oberen, alle folgenden Zeilen werden um
+  die Dauer verschoben.
 - Auftragsnummern-Format `SR26/000249`: `formatOrderNo()` ergänzt beim Verlassen des Feldes
   ("249" → SR{Jahr des Zettels}/000249, "26/249" → SR26/000249). Reine Zahlen bei Kostenstellen bleiben stehen.
 

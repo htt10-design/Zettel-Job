@@ -241,6 +241,32 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     await page.waitForTimeout(250);
     await page.screenshot({ path: path.join(OUT, `${label}-13-dunkel-editor.png`), fullPage: true });
 
+    // Zeile dazwischen einfügen: 0630-0730 RZ, 0730-1200 AZ → FZ 0730-0830 einfügen, AZ rutscht auf 0830-1300
+    await page.evaluate(() => {
+      createSheet('montage');
+      const s = getActiveSheet();
+      s.days[0].date = '2026-11-09';
+      s.days[0].entries = [{ id: uid(), from: '06:30', to: '07:30', code: 'RZ', desc: '' }, { id: uid(), from: '07:30', to: '12:00', code: 'AZ', desc: 'Montage' }];
+      s.engine = { make: 'MTU', model: '12V 4000 M73', number: '5370012345', hours: '12450' };
+      renderEditor();
+    });
+    await page.click('.insert-btn');
+    await page.waitForTimeout(200);
+    await page.fill('#ins-to', '0830');
+    await page.selectOption('#ins-code', 'FZ');
+    await page.fill('#ins-desc', 'Fahrt zum Schiff');
+    await page.screenshot({ path: path.join(OUT, `${label}-19-einfuegen.png`) });
+    await page.click('#modal .btn-primary');
+    await page.waitForTimeout(200);
+    const ins = await page.evaluate(() => getActiveSheet().days[0].entries.map(e => `${e.from}-${e.to} ${e.code}`).join(', '));
+    assert(ins === '06:30-07:30 RZ, 07:30-08:30 FZ, 08:30-13:00 AZ', `Einfügen & Verschieben: ${ins}`, errors);
+    await page.screenshot({ path: path.join(OUT, `${label}-20-motor-editor.png`), fullPage: true });
+    const prEng = await page.evaluate(() => { const h = buildPrintHtml(getActiveSheet()); return ['Motornummer', '5370012345', 'Betriebsstunden', '12V 4000 M73'].every(t => h.includes(t)); });
+    assert(prEng, 'Motordaten im Ausdruck', errors);
+    const nextEng = await page.evaluate(() => { nextDaySheet(activeSheetId); const e = getActiveSheet().engine; return [e.make, e.number, e.hours].join('|'); });
+    assert(nextEng === 'MTU|5370012345|', `Nächster Tag übernimmt Motor ohne Betriebsstunden: ${nextEng}`, errors);
+    await page.evaluate(() => { appData.sheets = appData.sheets.filter(x => !x.days.some(d => d.date === '2026-11-09' || d.date === '2026-11-10')); closeEditor(); });
+
     // Persistenz: neu laden, Daten müssen noch da sein
     await page.evaluate(() => saveData(true));
     await page.reload();

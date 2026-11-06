@@ -191,6 +191,13 @@ function orderData(no) {
     no: normOrderNo(no), sheets, items, totals, travels, km, allowance,
     customer: distinctJoin(sheets.map(s => s.customer)),
     vessel: distinctJoin(sheets.map(s => s.vessel)),
+    engine: {
+      make: distinctJoin(sheets.map(s => (s.engine || {}).make)),
+      model: distinctJoin(sheets.map(s => (s.engine || {}).model)),
+      number: distinctJoin(sheets.map(s => (s.engine || {}).number)),
+      // Betriebsstunden: Stand vom ersten bis letzten Tag
+      hours: (() => { const h = sheets.map(s => String((s.engine || {}).hours || '').trim()).filter(Boolean); return h.length > 1 && h[0] !== h[h.length - 1] ? h[0] + ' → ' + h[h.length - 1] : (h[0] || ''); })()
+    },
     material: sheets.some(s => s.material === true) ? true : (sheets.some(s => s.material === false) ? false : null),
     materialNotes: sheets.filter(s => s.material === true && s.materialNote).map(s => formatDateShort(sheetFirstDate(s)) + ' ' + s.materialNote),
     finished: lastSheet ? lastSheet.finished : null,
@@ -312,6 +319,7 @@ function buildOrderPrintHtml(no) {
     subtitle: o.range + ' · ' + o.items.length + ' Tag' + (o.items.length > 1 ? 'e' : ''),
     isMontage: true,
     orderNo: o.no, customer: o.customer, vessel: o.vessel,
+    engine: o.engine,
     items: o.items.map(i => ({ sheet: i.sheet, di: i.di })),
     travels: o.travels,
     material: o.material,

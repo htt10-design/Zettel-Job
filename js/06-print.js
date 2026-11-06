@@ -8,6 +8,17 @@ const PRINT_COLS = '<colgroup><col style="width:9%"><col style="width:9%"><col s
 // Werkstatt: breitere Spalte für die Kostenstelle (z.B. SR26/000244)
 const PRINT_COLS_COST = '<colgroup><col style="width:8%"><col style="width:8%"><col style="width:15%"><col style="width:9%"><col style="width:9%"><col></colgroup>';
 
+// Motordaten (nur wenn etwas eingetragen ist)
+function engineRows(e) {
+  e = e || {};
+  if (!e.make && !e.model && !e.number && !e.hours) return '';
+  return `
+        <tr><th>Fabrikat</th><td>${escapeHtml(e.make || '–')}</td>
+            <th>Motorbezeichnung</th><td>${escapeHtml(e.model || '–')}</td></tr>
+        <tr><th>Motornummer</th><td>${escapeHtml(e.number || '–')}</td>
+            <th>Betriebsstunden</th><td>${escapeHtml(e.hours || '–')}</td></tr>`;
+}
+
 function yesNoText(v) { return v === true ? 'Ja' : v === false ? 'Nein' : '–'; }
 
 function awayText(v) {
@@ -129,6 +140,7 @@ function buildPrintDoc(doc) {
         <tr><th>Auftragsnummer</th><td>${escapeHtml(doc.orderNo || '–')}</td>
             <th>Auftraggeber / Kunde</th><td>${escapeHtml(doc.customer || '–')}</td></tr>
         <tr><th>Schiff / Anlage</th><td colspan="3">${escapeHtml(doc.vessel || '–')}</td></tr>
+        ${engineRows(doc.engine)}
       </table>` : ''}
 
       ${dayRows}
@@ -172,6 +184,7 @@ function buildPrintHtml(sheet) {
     subtitle: sheetDateRange(sheet),
     isMontage,
     orderNo: sheet.orderNo, customer: sheet.customer, vessel: sheet.vessel,
+    engine: sheet.engine,
     items: sheet.days.map((d, di) => ({ sheet, di })),
     travels: sheetTravels(sheet),
     material: sheet.material,

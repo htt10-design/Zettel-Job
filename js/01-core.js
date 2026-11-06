@@ -118,6 +118,7 @@ function normalizeSheet(sh) {
   });
   if (!sh.travelOut) sh.travelOut = {};
   if (!sh.travelBack) sh.travelBack = {};
+  if (!sh.engine || typeof sh.engine !== 'object') sh.engine = {};
   return sh;
 }
 

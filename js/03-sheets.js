@@ -180,6 +180,7 @@ function nextDaySheet(id, from) {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     orderNo: src.orderNo || '', customer: src.customer || '', vessel: src.vessel || '',
+    engine: src.engine ? { make: src.engine.make || '', model: src.engine.model || '', number: src.engine.number || '', hours: '' } : {},
     worker: appData.settings.name || '',
     days: [day],
     travelOut: src.type === 'montage' ? defaultTravel('travelOut') : {},
