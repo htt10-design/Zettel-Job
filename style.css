@@ -696,6 +696,70 @@ body.in-editor .role-badge { display: none; }
 .kind-tag { font-style: normal; font-size: 11px; font-weight: 700; color: var(--muted); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; vertical-align: 2px; }
 .job-info + .section-head { margin-top: 14px; }
 
+/* ---------- Startseite Techniker ---------- */
+#sheet-browser[hidden] { display: none; }
+.week-card { padding: 12px; }
+.wk-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.wk-title { font-size: 15px; }
+.wk-title .muted { font-size: 13px; margin-left: 4px; }
+.wk-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.wk-day {
+  border: 1.5px solid transparent; background: var(--surface-2); border-radius: 12px;
+  display: flex; flex-direction: column; align-items: center; padding: 6px 0 5px; gap: 1px; min-width: 0;
+}
+.wk-day.we { background: transparent; }
+.wk-wd { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; }
+.wk-date { font-size: 15px; font-weight: 750; }
+.wk-h { font-size: 11.5px; font-weight: 700; color: var(--accent-strong); font-variant-numeric: tabular-nums; min-height: 15px; }
+.wk-st { font-size: 12px; font-weight: 800; min-height: 16px; line-height: 16px; width: 18px; border-radius: 50%; text-align: center; }
+.wk-day.st-ok .wk-st { color: var(--pos); }
+.wk-day.st-missing .wk-st { color: #fff; background: var(--neg); }
+.wk-day.st-draft .wk-st { color: var(--warn); }
+.wk-day.st-off .wk-st { color: var(--muted); }
+.wk-day.today .wk-date { color: var(--accent-strong); }
+.wk-day.today { border-color: var(--border); }
+.wk-day.sel { border-color: var(--accent); background: var(--accent-soft); }
+.wk-today { display: block; margin: 6px auto 0; }
+.wk-sum { margin-top: 12px; cursor: pointer; }
+.wk-bar { height: 8px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--border); overflow: hidden; }
+.wk-bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; }
+.wk-sum-row { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+.wk-sum-row b { color: var(--text); }
+.wk-sum-row b.pos { color: var(--pos); }
+.wk-sum-row b.neg { color: var(--neg); }
+.day-panel { padding: 14px; }
+.dp-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.dp-head > div { display: flex; flex-direction: column; }
+.dp-label { font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: var(--accent-strong); min-height: 4px; }
+.dp-head b { font-size: 16px; }
+.dp-hours { font-weight: 800; font-size: 17px; color: var(--accent-strong); text-align: right; }
+.dp-hours small { display: block; font-size: 11.5px; color: var(--warn); }
+.dp-offs { display: flex; gap: 6px; margin-bottom: 10px; }
+.dp-empty { margin: 0 0 12px; }
+.mini-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.mini-sheet {
+  display: flex; align-items: center; gap: 10px; text-align: left; width: 100%;
+  border: 1px solid var(--border); border-left: 4px solid var(--accent); background: var(--surface-2); border-radius: 12px; padding: 10px 12px;
+}
+.mini-sheet.is-werkstatt { border-left-color: #8fb3cf; }
+.ms-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ms-type { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+.ms-main b { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms-main small { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ms-hours { display: flex; flex-direction: column; align-items: flex-end; }
+.ms-hours small { color: var(--warn); font-weight: 700; font-size: 11.5px; }
+.dp-jobs { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.dp-job { justify-content: flex-start; text-align: left; }
+.dp-job span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dp-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.dp-actions .btn-primary { flex: 1; }
+.todo-item + .todo-item { border-top: 1px dashed var(--border); margin-top: 10px; padding-top: 10px; }
+.todo-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; font-size: 14px; }
+.todo-item.warn .todo-head b { color: var(--neg); }
+.todo-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.list-toggle { margin-top: 4px; }
+body.role-tech.home-list-hidden #view-sheets .fab { display: none; }
+
 /* ---------- Druck ---------- */
 #print-area { display: none; }
 

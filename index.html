@@ -44,9 +44,9 @@
     <main>
       <!-- Ansicht: Zettel-Liste -->
       <section class="view active" id="view-sheets">
-        <div class="balance-strip tech-only" id="sheets-balance" onclick="showView('hours')"></div>
+        <div class="tech-only" id="tech-home"></div>
         <div class="office-head office-only" id="office-head"></div>
-        <div class="tech-only" id="my-jobs"></div>
+        <div id="sheet-browser">
         <div class="toolbar">
           <div class="search">
             <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
@@ -65,6 +65,7 @@
           </div>
         </div>
         <div id="sheet-list" class="sheet-list"></div>
+        </div>
         <button class="fab tech-only" onclick="openNewSheetModal()" aria-label="Neuer Zettel">
           <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
           <span>Neuer Zettel</span>
@@ -167,5 +168,6 @@
   <script src="js/08-settings.js"></script>
   <script src="js/09-orders.js"></script>
   <script src="js/10-jobs.js"></script>
+  <script src="js/11-home.js"></script>
 </body>
 </html>

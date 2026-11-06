@@ -31,6 +31,7 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
 | 08-settings | Name, Standort, Kennzeichen, Sollzeiten, Startsaldo, Zeitarten, eigene Unterschrift, Backup |
 | 09-orders | „Auftrag zusammenstellen“ (nur auf Befehl): alle Montagezettel einer Auftragsnummer → Übersicht, Auslöse-Summen, gemeinsamer Druck, Unterschriften in `appData.orders`; Ordner je Auftragsnummer |
 | 10-jobs | Rollen (Anmeldung Servicetechniker / Sachbearbeiter, `appData.role`), Aufträge vom Büro (`appData.jobs`: Auftragsnr., Kunde, Schiff, Motoren, Beschreibung, Dateien), Zettel aus Auftrag, Büro-Ansicht aller Zettel |
+| 11-home | Startseite Techniker: Wochenleiste (Stunden/Status je Tag, blättern), gewählter Tag mit Zetteln und „Neuer Zettel“, „Zu erledigen“ (fehlende Tage, fehlende Unterschriften, zugeteilte Aufträge), Wochenfortschritt; alte Liste aufklappbar |
 
 ## Zettel-Modell
 
@@ -66,8 +67,10 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
 - Auftragsart `job.kind`: montage | werkstatt | mix. Werkstatt → „Zettel schreiben“ legt im eigenen Werkstattzettel von
   heute eine Zeile mit der Auftragsnummer als Kostenstelle an (`addWorkshopEntryForJob`); mix → Auswahl Montage/Werkstatt.
   Stunden je Auftrag: Montagezettel ganz + Werkstattzeilen mit passender Kostenstelle (`jobAllSheets`, `jobSheetHours`).
-- Startseite zeigt standardmäßig nur die aktuelle Woche Mo–So (`sheetRange`, `weekStartISO`); „Ältere anzeigen“ blendet
-  den Rest ein, eine Suche durchsucht immer alles.
+- Startseite Techniker = `renderTechHome` (11-home); die Liste (`#sheet-browser`) ist nur aufgeklappt sichtbar
+  (`homeShowList`). Büro sieht weiter die Liste. In der Liste: nur aktuelle Woche (`sheetRange`) oder alle.
+- Neue Zettel für einen gewählten Tag: `newSheetDate` setzen → `createSheet`/`nextDaySheet`/`addWorkshopEntryForJob`
+  holen es mit `takeNewSheetDate()` ab (sonst heute).
 - Dateianhänge im IndexedDB-Store `files` (DB-Version 2), `job.files` nur Metadaten; Backup enthält sie als Data-URL.
 
 ## Stundenregeln

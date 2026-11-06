@@ -49,7 +49,7 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     await page.click('#modal .btn-primary');
     await page.waitForTimeout(300);
     // Testdaten liegen in KW 45/2026 → Liste unabhängig vom heutigen Datum komplett zeigen
-    await page.evaluate(() => { sheetRange = 'all'; renderSheetList(); });
+    await page.evaluate(() => { sheetRange = 'all'; homeShowList = true; renderSheetList(); });
     await page.screenshot({ path: path.join(OUT, `${label}-01-leer.png`) });
 
     // Neuer Montagezettel über die Oberfläche
@@ -351,7 +351,7 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     // Startseite Monteur: „Dir zugeteilt“
     await page.evaluate(() => showView('sheets'));
     await page.waitForTimeout(150);
-    const myJobs = await page.evaluate(() => document.querySelectorAll('#my-jobs .my-job').length);
+    const myJobs = await page.evaluate(() => Array.from(document.querySelectorAll('.todo-card .chip')).filter(c => c.textContent.includes('SR26/000777')).length);
     assert(myJobs === 1, `Dir zugeteilt: ${myJobs}`, errors);
     await page.screenshot({ path: path.join(OUT, `${label}-27-dir-zugeteilt.png`), fullPage: true });
     // Wochenansicht: nur Zettel dieser Woche, ältere optional
@@ -407,6 +407,33 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     });
     assert(ws2 === 'werkstatt|job|true|2|150|2|1', `Werkstatt-/Mix-Auftrag ${ws2}`, errors);
     await page.evaluate(() => showView('sheets'));
+
+    // ---------- Startseite Techniker ----------
+    const home = await page.evaluate(() => {
+      showView('sheets');
+      homeShowList = false; homeWeekStart = '2026-11-02'; homeSelected = '2026-11-02'; renderSheetList();
+      const days = document.querySelectorAll('.wk-day').length;
+      const mondayOk = document.querySelector('.wk-day.sel .wk-st').textContent.trim();
+      const listHidden = document.getElementById('sheet-browser').hidden;
+      const mini = document.querySelectorAll('.day-panel .mini-sheet').length;
+      const missing = dayStatus('2020-01-08');
+      // Zettel für einen gewählten Tag
+      homeSelectDay('2026-11-05');
+      newSheetForDay('2026-11-05');
+      createSheet('werkstatt');
+      const s = getActiveSheet();
+      const d = s.days[0].date;
+      closeEditor();
+      appData.sheets = appData.sheets.filter(x => x.id !== s.id);
+      homeSelectDay(todayISO());
+      return [days, mondayOk, listHidden, mini, missing, d].join('|');
+    });
+    assert(home === '7|✓|true|1|missing|2026-11-05', `Startseite ${home}`, errors);
+    await page.evaluate(() => { const t = document.getElementById('toast'); t.classList.remove('show'); appData.settings.theme = 'light'; applyTheme(); homeWeekStart = '2026-11-02'; homeSelected = '2026-11-02'; renderSheetList(); });
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: path.join(OUT, `${label}-28-startseite.png`), fullPage: true });
+    await page.evaluate(() => { appData.settings.theme = 'dark'; applyTheme(); });
+    await page.evaluate(() => { homeWeekStart = null; homeSelected = null; homeShowList = true; renderSheetList(); });
 
     // Persistenz: neu laden, Daten müssen noch da sein
     await page.evaluate(() => saveData(true));

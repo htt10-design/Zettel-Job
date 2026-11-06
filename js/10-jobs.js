@@ -158,7 +158,7 @@ function renderMyJobs() {
             <span>${escapeHtml([j.vessel, j.customer].filter(Boolean).join(' · ') || 'ohne Kunde')}</span>
             <small>${escapeHtml([planText(j), n ? n + ' Zettel geschrieben' : '', j.files.length ? '📎 ' + j.files.length : ''].filter(Boolean).join(' · '))}</small>
           </div>
-          <button class="btn btn-primary" onclick="event.stopPropagation();createSheetFromJob('${j.id}')">
+          <button class="btn btn-primary" onclick="event.stopPropagation();createSheetFromJob('${j.id}', null, homeSelectedISO())">
             <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Zettel schreiben</button>
         </div>`;
       }).join('')}
@@ -577,9 +577,12 @@ async function deleteJob(id) {
 
 // ---------- Techniker: Zettel aus Auftrag ----------
 // kind: bei gemischten Aufträgen 'montage' | 'werkstatt' (sonst wird gefragt)
-function createSheetFromJob(id, kind) {
+// date: Datum des Zettels (Wochenleiste), sonst heute bzw. Folgetag
+function createSheetFromJob(id, kind, date) {
   const job = getJob(id);
   if (!job) return;
+  newSheetDate = date || null;
+  const dateArg = date ? `'${date}'` : 'null';
   const from = currentView === 'job' ? 'job' : null;
   const k = job.kind === 'mix' ? kind : (job.kind || 'montage');
   if (!k) {
@@ -587,11 +590,11 @@ function createSheetFromJob(id, kind) {
       <h2 class="modal-title">Auftrag ${escapeHtml(job.orderNo || '')}</h2>
       <p class="modal-text muted">Gemischter Auftrag – was machst du heute?</p>
       <div class="type-choice">
-        <button class="type-btn" onclick="closeModal();createSheetFromJob('${job.id}','montage')">
+        <button class="type-btn" onclick="closeModal();createSheetFromJob('${job.id}','montage',${dateArg})">
           <svg viewBox="0 0 24 24"><path d="M3 17h18l-2 4H5z"/><path d="M5 17V9h8l3 4v4"/><path d="M8 9V5h3v4"/></svg>
           <strong>Montage</strong><span>Montagezettel mit Anfahrt, Hotel, Auslöse, Unterschrift</span>
         </button>
-        <button class="type-btn" onclick="closeModal();createSheetFromJob('${job.id}','werkstatt')">
+        <button class="type-btn" onclick="closeModal();createSheetFromJob('${job.id}','werkstatt',${dateArg})">
           <svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg>
           <strong>Werkstatt</strong><span>Zeile im heutigen Werkstattzettel mit der Auftragsnummer als Kostenstelle</span>
         </button>
@@ -618,10 +621,10 @@ function createSheetFromJob(id, kind) {
 // Werkstatt: neue Zeile mit der Auftragsnummer als Kostenstelle im eigenen
 // Werkstattzettel von heute (wird bei Bedarf angelegt)
 function addWorkshopEntryForJob(job, from) {
-  const today = todayISO();
+  const today = takeNewSheetDate(); // gewählter Tag oder heute
   const existing = appData.sheets.find(s => s.type === 'werkstatt' && isOwnSheet(s) && s.days.some(d => d.date === today));
   if (existing) openEditor(existing.id, from);
-  else { createSheet('werkstatt'); editorReturn = from; }
+  else { newSheetDate = today; createSheet('werkstatt'); editorReturn = from; }
   const sheet = getActiveSheet();
   const di = Math.max(0, sheet.days.findIndex(d => d.date === today));
   addEntry(di, null, normOrderNo(job.orderNo));

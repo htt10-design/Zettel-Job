@@ -16,29 +16,12 @@ function setSheetFilter(f) {
   renderSheetList();
 }
 
-function renderBalanceStrip() {
-  const el = document.getElementById('sheets-balance');
-  if (!el) return;
-  const bal = overtimeBalance();
-  const now = new Date();
-  const monthPrefix = toISODate(now).slice(0, 7);
-  let monthWorked = 0;
-  allRelevantDates().forEach(iso => { if (iso.startsWith(monthPrefix)) monthWorked += dayInfo(iso).worked; });
-  el.innerHTML = `
-    <div class="bs-item">
-      <span class="bs-label">Überstunden gesamt</span>
-      <span class="bs-value ${bal < 0 ? 'neg' : 'pos'}">${formatHours(bal, true)}</span>
-    </div>
-    <div class="bs-item">
-      <span class="bs-label">${MONTHS[now.getMonth()]} gearbeitet</span>
-      <span class="bs-value">${formatHours(monthWorked)}</span>
-    </div>
-    <svg class="bs-arrow" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>`;
-}
-
 function renderSheetList() {
   if (!appData) return;
-  renderBalanceStrip();
+  renderTechHome();
+  // Techniker: bisherige Liste nur aufgeklappt („Alle Zettel & Suche“)
+  const browser = document.getElementById('sheet-browser');
+  if (browser) browser.hidden = !isOffice() && !homeShowList;
   const list = document.getElementById('sheet-list');
   const q = (document.getElementById('sheet-search').value || '').trim().toLowerCase();
   let sheets = appData.sheets.slice();
@@ -126,7 +109,9 @@ function sheetCardHtml(s) {
 }
 
 // ---------- Neuer Zettel ----------
-function openNewSheetModal() {
+// date: Datum des neuen Zettels (z.B. aus der Wochenleiste), sonst heute
+function openNewSheetModal(date) {
+  newSheetDate = date || null;
   openModal(`
     <h2 class="modal-title">Neuer Zettel</h2>
     <p class="modal-text muted">Wo wurde gearbeitet?</p>
@@ -170,7 +155,7 @@ function createSheet(type) {
     updatedAt: new Date().toISOString(),
     orderNo: '', customer: '', vessel: '',
     worker: appData.settings.name || '',
-    days: [newDay(todayISO())],
+    days: [newDay(takeNewSheetDate())],
     travelOut: type === 'montage' ? defaultTravel('travelOut') : {},
     travelBack: type === 'montage' ? defaultTravel('travelBack') : {},
     material: null, materialNote: '',
@@ -220,7 +205,8 @@ function nextDaySheet(id, from) {
     : (currentView === 'job' || editorReturn === 'job' ? 'job' : null));
   const dates = src.days.map(d => d.date).filter(Boolean).sort();
   const lastDay = src.days[src.days.length - 1] || {};
-  const day = newDay(dates.length ? addDaysISO(dates[dates.length - 1], 1) : todayISO());
+  // Datum: vorgegeben (Wochenleiste) oder Folgetag des Quell-Zettels
+  const day = newDay(newSheetDate ? takeNewSheetDate() : (dates.length ? addDaysISO(dates[dates.length - 1], 1) : todayISO()));
   if (src.type === 'montage') {
     day.away = lastDay.away || '';
     day.hotel = !!lastDay.hotel;
