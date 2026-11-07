@@ -82,6 +82,8 @@ function createDefaultData() {
     },
     role: null,   // 'tech' (Servicetechniker) | 'office' (Sachbearbeiter) – Auswahl beim Start
     jobs: [],     // vom Sachbearbeiter angelegte Aufträge
+    technicians: [], // vom Büro angelegte Monteure: { id, name, phone }
+    profiles: {},    // persönliche Einstellungen je Monteur (beim Wechsel auf einem Gerät)
     sheets: [],
     daysOff: [],
     orders: {} // Zusammenstellungen je Auftragsnummer (Unterschriften)
@@ -109,6 +111,8 @@ function normalizeData(data) {
   if (!Array.isArray(data.sheets)) data.sheets = [];
   if (!Array.isArray(data.daysOff)) data.daysOff = [];
   if (!Array.isArray(data.jobs)) data.jobs = [];
+  if (!Array.isArray(data.technicians)) data.technicians = [];
+  if (!data.profiles || typeof data.profiles !== 'object' || Array.isArray(data.profiles)) data.profiles = {};
   data.jobs.forEach(j => {
     if (!Array.isArray(j.engines) || !j.engines.length) j.engines = [{}];
     if (!Array.isArray(j.files)) j.files = [];

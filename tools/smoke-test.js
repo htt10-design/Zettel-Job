@@ -374,13 +374,39 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     const ro = await page.evaluate(() => { openEditor(appData.sheets.find(s => s.type === 'werkstatt').id); return !!document.querySelector('fieldset.editor-form[disabled]') && !!document.querySelector('.lock-banner.office'); });
     assert(ro, 'Büro sieht Zettel nur an', errors);
     await page.evaluate(() => closeEditor());
+    // Monteure verwalten: anlegen über die Einstellungen
+    await page.evaluate(() => showView('settings'));
+    await page.fill('#new-tech-name', 'Erik Elektro');
+    await page.click('.assign-add .btn-primary');
+    await page.waitForTimeout(150);
+    const techs = await page.evaluate(() => [appData.technicians.map(t => t.name).join(','), knownTechnicians().includes('Erik Elektro')].join('|'));
+    assert(techs === 'Erik Elektro|true', `Monteur angelegt ${techs}`, errors);
+    await page.screenshot({ path: path.join(OUT, `${label}-32-monteure-verwalten.png`), fullPage: true });
+    // Wechsel Max → Erik → Max: Profile und Zettel bleiben getrennt
+    const sw = await page.evaluate(() => {
+      appData.settings.startBalance = 12; saveProfile('Max Monteur');
+      openRoleChooser(); chooseRole('tech');
+      const listed = document.querySelectorAll('.tech-pick-btn').length;
+      loginAs('tech', 'Erik Elektro');
+      const erik = [appData.settings.name, appData.settings.startBalance, appData.sheets.filter(isOwnSheet).length];
+      loginAs('tech', 'Max Monteur');
+      const max = [appData.settings.name, appData.settings.startBalance, appData.sheets.filter(isOwnSheet).length > 0];
+      loginAs('office', 'Petra Büro');
+      appData.settings.startBalance = 0;
+      return [listed >= 2, erik.join(','), max.join(',')].join('|');
+    });
+    assert(sw === 'true|Erik Elektro,0,0|Max Monteur,12,true', `Monteur-Wechsel ${sw}`, errors);
+    await page.evaluate(() => { openRoleChooser(); chooseRole('tech'); });
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: path.join(OUT, `${label}-33-monteur-auswahl.png`) });
+    await page.evaluate(() => { closeModal(); showView('jobs'); });
 
     // ---------- Techniker: Zettel aus Auftrag ----------
     await page.evaluate(() => { openRoleChooser(); });
     await page.click('.type-btn >> nth=0');
-    const loginPrefill = await page.inputValue('#login-name');
-    assert(loginPrefill === 'Max Monteur', `Technikername vorausgefüllt ${loginPrefill}`, errors);
-    await page.click('#modal .btn-primary');
+    const current = await page.evaluate(() => (document.querySelector('.tech-pick-btn.current') || {}).textContent || '');
+    assert(current.includes('Max Monteur'), `Aktueller Monteur markiert: ${current}`, errors);
+    await page.click('.tech-pick-btn.current');
     await page.waitForTimeout(200);
     // Startseite Monteur: „Dir zugeteilt“
     await page.evaluate(() => showView('sheets'));

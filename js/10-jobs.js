@@ -60,36 +60,170 @@ function openRoleChooser() {
     ${first ? '' : '<div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button></div>'}`, { locked: first });
 }
 
-// Schritt 2: Name für die gewählte Rolle (vorausgefüllt mit dem zuletzt benutzten)
+// Schritt 2: Büro → Name eingeben; Monteur → aus der Liste wählen (oder anderer Name)
 function chooseRole(role) {
   const s = appData.settings;
-  const name = role === 'office' ? s.officeName || '' : s.name || '';
+  if (role === 'office') {
+    openModal(`
+      <h2 class="modal-title">Sachbearbeiter</h2>
+      <label class="field"><span>Dein Name</span>
+        <input type="text" id="login-name" value="${escapeHtml(s.officeName || '')}" placeholder="Vor- und Nachname" autocomplete="name" autofocus
+          onkeydown="if(event.key==='Enter'){event.preventDefault();loginAs('office');}">
+      </label>
+      <p class="muted small-text">Erscheint z.B. als Ersteller der Aufträge.</p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" onclick="openRoleChooser()">Zurück</button>
+        <button class="btn btn-primary" onclick="loginAs('office')">Anmelden</button>
+      </div>`, { locked: !appData.role });
+    return;
+  }
+  const people = knownTechnicians();
+  const current = s.name || ''; // zuletzt angemeldeter Monteur
   openModal(`
-    <h2 class="modal-title">${role === 'office' ? 'Sachbearbeiter' : 'Servicetechniker'}</h2>
-    <label class="field"><span>Dein Name</span>
-      <input type="text" id="login-name" value="${escapeHtml(name)}" placeholder="Vor- und Nachname" autocomplete="name" autofocus
-        onkeydown="if(event.key==='Enter'){event.preventDefault();loginAs('${role}');}">
+    <h2 class="modal-title">Welcher Monteur bist du?</h2>
+    ${people.length ? `<div class="tech-pick">${people.map(n => {
+      const t = appData.technicians.find(x => sameName(x.name, n));
+      return `<button class="tech-pick-btn ${sameName(n, current) ? 'current' : ''}" onclick="loginAs('tech', ${escapeHtml(JSON.stringify(n))})">
+        <span class="avatar">${escapeHtml(initials(n))}</span>
+        <span><b>${escapeHtml(n)}</b>${t && t.phone ? `<small>${escapeHtml(t.phone)}</small>` : ''}</span>
+      </button>`;
+    }).join('')}</div>` : '<p class="muted small-text">Noch keine Monteure angelegt – das Büro kann sie unter Einstellungen anlegen.</p>'}
+    <label class="field"><span>${people.length ? 'Oder anderer Name' : 'Dein Name'}</span>
+      <input type="text" id="login-name" placeholder="Vor- und Nachname" autocomplete="name"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();loginAs('tech');}">
     </label>
-    <p class="muted small-text">${role === 'office' ? 'Erscheint z.B. als Ersteller der Aufträge.' : 'Steht als Monteur auf deinen Zetteln.'}</p>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="openRoleChooser()">Zurück</button>
-      <button class="btn btn-primary" onclick="loginAs('${role}')">Anmelden</button>
+      <button class="btn btn-primary" onclick="loginAs('tech')">Anmelden</button>
     </div>`, { locked: !appData.role });
 }
 
-function loginAs(role) {
+function initials(name) {
+  return String(name || '').trim().split(/\s+/).map(w => w[0] || '').slice(0, 2).join('').toUpperCase() || '?';
+}
+
+// Persönliche Einstellungen je Monteur (für mehrere Monteure auf einem Gerät)
+const PROFILE_KEYS = ['plate', 'home', 'startBalance', 'ownSignature', 'targets'];
+
+function saveProfile(name) {
+  if (!String(name || '').trim()) return;
+  const p = {};
+  PROFILE_KEYS.forEach(k => { p[k] = JSON.parse(JSON.stringify(appData.settings[k] ?? null)); });
+  appData.profiles[name.trim().toLowerCase()] = p;
+}
+
+function loadProfile(name) {
+  const p = appData.profiles[String(name || '').trim().toLowerCase()];
+  const s = appData.settings;
+  if (p) {
+    PROFILE_KEYS.forEach(k => { if (p[k] !== undefined && p[k] !== null) s[k] = JSON.parse(JSON.stringify(p[k])); else if (k !== 'targets') s[k] = k === 'startBalance' ? 0 : (k === 'ownSignature' ? null : ''); });
+  } else {
+    // neuer Monteur auf diesem Gerät: persönliche Werte leeren, Sollzeiten behalten
+    s.plate = ''; s.home = ''; s.startBalance = 0; s.ownSignature = null;
+  }
+}
+
+// Monteur wechseln: bisherige Daten ohne Namen dem bisherigen Monteur zuordnen,
+// Profil sichern und das des neuen Monteurs laden
+function switchTechnician(newName) {
+  const s = appData.settings;
+  const old = String(s.name || '').trim();
+  if (old && !sameName(old, newName)) {
+    appData.sheets.forEach(sh => { if (!sh.worker) sh.worker = old; });
+    appData.daysOff.forEach(o => { if (!o.worker) o.worker = old; });
+    saveProfile(old);
+    loadProfile(newName);
+  }
+  s.name = newName;
+}
+
+function loginAs(role, pickedName) {
   const input = document.getElementById('login-name');
-  const name = input ? input.value.trim() : '';
+  const name = (pickedName || (input ? input.value : '')).trim();
+  if (role === 'tech' && !name && !appData.settings.name) { showToast('Bitte Monteur wählen oder Namen eingeben'); return; }
   appData.role = role;
   if (name) {
     if (role === 'office') appData.settings.officeName = name;
-    else appData.settings.name = name;
+    else switchTechnician(name);
   }
   saveData(true);
   applyRole();
   closeModal();
+  if (typeof homeSelected !== 'undefined') { homeSelected = null; homeWeekStart = null; }
   showView(role === 'office' ? 'jobs' : 'sheets');
   showToast(`Angemeldet als ${role === 'office' ? 'Sachbearbeiter' : 'Servicetechniker'}${name ? ' – ' + name : ''}`);
+}
+
+// ---------- Monteure verwalten (Büro) ----------
+function techniciansHtml() {
+  const list = appData.technicians.slice().sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  const others = knownTechnicians().filter(n => !appData.technicians.some(t => sameName(t.name, n)));
+  return `
+    <div class="card">
+      <h3 class="card-title">Monteure verwalten</h3>
+      ${list.length ? `<div class="codes-list">${list.map(t => {
+        const n = appData.sheets.filter(s => sameName(s.worker, t.name)).length;
+        return `
+        <div class="code-row tech-row">
+          <span class="avatar small">${escapeHtml(initials(t.name))}</span>
+          <input class="code-l" type="text" value="${escapeHtml(t.name)}" onchange="updateTechnician('${t.id}', 'name', this.value)" aria-label="Name">
+          <input class="tech-phone" type="tel" value="${escapeHtml(t.phone || '')}" onchange="updateTechnician('${t.id}', 'phone', this.value)" placeholder="Telefon" aria-label="Telefon">
+          <span class="muted small-text tech-count">${n} Zettel</span>
+          <button class="icon-btn small danger-hover" onclick="removeTechnician('${t.id}')" aria-label="Entfernen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        </div>`;
+      }).join('')}</div>` : '<p class="muted small-text">Noch keine Monteure angelegt.</p>'}
+      <div class="assign-add">
+        <input type="text" id="new-tech-name" placeholder="Name des neuen Monteurs" autocomplete="off"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();addTechnician();}">
+        <button class="btn btn-primary" onclick="addTechnician()">Anlegen</button>
+      </div>
+      ${others.length ? `<p class="muted small-text">Bereits bekannt aus Zetteln/Aufträgen: ${others.map(n => `<button class="chip mini" onclick="addTechnician(${escapeHtml(JSON.stringify(n))})">+ ${escapeHtml(n)}</button>`).join(' ')}</p>` : ''}
+    </div>`;
+}
+
+function addTechnician(presetName) {
+  const input = document.getElementById('new-tech-name');
+  const name = String(presetName || (input ? input.value : '')).trim();
+  if (!name) { if (input) input.focus(); return; }
+  if (appData.technicians.some(t => sameName(t.name, name))) { showToast(`„${name}“ gibt es schon`); return; }
+  appData.technicians.push({ id: uid(), name, phone: '' });
+  saveData(true);
+  renderSettings();
+  showToast(`Monteur „${name}“ angelegt`);
+}
+
+// Umbenennen ändert den Namen überall (Zettel, Zuteilungen, Einsätze, Abwesenheiten, Profil)
+function updateTechnician(id, key, value) {
+  const t = appData.technicians.find(x => x.id === id);
+  if (!t) return;
+  const v = String(value).trim();
+  if (key === 'name') {
+    if (!v) { renderSettings(); return; }
+    if (appData.technicians.some(x => x !== t && sameName(x.name, v))) { showToast(`„${v}“ gibt es schon`); renderSettings(); return; }
+    const old = t.name;
+    const ren = n => sameName(n, old) ? v : n;
+    appData.sheets.forEach(s => { if (s.worker) s.worker = ren(s.worker); });
+    appData.daysOff.forEach(o => { if (o.worker) o.worker = ren(o.worker); });
+    appData.jobs.forEach(j => {
+      j.assigned = (j.assigned || []).map(ren);
+      (j.slots || []).forEach(sl => { sl.name = ren(sl.name); });
+    });
+    const p = appData.profiles[old.toLowerCase()];
+    if (p) { delete appData.profiles[old.toLowerCase()]; appData.profiles[v.toLowerCase()] = p; }
+    if (sameName(appData.settings.name, old)) appData.settings.name = v;
+    t.name = v;
+  } else t[key] = v;
+  saveData(true);
+  renderSettings();
+}
+
+async function removeTechnician(id) {
+  const t = appData.technicians.find(x => x.id === id);
+  if (!t) return;
+  if (!(await confirmDialog(`Monteur „${t.name}“ aus der Liste entfernen? Seine Zettel und Einsätze bleiben erhalten.`, 'Entfernen', true))) return;
+  appData.technicians = appData.technicians.filter(x => x.id !== id);
+  saveData(true);
+  renderSettings();
 }
 
 // ---------- Zuteilung ----------
@@ -106,6 +240,7 @@ function isAssignedToMe(job) {
 function knownTechnicians() {
   const names = [];
   const add = n => { n = String(n || '').trim(); if (n && !names.some(x => sameName(x, n))) names.push(n); };
+  (appData.technicians || []).forEach(t => add(t.name));
   appData.sheets.forEach(s => add(s.worker));
   appData.jobs.forEach(j => (j.assigned || []).forEach(add));
   add(appData.settings.name);
@@ -728,6 +863,9 @@ function sheetVisibleForRole(s) {
 window.openRoleChooser = openRoleChooser;
 window.loginAs = loginAs;
 window.chooseRole = chooseRole;
+window.addTechnician = addTechnician;
+window.updateTechnician = updateTechnician;
+window.removeTechnician = removeTechnician;
 window.renderJobs = renderJobs;
 window.renderJobsKeepFocus = renderJobsKeepFocus;
 window.setJobFilter = setJobFilter;

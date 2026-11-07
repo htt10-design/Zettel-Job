@@ -58,6 +58,10 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
 ## Rollen & Aufträge
 
 - Beim ersten Start Anmeldung: Servicetechniker (`settings.name`) oder Sachbearbeiter (`settings.officeName`); wechselbar.
+  Monteur wählt sich aus der Liste (`knownTechnicians`: angelegte `appData.technicians` + bekannte Namen) – noch ohne Passwort.
+  Wechsel des Monteurs (`switchTechnician`): Zettel/Abwesenheiten ohne Namen bekommen den bisherigen Namen, persönliche
+  Einstellungen (Kennzeichen, Standort, Übertrag, Sollzeiten, Unterschrift) liegen je Monteur in `appData.profiles`.
+- Büro verwaltet Monteure in den Einstellungen (anlegen, Telefon, umbenennen = überall umbenennen, entfernen).
   CSS-Klassen `tech-only` / `office-only` blenden je Rolle aus (body.role-tech / body.role-office).
 - Alles lokal auf einem Gerät – Austausch zwischen Geräten (Server) folgt später.
 - Büro: Aufträge anlegen/bearbeiten, alle Zettel nur ansehen (Editor gesperrt), Filter nach Techniker (`sheet.worker`).

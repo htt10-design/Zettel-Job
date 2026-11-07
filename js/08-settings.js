@@ -28,7 +28,8 @@ function renderSettings() {
     ${office ? `<div class="card">
       <h3 class="card-title">Meine Daten</h3>
       <label class="field"><span>Name (Sachbearbeiter)</span><input type="text" value="${escapeHtml(s.officeName || '')}" onchange="setSetting('officeName', this.value); applyRole()" placeholder="Vor- und Nachname"></label>
-    </div>` : ''}
+    </div>
+    ${techniciansHtml()}` : ''}
 
     <div class="card tech-only">
       <h3 class="card-title">Meine Daten</h3>
