@@ -113,9 +113,13 @@ function knownTechnicians() {
 }
 
 function planText(job) {
-  if (!job.planFrom && !job.planTo) return '';
-  if (job.planFrom && job.planTo && job.planFrom !== job.planTo) return formatDateShort(job.planFrom) + '–' + formatDate(job.planTo, false);
-  return formatDate(job.planFrom || job.planTo);
+  // Gesamtzeitraum aus der Einsatzplanung, sonst alter Zeitraum des Auftrags
+  const slots = job.slots || [];
+  const from = slots.length ? slots.map(x => x.from).sort()[0] : job.planFrom;
+  const to = slots.length ? slots.map(x => x.to || x.from).sort().pop() : job.planTo;
+  if (!from && !to) return '';
+  if (from && to && from !== to) return formatDateShort(from) + '–' + formatDate(to, false);
+  return formatDate(from || to);
 }
 
 function addAssignee() {
@@ -407,10 +411,11 @@ function renderJob() {
             onkeydown="if(event.key==='Enter'){event.preventDefault();addAssignee();}">
           <button type="button" class="btn btn-soft" onclick="addAssignee()">Zuteilen</button>
         </div>
-        <div class="grid-2 plan-dates">
-          ${field('Einsatz von (optional)', 'planFrom', job.planFrom, { type: 'date', rerender: true })}
+        ${(job.planFrom || job.planTo) && !(job.slots || []).length ? `<div class="grid-2 plan-dates">
+          ${field('Einsatz von (alt)', 'planFrom', job.planFrom, { type: 'date', rerender: true })}
           ${field('bis', 'planTo', job.planTo, { type: 'date', rerender: true })}
-        </div>
+        </div>` : ''}
+        ${jobSlotsHtml(job)}
         ${engineSection(job, 'jobAddEngine', 'jobRemoveEngine')}
       </div>
 

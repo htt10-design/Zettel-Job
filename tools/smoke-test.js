@@ -330,6 +330,40 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     const job = await page.evaluate(async () => { const j = getActiveJob(); const b = await getFile(j.files[0].id); return [j.orderNo, j.customer, j.engines[0].number, j.files.length, j.files[0].name, b && b.size].join('|'); });
     assert(job.startsWith('SR26/000777|Reederei West|MAN-4711|1|Auftrag.pdf|'), `Auftrag angelegt ${job}`, errors);
     await page.screenshot({ path: path.join(OUT, `${label}-22-buero-auftrag.png`), fullPage: true });
+    // ---------- Einsatzplan (Büro) ----------
+    await page.evaluate(() => {
+      appData.jobs.push({ id: 'jp2', kind: 'werkstatt', orderNo: 'SR26/000901', customer: 'Werft Süd', vessel: '', engines: [{}], description: '', files: [], status: 'offen', assigned: ['Erik Elektro'], slots: [] });
+      appData.jobs.push({ id: 'jp3', kind: 'mix', orderNo: 'SR26/000902', customer: 'Reederei Ost', vessel: 'MS Ostwind', engines: [{}], description: '', files: [], status: 'offen', assigned: [], slots: [] });
+      showView('plan'); planWeekStart = '2026-11-16'; renderPlan();
+    });
+    // Zelle Max Monteur / Mo 16.11. antippen → SR26/000777 Mo–Mi einplanen
+    await page.evaluate(() => openPlanCell('Max Monteur', '2026-11-16'));
+    await page.waitForTimeout(150);
+    await page.selectOption('#plan-job', { label: await page.evaluate(() => Array.from(document.querySelectorAll('#plan-job option')).find(o => o.textContent.includes('000777')).textContent) });
+    await page.fill('#plan-to', '2026-11-18');
+    await page.click('#modal .btn-primary.block');
+    await page.waitForTimeout(150);
+    const plan = await page.evaluate(() => {
+      const j = appData.jobs.find(x => x.orderNo === 'SR26/000777');
+      // zusätzlich: Erik Di in der Werkstatt, Max Mi doppelt (Konflikt)
+      addPlanSlot(getJob('jp2'), 'Erik Elektro', '2026-11-17', '2026-11-17');
+      addPlanSlot(getJob('jp3'), 'Max Monteur', '2026-11-18', '2026-11-18');
+      renderPlan();
+      const r = [j.slots.length, j.slots[0].from + '>' + j.slots[0].to, jobPlannedOn(j, 'Max Monteur', '2026-11-17'), jobPlannedOn(j, 'Max Monteur', '2026-11-19'),
+        document.querySelectorAll('.plan-cell.conflict').length, unplannedJobs().length];
+      // Tag entfernen teilt den Einsatz
+      unplanDay(j.id, 'Max Monteur', '2026-11-17');
+      r.push(j.slots.map(x => x.from.slice(8) + '-' + x.to.slice(8)).join(','));
+      return r.join('|');
+    });
+    assert(plan === '1|2026-11-16>2026-11-18|true|false|1|0|16-16,18-18', `Einsatzplan ${plan}`, errors);
+    await page.evaluate(() => { const j = appData.jobs.find(x => x.orderNo === 'SR26/000777'); j.slots = []; addPlanSlot(j, 'Max Monteur', '2026-11-16', '2026-11-18'); renderPlan(); });
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: path.join(OUT, `${label}-29-einsatzplan-buero.png`), fullPage: true });
+    await page.evaluate(() => { document.getElementById('print-area').innerHTML = buildPlanPrintHtml(); });
+    await page.emulateMedia({ media: 'print' });
+    await page.screenshot({ path: path.join(OUT, `${label}-30-einsatzplan-druck.png`), fullPage: true });
+    await page.emulateMedia({ media: 'screen' });
     await page.evaluate(() => showView('jobs'));
     await page.waitForTimeout(200);
     await page.screenshot({ path: path.join(OUT, `${label}-23-buero-auftraege.png`), fullPage: true });
@@ -372,6 +406,13 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     await page.click('.job-card');
     await page.waitForTimeout(200);
     await page.screenshot({ path: path.join(OUT, `${label}-25-techniker-auftrag.png`), fullPage: true });
+    // Plan aus Sicht des Monteurs
+    await page.evaluate(() => { closeModal(); showView('plan'); planWeekStart = '2026-11-16'; renderPlan(); showView('job'); });
+    const techPlan = await page.evaluate(() => { showView('plan'); planWeekStart = '2026-11-16'; renderPlan(); const r = [document.querySelector('.plan-name.me') ? 'me' : '-', document.querySelectorAll('.plan-name').length]; return r.join('|'); });
+    assert(techPlan === 'me|2', `Plan Monteur ${techPlan}`, errors);
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: path.join(OUT, `${label}-31-einsatzplan-monteur.png`), fullPage: true });
+    await page.evaluate(() => { appData.jobs = appData.jobs.filter(j => j.id !== 'jp2' && j.id !== 'jp3'); showView('jobs'); openJob(appData.jobs.find(x => x.orderNo === 'SR26/000777').id); });
     await page.click('#job-body .btn-primary.block');
     await page.waitForTimeout(200);
     const fromJob = await page.evaluate(() => { const s = getActiveSheet(); return [s.orderNo, s.customer, s.vessel, s.engines[0].make, s.engines[0].number, s.worker, editorReturn, !!document.querySelector('.job-info')].join('|'); });

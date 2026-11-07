@@ -117,6 +117,7 @@ function normalizeData(data) {
     // Zuteilung: früher ein Name (assignedTo) → jetzt Liste mehrerer Monteure
     if (!Array.isArray(j.assigned)) j.assigned = j.assignedTo ? [String(j.assignedTo).trim()].filter(Boolean) : [];
     delete j.assignedTo;
+    if (!Array.isArray(j.slots)) j.slots = []; // Einsatzplanung: [{ id, name, from, to }]
   });
   if (data.role !== 'tech' && data.role !== 'office') data.role = null;
   if (!data.orders || typeof data.orders !== 'object' || Array.isArray(data.orders)) data.orders = {};
@@ -277,7 +278,7 @@ function showView(name) {
   const inEditor = name === 'editor';
   const inSub = inEditor || name === 'order' || name === 'job';
   document.getElementById('btn-back').hidden = !inSub;
-  document.getElementById('btn-print').hidden = !inSub || name === 'job';
+  document.getElementById('btn-print').hidden = !(inSub && name !== 'job') && name !== 'plan';
   document.getElementById('btn-sheet-menu').hidden = !inEditor;
   document.getElementById('bottom-nav').classList.toggle('hidden', inSub);
   document.body.classList.toggle('in-editor', inSub);
@@ -289,6 +290,7 @@ function showView(name) {
   if (name === 'order') renderOrder();
   if (name === 'jobs') renderJobs();
   if (name === 'job') renderJob();
+  if (name === 'plan') renderPlan();
   window.scrollTo(0, 0);
 }
 
@@ -305,7 +307,8 @@ function goBack() {
 
 // Drucken-Knopf oben: Zettel oder Zusammenstellung
 function printCurrent() {
-  if (currentView === 'order') printActiveOrder();
+  if (currentView === 'plan') printPlan();
+  else if (currentView === 'order') printActiveOrder();
   else printActiveSheet();
 }
 

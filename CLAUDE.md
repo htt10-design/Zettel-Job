@@ -32,6 +32,7 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
 | 09-orders | „Auftrag zusammenstellen“ (nur auf Befehl): alle Montagezettel einer Auftragsnummer → Übersicht, Auslöse-Summen, gemeinsamer Druck, Unterschriften in `appData.orders`; Ordner je Auftragsnummer |
 | 10-jobs | Rollen (Anmeldung Servicetechniker / Sachbearbeiter, `appData.role`), Aufträge vom Büro (`appData.jobs`: Auftragsnr., Kunde, Schiff, Motoren, Beschreibung, Dateien), Zettel aus Auftrag, Büro-Ansicht aller Zettel |
 | 11-home | Startseite Techniker: Wochenleiste (Stunden/Status je Tag, blättern), gewählter Tag mit Zetteln und „Neuer Zettel“, „Zu erledigen“ (fehlende Tage, fehlende Unterschriften, zugeteilte Aufträge), Wochenfortschritt; alte Liste aufklappbar |
+| 12-plan | Einsatzplanung: Wochentafel Monteure × Tage (Büro: einplanen/entfernen, Konflikte, „Noch nicht eingeplant“, Druck), Monteur: „Meine nächsten Einsätze“ + Team-Tafel |
 
 ## Zettel-Modell
 
@@ -72,6 +73,8 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
   (`homeShowList`). Büro sieht weiter die Liste. In der Liste: nur aktuelle Woche (`sheetRange`) oder alle.
 - Neue Zettel für einen gewählten Tag: `newSheetDate` setzen → `createSheet`/`nextDaySheet`/`addWorkshopEntryForJob`
   holen es mit `takeNewSheetDate()` ab (sonst heute).
+- Einsatzplanung: `job.slots` [{ id, name, from, to }] je Monteur; Fallback `assigned` + `planFrom/planTo` (Altbestand).
+  `jobPlannedOn`, `plannedJobsFor`; Abwesenheiten tragen `daysOff[].worker` (ohne Namen = Techniker dieses Geräts).
 - Dateianhänge im IndexedDB-Store `files` (DB-Version 2), `job.files` nur Metadaten; Backup enthält sie als Data-URL.
 
 ## Stundenregeln

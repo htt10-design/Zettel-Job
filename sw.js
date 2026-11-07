@@ -2,7 +2,7 @@
 //
 // WICHTIG: Bei jeder Änderung an index.html / js/*.js / style.css die
 // Versionsnummer hochzählen, sonst bekommen Nutzer die alte Version aus dem Cache.
-const CACHE_VERSION = 'zettel-job-v19';
+const CACHE_VERSION = 'zettel-job-v20';
 
 const APP_SHELL_FILES = [
   './',
@@ -20,6 +20,7 @@ const APP_SHELL_FILES = [
   './js/09-orders.js',
   './js/10-jobs.js',
   './js/11-home.js',
+  './js/12-plan.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-maskable-512.png'

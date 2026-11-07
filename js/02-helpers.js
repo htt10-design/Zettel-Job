@@ -332,8 +332,10 @@ function baseTargetMinutes(iso) {
   return Math.round((Number(appData.settings.targets[d.getDay()]) || 0) * 60);
 }
 
+// Abwesenheiten des angemeldeten Monteurs (Einträge ohne Namen gehören ihm)
 function daysOffFor(iso) {
-  return appData.daysOff.filter(o => o.date === iso);
+  const me = String(appData.settings.name || '').trim().toLowerCase();
+  return appData.daysOff.filter(o => o.date === iso && (!o.worker || !me || String(o.worker).trim().toLowerCase() === me));
 }
 
 // Übersicht eines Datums: gearbeitet, Soll, Differenz, Quellen

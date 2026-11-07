@@ -144,6 +144,7 @@ function renderTechHome() {
         <span class="wk-date">${d.getDate()}.</span>
         <span class="wk-h">${hrs || '&nbsp;'}</span>
         <span class="wk-st">${STATUS_MARK[st] || '&nbsp;'}</span>
+        <span class="wk-plan">${plannedJobsFor(currentUserName(), iso).filter(j => j.status !== 'erledigt').slice(0, 2).map(j => `<i class="kind-${j.kind || 'montage'}"></i>`).join('')}</span>
       </button>`;
   }).join('');
   const isCurrentWeek = homeWeekStart === weekStartISO(today);
@@ -153,8 +154,10 @@ function renderTechHome() {
   const selSheets = ownSheetsOn(sel).sort((a, b) => (a.type === b.type ? 0 : a.type === 'montage' ? -1 : 1));
   const selOffs = daysOffFor(sel);
   const offTypes = typeof OFF_TYPES !== 'undefined' ? OFF_TYPES : {};
+  // Für den Tag eingeplant (oder zugeteilt ohne Termin) und noch kein Zettel dazu
+  const me = currentUserName();
   const dayJobs = appData.jobs.filter(j => j.status !== 'erledigt' && isAssignedToMe(j)
-    && (!j.planFrom || j.planFrom <= sel) && (!j.planTo || j.planTo >= sel)
+    && (jobHasDatesFor(j, me) ? jobPlannedOn(j, me, sel) : true)
     && !jobAllSheets(j).some(s => isOwnSheet(s) && s.days.some(d => d.date === sel)));
   const selInfo = dayInfo(sel);
 

@@ -210,7 +210,7 @@ function saveDayOff() {
     if (from !== to && baseTargetMinutes(iso) === 0 && type !== 'feiertag') continue;
     // gleiche Art am selben Tag nicht doppelt
     if (type !== 'korrektur' && appData.daysOff.some(o => o.date === iso && o.type === type)) continue;
-    appData.daysOff.push({ id: uid(), date: iso, type, note, hours });
+    appData.daysOff.push({ id: uid(), date: iso, type, note, hours, worker: appData.settings.name || '' });
     count++;
     if (count > 366) break;
   }
