@@ -57,6 +57,7 @@ function openRoleChooser() {
       </button>
     </div>
     <p class="muted small-text">Hinweis: Die Daten liegen auf diesem Gerät. Der Austausch zwischen mehreren Geräten folgt später.</p>
+    ${isDemo() ? '' : '<button class="link-btn" onclick="startDemo()">Erst einmal mit Beispieldaten ausprobieren</button>'}
     ${first ? '' : '<div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button></div>'}`, { locked: first });
 }
 
@@ -409,7 +410,19 @@ function renderJobs() {
   let jobs = appData.jobs.slice();
   if (jobFilter !== 'alle') jobs = jobs.filter(j => (j.status || 'offen') === jobFilter);
   if (ql) jobs = jobs.filter(j => [j.orderNo, j.customer, j.vessel, j.description, (j.assigned || []).join(' ')].some(v => String(v || '').toLowerCase().includes(ql)));
-  jobs.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+  // Sortierung: nächster Einsatz zuerst, ohne Termin danach (neueste zuerst), Erledigte zuletzt
+  const nextDate = j => {
+    const ds = (j.slots || []).map(s => s.to || s.from).concat(j.planTo || j.planFrom || []).filter(Boolean);
+    const upcoming = ds.filter(d => d >= todayISO()).sort()[0];
+    return upcoming || (ds.length ? '9' + ds.sort().pop() : '');
+  };
+  jobs.sort((a, b) => {
+    if ((a.status === 'erledigt') !== (b.status === 'erledigt')) return a.status === 'erledigt' ? 1 : -1;
+    const na = nextDate(a), nb = nextDate(b);
+    if (na && nb) return na.localeCompare(nb);
+    if (na || nb) return na ? -1 : 1;
+    return (b.createdAt || '').localeCompare(a.createdAt || '');
+  });
   if (!office) jobs.sort((a, b) => (isAssignedToMe(b) ? 1 : 0) - (isAssignedToMe(a) ? 1 : 0));
   const counts = { offen: 0, erledigt: 0 };
   appData.jobs.forEach(j => { counts[j.status || 'offen'] = (counts[j.status || 'offen'] || 0) + 1; });
@@ -427,15 +440,17 @@ function renderJobs() {
         </div>
         <div class="sc-title">${escapeHtml(j.orderNo || 'ohne Auftragsnummer')}</div>
         <div class="sc-sub">${escapeHtml([j.vessel, j.customer].filter(Boolean).join(' · ') || 'ohne Kunde')}${planText(j) ? ' · ' + escapeHtml(planText(j)) : ''}</div>
-        ${j.description ? `<div class="job-desc-snip">${escapeHtml(j.description.slice(0, 140))}${j.description.length > 140 ? '…' : ''}</div>` : ''}
+        ${j.description ? `<div class="job-desc-snip">${escapeHtml(j.description)}</div>` : ''}
         <div class="sc-bottom">
-          <span class="sc-hours">${sheets.length ? formatHours(hours) + ` <small>· ${sheets.length} Zettel${workers ? ' · ' + escapeHtml(workers) : ''}</small>` : '<small>noch keine Zettel</small>'}</span>
-          <span class="sc-badges">${j.files.length ? `<span class="badge">📎 ${j.files.length}</span>` : ''}${(j.assigned || []).map(n => `<span class="badge">${escapeHtml(n)}</span>`).join('')}</span>
+          <span class="sc-hours">${sheets.length ? formatHours(hours) + ` <small>· ${sheets.length} Zettel</small>` : '<small>noch keine Zettel</small>'}</span>
+          <span class="sc-badges">${j.files.length ? `<span class="badge">📎 ${j.files.length}</span>` : ''}
+            <span class="avatar-stack">${(j.assigned || []).map(n => `<span class="avatar mini" title="${escapeHtml(n)}">${escapeHtml(initials(n))}</span>`).join('')}</span></span>
         </div>
       </button>`;
   }).join('');
 
   document.getElementById('jobs-body').innerHTML = `
+    ${office ? officeKpis() : ''}
     ${office ? `<button class="btn btn-primary block" onclick="createJob()">
       <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Neuen Auftrag anlegen</button>` : ''}
     <div class="toolbar">
@@ -450,6 +465,32 @@ function renderJobs() {
       </div>
     </div>
     <div class="sheet-list">${cards || `<div class="empty small"><p>${appData.jobs.length ? 'Keine Aufträge in dieser Ansicht.' : office ? 'Noch keine Aufträge angelegt.' : 'Noch keine Aufträge vom Büro vorhanden.'}</p></div>`}</div>`;
+}
+
+// Kennzahlen für das Büro (oben in der Auftragsliste)
+function officeKpis() {
+  const today = todayISO();
+  const wStart = weekStartISO(today), wEnd = addDaysISO(wStart, 6);
+  const open = appData.jobs.filter(j => j.status !== 'erledigt').length;
+  const unplanned = unplannedJobs().length;
+  const people = knownTechnicians();
+  const busyToday = people.filter(n => plannedJobsFor(n, today).some(j => j.status !== 'erledigt')).length;
+  let weekMin = 0;
+  appData.sheets.forEach(s => s.days.forEach((d, di) => { if (d.date >= wStart && d.date <= wEnd) weekMin += daySplit(s, di).worked; }));
+  return `
+    <div class="kpi-grid">
+      <button class="kpi" onclick="setJobFilter('offen')"><b>${open}</b><span>offene Aufträge</span></button>
+      <button class="kpi ${unplanned ? 'warn' : ''}" onclick="showView('plan')"><b>${unplanned}</b><span>nicht eingeplant</span></button>
+      <button class="kpi" onclick="showView('plan')"><b>${busyToday}<small>/${people.length}</small></b><span>heute im Einsatz</span></button>
+      <button class="kpi" onclick="showView('sheets')"><b>${(weekMin / 60).toLocaleString('de-DE', { maximumFractionDigits: 1 })}</b><span>Std. diese Woche</span></button>
+    </div>`;
+}
+
+// Kurzes Datum für Listen: „Mo 02.11.“
+function shortDayLabel(sheet) {
+  const iso = sheetFirstDate(sheet);
+  const d = parseISODate(iso);
+  return d ? WEEKDAYS_SHORT[d.getDay()] + ' ' + formatDateShort(iso) : '–';
 }
 
 // Suche ohne Fokusverlust
@@ -507,7 +548,7 @@ function renderJob() {
         <div class="h-week-head"><span>${escapeHtml(w)}</span><span>${formatHours(t.worked)}${t.ot ? ' · ' + formatHours(t.ot) + ' Überstd.' : ''}</span></div>
         ${list.map(s => `
           <button class="o-day" onclick="openEditor('${s.id}','job')">
-            <span class="h-date">${escapeHtml(sheetDateRange(s))}</span>
+            <span class="h-date">${escapeHtml(shortDayLabel(s))}</span>
             <span class="h-src"><span class="src ${s.type === 'werkstatt' ? 'off' : ''}">${s.type === 'werkstatt' ? 'Werkstatt' : 'Montage'}</span>${s.signCustomer ? '<span class="src ok">unterschr.</span>' : ''}${s.finished === true ? '<span class="src">beendet</span>' : ''}</span>
             <span class="o-num">${formatHours(jobSheetHours(job, s).normal)}</span>
             <span class="o-num ot">${jobSheetHours(job, s).ot ? formatHours(jobSheetHours(job, s).ot) : '–'}</span>
@@ -609,7 +650,7 @@ function renderJob() {
         <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> ${job.kind === 'werkstatt' ? 'Werkstattzeit für diesen Auftrag eintragen' : 'Zettel für diesen Auftrag anlegen'}</button>
       ${mySheets.length ? `<div class="card"><h3 class="card-title">Meine Zettel zu diesem Auftrag</h3>${mySheets.map(s => `
         <button class="o-day" onclick="openEditor('${s.id}','job')">
-          <span class="h-date">${escapeHtml(sheetDateRange(s))}</span><span class="h-src"></span>
+          <span class="h-date">${escapeHtml(shortDayLabel(s))}</span><span class="h-src"></span>
           <span class="o-num">${formatHours(jobSheetHours(job, s).normal)}</span>
           <span class="o-num ot">${jobSheetHours(job, s).ot ? formatHours(jobSheetHours(job, s).ot) : '–'}</span>
         </button>`).join('')}</div>` : ''}`;

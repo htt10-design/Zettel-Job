@@ -4,6 +4,7 @@
 // =====================================================================
 
 let costListOpen = false; // Kostenstellen-Liste aufgeklappt?
+let codesListOpen = false; // Zeitarten-Liste aufgeklappt?
 
 function renderSettings() {
   const s = appData.settings;
@@ -66,6 +67,8 @@ function renderSettings() {
     <div class="card">
       <h3 class="card-title">Zeitarten</h3>
       <p class="muted small-text">Kürzel für die Zeiteinträge. „Zählt“ = wird als Arbeitszeit gerechnet.</p>
+      <details class="cost-details" ${codesListOpen ? 'open' : ''} ontoggle="codesListOpen = this.open">
+      <summary>${s.codes.length} Zeitarten anzeigen / bearbeiten</summary>
       <div class="codes-list">
         ${s.codes.map((c, i) => `
           <div class="code-row">
@@ -76,6 +79,7 @@ function renderSettings() {
           </div>`).join('')}
       </div>
       <button class="btn btn-soft" onclick="addCode()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Zeitart hinzufügen</button>
+      </details>
     </div>
 
     <div class="card">
@@ -106,6 +110,14 @@ function renderSettings() {
            <div class="btn-row"><button class="btn btn-soft" onclick="openSignaturePad('own')">Neu unterschreiben</button>
            <button class="btn btn-ghost" onclick="removeOwnSignature()">Entfernen</button></div>`
         : `<button class="btn btn-soft" onclick="openSignaturePad('own')">Unterschrift hinterlegen</button>`}
+    </div>
+
+    <div class="card demo-card">
+      <div>
+        <b>${isDemo() ? 'Demo läuft' : 'Demo-Modus'}</b>
+        <span class="muted small-text">${isDemo() ? 'Beispieldaten – deine echten Daten sind sicher zur Seite gelegt.' : 'Mit Beispieldaten vorführen (Monteure, Aufträge, Plan, Zettel). Deine Daten bleiben unberührt.'}</span>
+      </div>
+      <button class="btn ${isDemo() ? 'btn-primary' : 'btn-soft'}" onclick="${isDemo() ? 'endDemo()' : 'startDemo()'}">${isDemo() ? 'Demo beenden' : 'Demo starten'}</button>
     </div>
 
     <div class="card">
@@ -173,6 +185,7 @@ function updateCode(i, key, value) {
 }
 
 function addCode() {
+  codesListOpen = true;
   let n = 1;
   while (appData.settings.codes.some(c => c.code === 'X' + n)) n++;
   appData.settings.codes.push({ code: 'X' + n, label: 'Neue Zeitart', counts: true });

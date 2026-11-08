@@ -242,15 +242,25 @@ function nextDaySheet(id, from) {
 
 async function deleteSheet(id) {
   closeModal();
-  const ok = await confirmDialog('Diesen Zettel wirklich löschen? Das kann nicht rückgängig gemacht werden.', 'Löschen', true);
+  const ok = await confirmDialog('Diesen Zettel wirklich löschen?', 'Löschen', true);
   if (!ok) return;
+  const index = appData.sheets.findIndex(s => s.id === id);
+  const removed = appData.sheets[index];
   appData.sheets = appData.sheets.filter(s => s.id !== id);
   saveData(true);
   // Aus einem Ordner gelöscht → zurück in den Ordner
   const back = editorReturn === 'order' && activeOrderNo ? 'order' : (editorReturn === 'job' && getActiveJob() ? 'job' : 'sheets');
   editorReturn = null;
   showView(back);
-  showToast('Zettel gelöscht');
+  showToast('Zettel gelöscht', removed && {
+    label: 'Rückgängig',
+    fn: () => {
+      appData.sheets.splice(Math.min(index, appData.sheets.length), 0, removed);
+      saveData(true);
+      showView(currentView === 'editor' ? 'sheets' : currentView);
+      showToast('Zettel wiederhergestellt');
+    }
+  });
 }
 
 window.setSheetFilter = setSheetFilter;

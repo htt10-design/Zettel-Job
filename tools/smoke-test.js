@@ -518,6 +518,39 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     await page.evaluate(() => { appData.settings.theme = 'dark'; applyTheme(); });
     await page.evaluate(() => { homeWeekStart = null; homeSelected = null; homeShowList = true; renderSheetList(); });
 
+    // ---------- Löschen mit „Rückgängig“ ----------
+    const undo = await page.evaluate(async () => {
+      const before = appData.sheets.length;
+      const id = appData.sheets.find(x => x.type === 'werkstatt').id;
+      openEditor(id);
+      deleteSheet(id);
+      await new Promise(r => setTimeout(r, 50));
+      document.querySelector('#modal .btn-danger').click();
+      await new Promise(r => setTimeout(r, 50));
+      const afterDelete = appData.sheets.length;
+      document.querySelector('.toast-action').click();
+      return [before - afterDelete, appData.sheets.length === before, appData.sheets.some(x => x.id === id)].join('|');
+    });
+    assert(undo === '1|true|true', `Rückgängig ${undo}`, errors);
+
+    // ---------- Demo-Modus: starten und beenden, echte Daten bleiben ----------
+    const demo = await page.evaluate(async () => {
+      const real = JSON.stringify({ s: appData.sheets.length, j: appData.jobs.length, n: appData.settings.name });
+      startDemo();
+      await new Promise(r => setTimeout(r, 50));
+      document.querySelector('#modal .btn-primary').click();
+      await new Promise(r => setTimeout(r, 400));
+      const inDemo = [isDemo(), appData.technicians.length, appData.jobs.length, appData.settings.name, !document.getElementById('demo-banner').hidden].join(',');
+      endDemo();
+      await new Promise(r => setTimeout(r, 50));
+      document.querySelector('#modal .btn-primary').click();
+      await new Promise(r => setTimeout(r, 400));
+      const back = JSON.stringify({ s: appData.sheets.length, j: appData.jobs.length, n: appData.settings.name });
+      return [inDemo, back === real, isDemo(), document.getElementById('demo-banner').hidden].join('|');
+    });
+    assert(demo === 'true,4,5,Jan Becker,true|true|false|true', `Demo-Modus ${demo}`, errors);
+    await page.evaluate(() => { showView('sheets'); homeShowList = true; sheetRange = 'all'; renderSheetList(); });
+
     // Persistenz: neu laden, Daten müssen noch da sein
     await page.evaluate(() => saveData(true));
     await page.reload();

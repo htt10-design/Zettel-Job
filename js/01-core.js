@@ -223,6 +223,8 @@ async function initApp() {
   appData = await loadData();
   applyTheme();
   applyRole();
+  renderDemoBanner();
+  requestPersistentStorage();
   if (appData.role === 'office') showView('jobs'); else renderSheetList();
   if (!appData.role) openRoleChooser();
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
@@ -373,12 +375,33 @@ function confirmDialog(message, okText = 'OK', danger = false) {
 
 // ---------- Toast ----------
 let toastTimer = null;
-function showToast(text) {
+// action: optional { label, fn } – z.B. „Rückgängig“
+let toastAction = null;
+function showToast(text, action) {
   const el = document.getElementById('toast');
-  el.textContent = text;
+  toastAction = action || null;
+  el.innerHTML = escapeHtml(text) + (action ? ` <button class="toast-action" onclick="runToastAction()">${escapeHtml(action.label)}</button>` : '');
+  el.classList.toggle('has-action', !!action);
   el.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+  toastTimer = setTimeout(() => { el.classList.remove('show'); toastAction = null; }, action ? 6000 : 2200);
+}
+
+function runToastAction() {
+  const a = toastAction;
+  toastAction = null;
+  document.getElementById('toast').classList.remove('show');
+  if (a) a.fn();
+}
+window.runToastAction = runToastAction;
+
+// Dauerhaften Speicher anfordern, damit der Browser die Daten nicht aufräumt
+function requestPersistentStorage() {
+  try {
+    if (navigator.storage && navigator.storage.persist) {
+      navigator.storage.persisted().then(p => { if (!p) navigator.storage.persist().catch(() => {}); }).catch(() => {});
+    }
+  } catch (e) { /* nicht unterstützt */ }
 }
 
 window.showView = showView;

@@ -33,6 +33,7 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
 | 10-jobs | Rollen (Anmeldung Servicetechniker / Sachbearbeiter, `appData.role`), Aufträge vom Büro (`appData.jobs`: Auftragsnr., Kunde, Schiff, Motoren, Beschreibung, Dateien), Zettel aus Auftrag, Büro-Ansicht aller Zettel |
 | 11-home | Startseite Techniker: Wochenleiste (Stunden/Status je Tag, blättern), gewählter Tag mit Zetteln und „Neuer Zettel“, „Zu erledigen“ (fehlende Tage, fehlende Unterschriften, zugeteilte Aufträge), Wochenfortschritt; alte Liste aufklappbar |
 | 12-plan | Einsatzplanung: Wochentafel Monteure × Tage (Büro: einplanen/entfernen, Konflikte, „Noch nicht eingeplant“, Druck), Monteur: „Meine nächsten Einsätze“ + Team-Tafel |
+| 13-demo | Demo-Modus: echte Daten unter `appDataBeforeDemo` sichern, Beispieldaten relativ zu heute (`buildDemoData`), Beenden stellt alles wieder her; gelbes Demo-Banner |
 
 ## Zettel-Modell
 

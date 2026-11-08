@@ -90,7 +90,8 @@ function planCell(name, iso) {
     <button class="plan-cell ${iso === todayISO() ? 'today' : ''} ${we ? 'we' : ''} ${conflict ? 'conflict' : ''}" onclick="openPlanCell(${escapeHtml(JSON.stringify(name))},'${iso}')">
       ${abs.map(o => `<span class="plan-abs off-${o.type}">${escapeHtml((offTypes[o.type] || {}).short || o.type)}</span>`).join('')}
       ${jobs.map(j => planChip(j)).join('')}
-      ${worked ? `<span class="plan-worked">${(worked / 60).toLocaleString('de-DE', { maximumFractionDigits: 1 })} h ✓</span>` : ''}
+      ${worked ? `<span class="plan-worked">${(worked / 60).toLocaleString('de-DE', { maximumFractionDigits: 1 })} h ✓</span>`
+        : (iso < todayISO() && !abs.length && jobs.some(j => j.status !== 'erledigt') ? '<span class="plan-missing">kein Zettel</span>' : '')}
       ${conflict ? '<span class="plan-warn" title="Doppelt verplant oder abwesend">!</span>' : ''}
     </button>`;
 }
@@ -162,6 +163,7 @@ function renderPlan() {
         <span class="plan-chip kind-werkstatt"><b>Werkstatt</b></span>
         <span class="plan-chip kind-mix"><b>Gemischt</b></span>
         <span class="plan-worked">8 h ✓ = geschrieben</span>
+        <span class="plan-missing">kein Zettel</span>
         <span class="plan-warn-l"><i>!</i> doppelt / abwesend</span>
       </div>
       ${office ? '<p class="muted small-text">Zelle antippen zum Einplanen. Neue Monteure: im Auftrag unter „Monteure zuteilen“ eintragen.</p>' : ''}
