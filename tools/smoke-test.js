@@ -617,6 +617,30 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     assert(demo === 'true,4,5,Jan Becker,true|true|false|true', `Demo-Modus ${demo}`, errors);
     await page.evaluate(() => { showView('sheets'); homeShowList = true; sheetRange = 'all'; renderSheetList(); });
 
+    // ---------- Monatskalender (Monteur) und Tagesfilter (Büro) ----------
+    const cal = await page.evaluate(() => {
+      showView('sheets');
+      homeSelected = '2026-11-02'; homeWeekStart = weekStartISO(homeSelected);
+      setHomeCalMode('month');
+      const days = document.querySelectorAll('.wk-grid.month .mo-day').length;
+      const okDay = document.querySelector('.wk-grid.month .mo-day.sel').classList.contains('st-ok');
+      homeShiftMonth(-1);
+      const oct = document.querySelector('.wk-title').textContent.includes('Oktober');
+      homeSelectDay('2026-11-04');
+      const panel = document.querySelector('.day-panel').textContent.includes('04.11.2026');
+      setHomeCalMode('week');
+      loginAs('office', 'Petra Büro');
+      showView('sheets'); officeMonth = '2026-11'; officeDay = null; renderSheetList();
+      const ocDays = document.querySelectorAll('.office-cal .mo-day').length;
+      officeSelectDay('2026-11-04');
+      const filtered = document.querySelectorAll('#sheet-list .sheet-card').length;
+      const head = document.querySelector('#sheet-list .range-head').textContent.includes('04.11.2026');
+      officeSelectDay('2026-11-04');
+      loginAs('tech', 'Max Monteur');
+      return [days, okDay, oct, panel, ocDays, filtered, head].join('|');
+    });
+    assert(cal === '30|true|true|true|30|1|true', `Kalender ${cal}`, errors);
+
     // Persistenz: neu laden, Daten müssen noch da sein
     await page.evaluate(() => saveData(true));
     await page.reload();

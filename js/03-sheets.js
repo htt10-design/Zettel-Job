@@ -45,6 +45,13 @@ function renderSheetList() {
   const allEntries = sheets.map(s => ({ date: sheetFirstDate(s) || s.createdAt || '', html: sheetCardHtml(s), week: sheetInWeek(s) }))
     .concat(folders.map(f => ({ date: f.last || '', html: folderCardHtml(f), week: !f.sheets.length || f.sheets.some(sheetInWeek) })))
     .sort((a, b) => b.date.localeCompare(a.date));
+  // Büro: Tag im Kalender gewählt → nur dieser Tag
+  if (isOffice() && officeDay) {
+    const daySheets = sheets.filter(s => s.days.some(d => d.date === officeDay));
+    const head = `<div class="range-head"><span><b>${WEEKDAYS_LONG[parseISODate(officeDay).getDay()]}, ${formatDate(officeDay, false)}</b> · ${daySheets.length} Zettel</span><button class="link-btn" onclick="officeSelectDay('${officeDay}')">Alle anzeigen</button></div>`;
+    list.innerHTML = head + (daySheets.length ? daySheets.map(sheetCardHtml).join('') : '<div class="empty small"><p>An diesem Tag keine Zettel.</p></div>');
+    return;
+  }
   const weekOnly = sheetRange === 'week' && !q;
   const entries = weekOnly ? allEntries.filter(e => e.week) : allEntries;
   const hidden = allEntries.length - entries.length;

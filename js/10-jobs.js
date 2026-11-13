@@ -889,12 +889,67 @@ function renderOfficeHead() {
     <div class="card office-card">
       <div><b>Alle Zettel aller Techniker</b><span class="muted small-text"> · ${total.length} Zettel · nur ansehen</span></div>
       <label class="field"><span>Techniker</span>
-        <select onchange="workerFilter = this.value; renderSheetList()">
+        <select onchange="workerFilter = this.value; officeDay = null; renderSheetList()">
           <option value="">Alle Techniker</option>
           ${workers.map(w => `<option ${w === workerFilter ? 'selected' : ''}>${escapeHtml(w)}</option>`).join('')}
           ${appData.sheets.some(s => !s.worker) ? `<option value="__none" ${workerFilter === '__none' ? 'selected' : ''}>ohne Namen</option>` : ''}
         </select>
       </label>
+    </div>
+    ${officeCalendarHtml()}`;
+}
+
+// ---------- Büro: Monatskalender über der Zettel-Liste ----------
+let officeMonth = null; // "YYYY-MM"
+let officeDay = null;   // gewählter Tag → Liste nur für diesen Tag
+
+function officeShiftMonth(n) {
+  const [y, m] = (officeMonth || todayISO().slice(0, 7)).split('-').map(Number);
+  const d = new Date(y, m - 1 + n, 1);
+  officeMonth = toISODate(d).slice(0, 7);
+  officeDay = null;
+  renderSheetList();
+}
+
+function officeSelectDay(iso) {
+  officeDay = officeDay === iso ? null : iso;
+  renderSheetList();
+}
+
+function officeCalendarHtml() {
+  if (!officeMonth) officeMonth = todayISO().slice(0, 7);
+  const [y, m] = officeMonth.split('-').map(Number);
+  const today = todayISO();
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const lead = (new Date(y, m - 1, 1).getDay() + 6) % 7;
+  const visible = appData.sheets.filter(sheetVisibleForRole);
+  let monthMin = 0;
+  const cells = Array.from({ length: daysInMonth }, (_, i) => {
+    const iso = toISODate(new Date(y, m - 1, i + 1));
+    let min = 0, n = 0;
+    visible.forEach(s => s.days.forEach((d, di) => { if (d.date === iso) { min += daySplit(s, di).worked; n++; } }));
+    monthMin += min;
+    const wd = new Date(y, m - 1, i + 1).getDay();
+    return `
+      <button class="wk-day mo-day ${iso === officeDay ? 'sel' : ''} ${iso === today ? 'today' : ''} ${n ? 'st-ok' : 'st-none'} ${wd === 0 || wd === 6 ? 'we' : ''}" onclick="officeSelectDay('${iso}')">
+        <span class="wk-date">${i + 1}</span>
+        <span class="wk-h">${min ? (min / 60).toLocaleString('de-DE', { maximumFractionDigits: 1 }) : '&nbsp;'}</span>
+        <span class="wk-st oc-count">${n ? n + ' Z.' : '&nbsp;'}</span>
+      </button>`;
+  }).join('');
+  return `
+    <div class="card week-card office-cal">
+      <div class="wk-nav">
+        <button class="icon-btn small" onclick="officeShiftMonth(-1)" aria-label="Vorheriger Monat"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <div class="wk-title"><b>${MONTHS[m - 1]} ${y}</b> <span class="muted">${formatHours(monthMin)}</span></div>
+        <button class="icon-btn small" onclick="officeShiftMonth(1)" aria-label="Nächster Monat"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+      </div>
+      <div class="wk-grid month">
+        ${[1, 2, 3, 4, 5, 6, 0].map(i => `<span class="mo-head">${WEEKDAYS_SHORT[i]}</span>`).join('')}
+        ${Array.from({ length: lead }, () => '<span class="mo-blank"></span>').join('')}
+        ${cells}
+      </div>
+      <p class="muted small-text oc-hint">Tag antippen → darunter nur die Zettel dieses Tages.</p>
     </div>`;
 }
 
@@ -929,6 +984,8 @@ window.removeJobFile = removeJobFile;
 window.openJobFile = openJobFile;
 window.deleteJob = deleteJob;
 window.createSheetFromJob = createSheetFromJob;
+window.officeShiftMonth = officeShiftMonth;
+window.officeSelectDay = officeSelectDay;
 window.setJobKind = setJobKind;
 window.nextDayFor = nextDayFor;
 window.addAssignee = addAssignee;

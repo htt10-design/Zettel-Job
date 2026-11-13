@@ -13,6 +13,46 @@ let homeWeekStart = null;   // Montag der angezeigten Woche
 let homeSelected = null;    // gewählter Tag (ISO)
 let homeShowList = false;   // bisherige Liste aufgeklappt?
 let newSheetDate = null;    // Datum für den nächsten neu angelegten Zettel (sonst heute)
+let homeCalMode = null;     // 'week' | 'month' (gemerkt im Browser)
+
+function getHomeCalMode() {
+  if (!homeCalMode) {
+    try { homeCalMode = localStorage.getItem('zj-home-cal') || 'week'; } catch (e) { homeCalMode = 'week'; }
+  }
+  return homeCalMode;
+}
+
+function setHomeCalMode(m) {
+  homeCalMode = m;
+  try { localStorage.setItem('zj-home-cal', m); } catch (e) { /* egal */ }
+  renderTechHome();
+}
+
+// Monat blättern (Monatsansicht): 1. des Monats wählen bzw. heute im aktuellen Monat
+function homeShiftMonth(n) {
+  const base = parseISODate(homeSelectedISO());
+  const d = new Date(base.getFullYear(), base.getMonth() + n, 1);
+  const today = todayISO();
+  homeSelected = toISODate(d).slice(0, 7) === today.slice(0, 7) ? today : toISODate(d);
+  homeWeekStart = weekStartISO(homeSelected);
+  renderTechHome();
+}
+
+// Inhalt einer Kalenderzelle (Woche und Monat)
+function calCellHtml(iso, sel, today, withWeekday) {
+  const info = dayInfo(iso);
+  const st = dayStatus(iso);
+  const d = parseISODate(iso);
+  const hrs = info.worked ? (info.worked / 60).toLocaleString('de-DE', { maximumFractionDigits: 1 }) : '';
+  return `
+      <button class="wk-day ${withWeekday ? '' : 'mo-day'} ${iso === sel ? 'sel' : ''} ${iso === today ? 'today' : ''} st-${st || 'none'} ${d.getDay() === 0 || d.getDay() === 6 ? 'we' : ''}" onclick="homeSelectDay('${iso}')">
+        ${withWeekday ? `<span class="wk-wd">${WEEKDAYS_SHORT[d.getDay()]}</span>` : ''}
+        <span class="wk-date">${d.getDate()}${withWeekday ? '.' : ''}</span>
+        <span class="wk-h">${hrs || '&nbsp;'}</span>
+        <span class="wk-st">${STATUS_MARK[st] || '&nbsp;'}</span>
+        <span class="wk-plan">${plannedJobsFor(currentUserName(), iso).filter(j => j.status !== 'erledigt').slice(0, 2).map(j => `<i class="kind-${j.kind || 'montage'}"></i>`).join('')}</span>
+      </button>`;
+}
 
 const MISSING_LOOKBACK_DAYS = 14;
 
@@ -131,23 +171,35 @@ function renderTechHome() {
 
   // ---- Wochenleiste ----
   let weekWorked = 0, weekTarget = 0;
-  const cells = days.map(iso => {
-    const info = dayInfo(iso);
-    const st = dayStatus(iso);
-    weekWorked += info.worked;
-    weekTarget += dayTargetMinutes(iso);
-    const d = parseISODate(iso);
-    const hrs = info.worked ? (info.worked / 60).toLocaleString('de-DE', { maximumFractionDigits: 1 }) : '';
-    return `
-      <button class="wk-day ${iso === sel ? 'sel' : ''} ${iso === today ? 'today' : ''} st-${st || 'none'} ${d.getDay() === 0 || d.getDay() === 6 ? 'we' : ''}" onclick="homeSelectDay('${iso}')">
-        <span class="wk-wd">${WEEKDAYS_SHORT[d.getDay()]}</span>
-        <span class="wk-date">${d.getDate()}.</span>
-        <span class="wk-h">${hrs || '&nbsp;'}</span>
-        <span class="wk-st">${STATUS_MARK[st] || '&nbsp;'}</span>
-        <span class="wk-plan">${plannedJobsFor(currentUserName(), iso).filter(j => j.status !== 'erledigt').slice(0, 2).map(j => `<i class="kind-${j.kind || 'montage'}"></i>`).join('')}</span>
-      </button>`;
-  }).join('');
-  const isCurrentWeek = homeWeekStart === weekStartISO(today);
+  const monthMode = getHomeCalMode() === 'month';
+  let cells, calTitle, isCurrent, sumLabel;
+  if (!monthMode) {
+    cells = days.map(iso => {
+      weekWorked += dayInfo(iso).worked;
+      weekTarget += dayTargetMinutes(iso);
+      return calCellHtml(iso, sel, today, true);
+    }).join('');
+    calTitle = `<b>KW ${isoWeek(homeWeekStart)}</b> <span class="muted">${formatDateShort(homeWeekStart)}–${formatDate(days[6], false)}</span>`;
+    isCurrent = homeWeekStart === weekStartISO(today);
+    sumLabel = 'Woche';
+  } else {
+    // Monatskalender: Wochentage als Kopf, Leerfelder bis zum 1., Mo als erster Tag
+    const sd = parseISODate(sel);
+    const first = new Date(sd.getFullYear(), sd.getMonth(), 1);
+    const daysInMonth = new Date(sd.getFullYear(), sd.getMonth() + 1, 0).getDate();
+    const lead = (first.getDay() + 6) % 7;
+    const head = [1, 2, 3, 4, 5, 6, 0].map(i => `<span class="mo-head">${WEEKDAYS_SHORT[i]}</span>`).join('');
+    const blanks = Array.from({ length: lead }, () => '<span class="mo-blank"></span>').join('');
+    const mdays = Array.from({ length: daysInMonth }, (_, i) => toISODate(new Date(sd.getFullYear(), sd.getMonth(), i + 1)));
+    cells = head + blanks + mdays.map(iso => {
+      weekWorked += dayInfo(iso).worked;
+      weekTarget += dayTargetMinutes(iso);
+      return calCellHtml(iso, sel, today, false);
+    }).join('');
+    calTitle = `<b>${MONTHS[sd.getMonth()]} ${sd.getFullYear()}</b>`;
+    isCurrent = sel.slice(0, 7) === today.slice(0, 7);
+    sumLabel = 'Monat';
+  }
 
   // ---- Gewählter Tag ----
   const selDate = parseISODate(sel);
@@ -196,17 +248,24 @@ function renderTechHome() {
 
   el.innerHTML = `
     <div class="card week-card">
-      <div class="wk-nav">
-        <button class="icon-btn small" onclick="homeShiftWeek(-1)" aria-label="Vorherige Woche"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
-        <div class="wk-title"><b>KW ${isoWeek(homeWeekStart)}</b> <span class="muted">${formatDateShort(homeWeekStart)}–${formatDate(days[6], false)}</span></div>
-        <button class="icon-btn small" onclick="homeShiftWeek(1)" aria-label="Nächste Woche"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+      <div class="cal-mode">
+        <div class="seg mini-seg">
+          <button type="button" class="${monthMode ? '' : 'on'}" onclick="setHomeCalMode('week')">Woche</button>
+          <button type="button" class="${monthMode ? 'on' : ''}" onclick="setHomeCalMode('month')">Monat</button>
+        </div>
+        <span class="cal-legend"><i class="lg-ok"></i>Zettel <i class="lg-missing"></i>fehlt <i class="lg-off"></i>frei</span>
       </div>
-      <div class="wk-grid">${cells}</div>
-      ${isCurrentWeek ? '' : `<button class="link-btn wk-today" onclick="homeSelectDay('${today}')">Zur aktuellen Woche</button>`}
+      <div class="wk-nav">
+        <button class="icon-btn small" onclick="${monthMode ? 'homeShiftMonth(-1)' : 'homeShiftWeek(-1)'}" aria-label="Zurück"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <div class="wk-title">${calTitle}</div>
+        <button class="icon-btn small" onclick="${monthMode ? 'homeShiftMonth(1)' : 'homeShiftWeek(1)'}" aria-label="Weiter"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+      </div>
+      <div class="wk-grid ${monthMode ? 'month' : ''}">${cells}</div>
+      ${isCurrent ? '' : `<button class="link-btn wk-today" onclick="homeSelectDay('${today}')">Zu heute</button>`}
       <div class="wk-sum" onclick="showView('hours')">
         <div class="wk-bar"><i style="width:${pct}%"></i></div>
         <div class="wk-sum-row">
-          <span><b>${formatHours(weekWorked)}</b> von ${formatHours(weekTarget)}</span>
+          <span>${sumLabel}: <b>${formatHours(weekWorked)}</b> von ${formatHours(weekTarget)}</span>
           <span>Überstunden gesamt <b class="${balance < 0 ? 'neg' : 'pos'}">${formatHours(balance, true)}</b></span>
         </div>
       </div>
@@ -240,6 +299,8 @@ function renderTechHome() {
 }
 
 window.homeShiftWeek = homeShiftWeek;
+window.homeShiftMonth = homeShiftMonth;
+window.setHomeCalMode = setHomeCalMode;
 window.homeSelectDay = homeSelectDay;
 window.homeToggleList = homeToggleList;
 window.newSheetForDay = newSheetForDay;
