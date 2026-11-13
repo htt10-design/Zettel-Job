@@ -876,6 +876,47 @@ body.role-tech.home-list-hidden #view-sheets .fab { display: none; }
 .o-day { grid-template-columns: 84px 1fr 64px 64px; }
 @media (max-width: 560px) { .o-day { grid-template-columns: 76px 1fr 56px 56px; } }
 
+/* ---------- App-Wechsel / Befunde ---------- */
+.app-switch { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.app-tile { display: flex; align-items: center; gap: 12px; text-align: left; width: 100%; border: 1.5px solid var(--border); background: var(--surface-2); border-radius: 14px; padding: 12px; }
+.app-tile img { width: 44px; height: 44px; border-radius: 11px; }
+.app-tile > span:not(.bf-icon) { flex: 1; display: flex; flex-direction: column; }
+.app-tile small { color: var(--muted); font-size: 12.5px; }
+.app-tile em { font-style: normal; font-size: 11.5px; font-weight: 700; color: var(--accent-strong); background: var(--accent-soft); border-radius: 999px; padding: 3px 9px; }
+.app-tile.current { border-color: var(--accent); background: var(--accent-softer); }
+button.app-tile:hover { border-color: var(--accent); }
+.befunde-slot:empty { display: none; }
+.befunde-box { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 12px 0; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface-2); }
+.card > .befunde-slot .befunde-box, #job-body > .befunde-slot .befunde-box { margin-top: 0; }
+#job-body > .befunde-slot { margin-bottom: 14px; }
+#job-body > .befunde-slot .befunde-box { background: var(--surface); box-shadow: var(--shadow); }
+.bf-icon { width: 34px; height: 34px; border-radius: 10px; background: #2f8f6f; color: #fff; display: grid; place-items: center; }
+.bf-icon svg { width: 20px; height: 20px; }
+.bf-icon.big { width: 44px; height: 44px; border-radius: 11px; flex: 0 0 44px; }
+.bf-icon.big svg { width: 26px; height: 26px; }
+.bf-text { flex: 1; min-width: 120px; display: flex; flex-direction: column; }
+.bf-text small { color: var(--muted); font-size: 12.5px; }
+.befunde-box .btn { padding: 7px 12px; min-height: 36px; font-size: 13.5px; }
+
+/* ---------- Monteur-Akte ---------- */
+.staff-row { display: flex; align-items: center; gap: 6px; }
+.staff-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; text-align: left; border: 1px solid var(--border); background: var(--surface-2); border-radius: 12px; padding: 8px 10px; }
+.staff-open:hover { border-color: var(--accent); }
+.staff-open svg { color: var(--muted); width: 18px; height: 18px; }
+.staff-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.staff-info small { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.staff-bal { font-weight: 800; font-size: 13.5px; white-space: nowrap; }
+.staff-bal.pos { color: var(--pos); } .staff-bal.neg { color: var(--neg); }
+.staff-head { display: flex; align-items: center; gap: 14px; }
+.staff-id { flex: 1; display: flex; flex-direction: column; }
+.staff-id b { font-size: 18px; }
+.avatar.big { width: 52px; height: 52px; flex-basis: 52px; font-size: 18px; }
+.staff-edit { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.staff-edit input { width: 120px; font-size: 22px; font-weight: 800; text-align: center; border: 1.5px solid var(--border); background: var(--surface-2); border-radius: var(--radius-sm); padding: 8px; outline: none; }
+.staff-edit input:focus { border-color: var(--accent); background: var(--surface); }
+.staff-quick { margin-bottom: 12px; }
+.managed-note { font-size: 12.5px; font-weight: 600; color: var(--accent-strong); background: var(--accent-softer); border-radius: 8px; padding: 6px 10px; margin: 0 0 8px; }
+
 /* ---------- Druck ---------- */
 #print-area { display: none; }
 

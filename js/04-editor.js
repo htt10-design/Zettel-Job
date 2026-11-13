@@ -28,6 +28,7 @@ function closeEditor() {
   editorReturn = null;
   if (back === 'order' && activeOrderNo) showView('order');
   else if (back === 'job' && getActiveJob()) showView('job');
+  else if (back === 'staff' && getStaff()) showView('staff');
   else showView('sheets');
 }
 
@@ -367,6 +368,7 @@ function renderEditor(keepScroll) {
         </div>
         ${engineSection(sheet)}
         ${jobInfoBox(sheet)}
+        ${befundeBox(sheet.orderNo, 'bf-sheet')}
         ${isFolder(sheet.orderNo) ? `<p class="folder-hint">Dieser Zettel liegt im Ordner <b>Auftrag ${escapeHtml(normOrderNo(sheet.orderNo))}</b>.</p>` : ''}
         <datalist id="dl-orders-ed">${allOrders().map(o => `<option value="${escapeHtml(o.no)}">`).join('')}</datalist>
       </div>`;

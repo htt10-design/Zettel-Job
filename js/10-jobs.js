@@ -136,6 +136,7 @@ function switchTechnician(newName) {
     loadProfile(newName);
   }
   s.name = newName;
+  applyStaffToSettings(appData.technicians.find(t => sameName(t.name, newName)));
 }
 
 function loginAs(role, pickedName) {
@@ -162,14 +163,18 @@ function techniciansHtml() {
   return `
     <div class="card">
       <h3 class="card-title">Monteure verwalten</h3>
-      ${list.length ? `<div class="codes-list">${list.map(t => {
+      <p class="muted small-text">Monteur antippen: Eintritt, Sollstunden, Überstundenkonto, Stunden ändern und Buchungen.</p>
+      ${list.length ? `<div class="menu-rows">${list.map(t => {
         const n = appData.sheets.filter(s => sameName(s.worker, t.name)).length;
+        const bal = staffBalance(t);
         return `
-        <div class="code-row tech-row">
-          <span class="avatar small">${escapeHtml(initials(t.name))}</span>
-          <input class="code-l" type="text" value="${escapeHtml(t.name)}" onchange="updateTechnician('${t.id}', 'name', this.value)" aria-label="Name">
-          <input class="tech-phone" type="tel" value="${escapeHtml(t.phone || '')}" onchange="updateTechnician('${t.id}', 'phone', this.value)" placeholder="Telefon" aria-label="Telefon">
-          <span class="muted small-text tech-count">${n} Zettel</span>
+        <div class="staff-row">
+          <button class="staff-open" onclick="openStaff('${t.id}')">
+            <span class="avatar small">${escapeHtml(initials(t.name))}</span>
+            <span class="staff-info"><b>${escapeHtml(t.name)}</b><small>${n} Zettel${t.startDate ? ' · seit ' + formatDateShort(t.startDate) : ''}${t.phone ? ' · ' + escapeHtml(t.phone) : ''}</small></span>
+            <span class="staff-bal ${bal < 0 ? 'neg' : 'pos'}">${formatHours(bal, true)}</span>
+            <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
+          </button>
           <button class="icon-btn small danger-hover" onclick="removeTechnician('${t.id}')" aria-label="Entfernen"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
         </div>`;
       }).join('')}</div>` : '<p class="muted small-text">Noch keine Monteure angelegt.</p>'}
@@ -187,10 +192,12 @@ function addTechnician(presetName) {
   const name = String(presetName || (input ? input.value : '')).trim();
   if (!name) { if (input) input.focus(); return; }
   if (appData.technicians.some(t => sameName(t.name, name))) { showToast(`„${name}“ gibt es schon`); return; }
-  appData.technicians.push({ id: uid(), name, phone: '' });
+  const t = { id: uid(), name, phone: '', startDate: presetName ? '' : todayISO() };
+  appData.technicians.push(t);
   saveData(true);
-  renderSettings();
-  showToast(`Monteur „${name}“ angelegt`);
+  if (presetName) { renderSettings(); showToast(`Monteur „${name}“ übernommen`); return; }
+  openStaff(t.id);
+  showToast(`Monteur „${name}“ angelegt – Eintritt und Sollstunden prüfen`);
 }
 
 // Umbenennen ändert den Namen überall (Zettel, Zuteilungen, Einsätze, Abwesenheiten, Profil)
@@ -595,6 +602,7 @@ function renderJob() {
         ${engineSection(job, 'jobAddEngine', 'jobRemoveEngine')}
       </div>
 
+      ${befundeBox(job.orderNo, 'bf-job')}
       <div class="card">
         <h3 class="card-title">Beschreibung</h3>
         <label class="field"><textarea data-bind="description" rows="6" placeholder="Was ist zu tun? Ansprechpartner, Liegeplatz, Besonderheiten …">${escapeHtml(job.description || '')}</textarea></label>
@@ -641,6 +649,7 @@ function renderJob() {
               <span>${escapeHtml([e.make, e.model].filter(Boolean).join(' ') || '–')}</span>
               <span>Nr. ${escapeHtml(e.number || '–')} · Betriebsstd. ${escapeHtml(e.hours || '–')}</span></div>`).join('')}</div>` : ''}
       </div>
+      ${befundeBox(job.orderNo, 'bf-job')}
       <div class="card">
         <h3 class="card-title">Beschreibung</h3>
         <p class="job-desc">${job.description ? escapeHtml(job.description) : '<span class="muted">Keine Beschreibung.</span>'}</p>

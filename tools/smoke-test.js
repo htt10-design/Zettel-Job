@@ -396,6 +396,72 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
       return [listed >= 2, erik.join(','), max.join(',')].join('|');
     });
     assert(sw === 'true|Erik Elektro,0,0|Max Monteur,12,true', `Monteur-Wechsel ${sw}`, errors);
+    // ---------- Monteur-Akte (Büro): Eintritt, Stunden ändern, Buchung ----------
+    const staff = await page.evaluate(async () => {
+      const erik = appData.technicians.find(t => t.name === 'Erik Elektro');
+      erik.startDate = '2026-11-01'; erik.startBalance = 0; erik.targets = [0, 8, 8, 8, 8, 5, 0];
+      appData.sheets.push({ id: 'erik1', type: 'montage', worker: 'Erik Elektro', orderNo: '', customer: 'Test', vessel: 'MS Test', engines: [{}],
+        days: [{ id: 'ed1', date: '2026-11-09', entries: [{ id: 'ee1', from: '07:00', to: '17:00', code: 'AZ', desc: '' }], away: '', hotel: false }],
+        travelOut: { on: false }, travelBack: { on: false } });
+      appData.sheets.push({ id: 'erik0', type: 'montage', worker: 'Erik Elektro', orderNo: '', customer: 'Alt', vessel: 'vor Eintritt', engines: [{}],
+        days: [{ id: 'ed0', date: '2026-10-20', entries: [{ id: 'ee0', from: '07:00', to: '19:00', code: 'AZ', desc: '' }], away: '', hotel: false }],
+        travelOut: { on: false }, travelBack: { on: false } });
+      openStaff(erik.id); staffMonth = '2026-11'; renderStaff();
+      const b1 = staffBalance(erik);                       // 10 h − 8 h = +2 h (Oktober vor Eintritt zählt nicht)
+      openStaffDay('2026-11-09');
+      document.querySelector('.staff-quick .chip').click(); // Überstunden streichen → 8 h
+      document.getElementById('staff-note').value = 'Pause fehlte';
+      saveStaffDay('2026-11-09');
+      const b2 = staffBalance(erik);                       // 0
+      openBooking();
+      document.getElementById('bk-hours').value = '1,5'; // Auszahlung
+      saveBooking();
+      const b3 = staffBalance(erik);                       // −1,5 h
+      const rows = document.querySelectorAll('#staff-body .h-day').length;
+      // Monteur sieht dasselbe Konto
+      loginAs('tech', 'Erik Elektro');
+      const techBal = overtimeBalance();
+      const locked = (showView('settings'), !!document.querySelector('.managed-note'));
+      loginAs('tech', 'Max Monteur');
+      loginAs('office', 'Petra Büro');
+      return [b1, b2, b3, rows, techBal, locked].join('|');
+    });
+    assert(staff === '120|0|-90|2|-90|true', `Monteur-Akte ${staff}`, errors);
+    await page.evaluate(() => { const erik = appData.technicians.find(t => t.name === 'Erik Elektro'); openStaff(erik.id); staffMonth = '2026-11'; renderStaff(); });
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: path.join(OUT, `${label}-34-monteur-akte.png`), fullPage: true });
+    await page.evaluate(() => {
+      appData.sheets = appData.sheets.filter(x => x.id !== 'erik1' && x.id !== 'erik0');
+      appData.daysOff = appData.daysOff.filter(o => o.worker !== 'Erik Elektro');
+      showView('settings');
+    });
+
+    // ---------- App-Wechsel und Befunde-Verknüpfung ----------
+    const apps = await page.evaluate(async () => {
+      openAppSwitcher();
+      const tiles = document.querySelectorAll('#modal .app-tile').length;
+      const url = befundeUrl('auftrag=SR26%2F000777');
+      closeModal();
+      // Befunde-Datenbank simulieren (wie sie die Befunde-App anlegt)
+      await new Promise((res, rej) => { const r = indexedDB.open('befunde', 1); r.onupgradeneeded = () => r.result.createObjectStore('store'); r.onsuccess = () => { const db = r.result; const tx = db.transaction('store', 'readwrite'); tx.objectStore('store').put({ orders: [{ orderNo: 'SR26/000777', status: 'offen', sheets: [{}, {}] }] }, 'appData'); tx.oncomplete = () => { db.close(); res(); }; }; r.onerror = rej; });
+      await loadBefundeData(true);
+      showView('jobs'); openJob(appData.jobs.find(j => j.orderNo === 'SR26/000777').id);
+      await new Promise(r => setTimeout(r, 200));
+      const box = (document.querySelector('#bf-job .befunde-box') || {}).textContent || '';
+      return [tiles, /\/Befunde\/#auftrag=SR26%2F000777$/.test(url), box.includes('2 Mess-/Befundblätter'), box.includes('Bericht')].join('|');
+    });
+    assert(apps === '2|true|true|true', `App-Wechsel/Befunde ${apps}`, errors);
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: path.join(OUT, `${label}-35-befunde-box.png`), fullPage: true });
+    await page.evaluate(async () => {
+      await new Promise(r => { const d = indexedDB.deleteDatabase('befunde'); d.onsuccess = d.onerror = d.onblocked = r; });
+      befundeCacheAt = 0;
+      openAppSwitcher();
+    });
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: path.join(OUT, `${label}-36-app-wechsel.png`) });
+    await page.evaluate(() => closeModal());
+
     await page.evaluate(() => { openRoleChooser(); chooseRole('tech'); });
     await page.waitForTimeout(200);
     await page.screenshot({ path: path.join(OUT, `${label}-33-monteur-auswahl.png`) });

@@ -34,6 +34,8 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
 | 11-home | Startseite Techniker: Wochenleiste (Stunden/Status je Tag, blättern), gewählter Tag mit Zetteln und „Neuer Zettel“, „Zu erledigen“ (fehlende Tage, fehlende Unterschriften, zugeteilte Aufträge), Wochenfortschritt; alte Liste aufklappbar |
 | 12-plan | Einsatzplanung: Wochentafel Monteure × Tage (Büro: einplanen/entfernen, Konflikte, „Noch nicht eingeplant“, Druck), Monteur: „Meine nächsten Einsätze“ + Team-Tafel |
 | 13-demo | Demo-Modus: echte Daten unter `appDataBeforeDemo` sichern, Beispieldaten relativ zu heute (`buildDemoData`), Beenden stellt alles wieder her; gelbes Demo-Banner |
+| 14-apps | App-Umschalter (Symbol oben) zur Schwester-App **Befunde** (`../Befunde/`); liest deren IndexedDB `befunde` nur lesend (`loadBefundeData`) und zeigt im Auftrag/Zettel die Befunde-Box mit Direktlinks `#auftrag=` / `#bericht=` |
+| 15-staff | Monteur-Akte (Büro): Eintritt, Telefon, Übertrag, Sollstunden je Monteur (`appData.technicians`), Überstundenkonto ab Eintritt (`staffBalance`), Tag ändern/Überstunden streichen/Tag streichen und Buchungen als `daysOff`-Korrektur `{ by:'office', kind }` |
 
 ## Zettel-Modell
 
@@ -62,7 +64,9 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
   Monteur wählt sich aus der Liste (`knownTechnicians`: angelegte `appData.technicians` + bekannte Namen) – noch ohne Passwort.
   Wechsel des Monteurs (`switchTechnician`): Zettel/Abwesenheiten ohne Namen bekommen den bisherigen Namen, persönliche
   Einstellungen (Kennzeichen, Standort, Übertrag, Sollzeiten, Unterschrift) liegen je Monteur in `appData.profiles`.
-- Büro verwaltet Monteure in den Einstellungen (anlegen, Telefon, umbenennen = überall umbenennen, entfernen).
+- Büro verwaltet Monteure in den Einstellungen (anlegen, umbenennen = überall umbenennen, entfernen); Tipp öffnet die Akte
+  (15-staff). Vom Büro gesetzte Werte (startDate, startBalance, targets) gelten auch in der Monteur-App (`applyStaffToSettings`,
+  `currentStaffRecord`; Tage vor Eintritt zählen nicht in `overtimeBalance`), dort sind die Felder dann gesperrt.
   CSS-Klassen `tech-only` / `office-only` blenden je Rolle aus (body.role-tech / body.role-office).
 - Alles lokal auf einem Gerät – Austausch zwischen Geräten (Server) folgt später.
 - Büro: Aufträge anlegen/bearbeiten, alle Zettel nur ansehen (Editor gesperrt), Filter nach Techniker (`sheet.worker`).

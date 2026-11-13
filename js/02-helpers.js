@@ -383,8 +383,11 @@ function allRelevantDates() {
 // Gesamtes Überstundenkonto in Minuten
 function overtimeBalance(untilIso) {
   let total = Math.round((Number(appData.settings.startBalance) || 0) * 60);
+  const rec = typeof currentStaffRecord === 'function' ? currentStaffRecord() : null;
+  const start = rec && rec.startDate ? rec.startDate : '';
   allRelevantDates().forEach(iso => {
     if (untilIso && iso > untilIso) return;
+    if (start && iso < start) return; // vor dem Eintritt zählt nichts
     total += dayInfo(iso).delta;
   });
   return total;

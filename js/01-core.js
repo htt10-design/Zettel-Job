@@ -282,9 +282,9 @@ function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
   document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   const inEditor = name === 'editor';
-  const inSub = inEditor || name === 'order' || name === 'job';
+  const inSub = inEditor || name === 'order' || name === 'job' || name === 'staff';
   document.getElementById('btn-back').hidden = !inSub;
-  document.getElementById('btn-print').hidden = !(inSub && name !== 'job') && name !== 'plan';
+  document.getElementById('btn-print').hidden = !(inSub && name !== 'job' && name !== 'staff') && name !== 'plan';
   document.getElementById('btn-sheet-menu').hidden = !inEditor;
   document.getElementById('bottom-nav').classList.toggle('hidden', inSub);
   document.body.classList.toggle('in-editor', inSub);
@@ -297,6 +297,7 @@ function showView(name) {
   if (name === 'jobs') renderJobs();
   if (name === 'job') renderJob();
   if (name === 'plan') renderPlan();
+  if (name === 'staff') renderStaff();
   window.scrollTo(0, 0);
 }
 
@@ -308,6 +309,7 @@ function setTopbarTitle(text) {
 function goBack() {
   if (currentView === 'editor') closeEditor();
   else if (currentView === 'job') showView('jobs');
+  else if (currentView === 'staff') showView('settings');
   else showView('sheets');
 }
 

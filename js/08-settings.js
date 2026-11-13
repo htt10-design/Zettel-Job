@@ -12,6 +12,8 @@ function renderSettings() {
   const wdOrder = [1, 2, 3, 4, 5, 6, 0];
 
   const office = isOffice();
+  const staffRec = !office ? currentStaffRecord() : null;
+  const managed = !!(staffRec && (Array.isArray(staffRec.targets) || (staffRec.startBalance !== undefined && staffRec.startBalance !== '') || staffRec.startDate));
   document.getElementById('settings-body').innerHTML = `
     <div class="card login-card">
       <div>
@@ -53,14 +55,15 @@ function renderSettings() {
     <div class="card tech-only">
       <h3 class="card-title">Arbeitszeit &amp; Überstunden</h3>
       <p class="muted small-text">Sollstunden je Wochentag. Alles darüber zählt als Überstunden.</p>
+      ${managed ? `<p class="managed-note">Vom Büro festgelegt${staffRec.startDate ? ' · Eintritt ' + formatDate(staffRec.startDate, false) : ''}.</p>` : ''}
       <div class="target-grid">
         ${wdOrder.map(i => `
           <label class="field"><span>${WEEKDAYS_SHORT[i]}</span>
-            <input type="text" inputmode="decimal" value="${String(s.targets[i]).replace('.', ',')}" onchange="setTarget(${i}, this.value)">
+            <input type="text" inputmode="decimal" value="${String(s.targets[i]).replace('.', ',')}" onchange="setTarget(${i}, this.value)" ${managed ? 'disabled' : ''}>
           </label>`).join('')}
       </div>
       <label class="field"><span>Übertrag Überstunden (Startsaldo in Std.)</span>
-        <input type="text" inputmode="decimal" value="${String(s.startBalance || 0).replace('.', ',')}" onchange="setStartBalance(this.value)">
+        <input type="text" inputmode="decimal" value="${String(s.startBalance || 0).replace('.', ',')}" onchange="setStartBalance(this.value)" ${managed ? 'disabled' : ''}>
       </label>
     </div>
 
