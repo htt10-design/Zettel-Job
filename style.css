@@ -940,6 +940,12 @@ button.app-tile:hover { border-color: var(--accent); }
 .office-cal .wk-day.mo-day.st-none .oc-count { color: transparent; }
 .oc-hint { margin: 8px 0 0; }
 
+.pause-setting { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 6px 0 10px; }
+.pause-times { display: flex; align-items: center; gap: 6px; }
+.pause-times input { width: 72px; text-align: center; font-weight: 700; border: 1.5px solid var(--border); background: var(--surface-2); border-radius: var(--radius-sm); padding: 8px 6px; min-height: 40px; outline: none; }
+.pause-times input:focus { border-color: var(--accent); }
+.pause-times input:disabled { opacity: .5; }
+
 /* ---------- Druck ---------- */
 #print-area { display: none; }
 

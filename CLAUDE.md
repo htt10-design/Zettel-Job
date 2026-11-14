@@ -45,7 +45,8 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
 - Ordner: `appData.orders[nr].folder` gesetzt → alle Montagezettel dieser Auftragsnummer (auch neue) erscheinen
   nicht mehr einzeln in der Liste, sondern als Ordner-Karte (`folderList`, `folderCardHtml`). Auflösen löscht nichts.
 - `sheet.worker` (Name des Monteurs) wird beim Anlegen gesetzt – Vorbereitung für mehrere Benutzer.
-- Werkstattzettel: Zeilen haben `cost` (Kostenstelle) statt Zeitart; `P`/`Pause` zählt nicht. Kostenstellen-Liste in
+- Werkstattzettel: Zeilen haben `cost` (Kostenstelle) statt Zeitart; `P`/`Pause` zählt nicht. Neue Werkstattzettel enthalten die Pause
+  aus `settings.workshopPause` (Standard 11:30–12:00, Zeile mit `auto: true`); die erste echte Zeile wird davor eingefügt. Kostenstellen-Liste in
   `settings.costCenters` ({ no, label }); Standardliste `DEFAULT_COST_CENTERS` (01-core) wird einmalig eingetragen
   (`costCentersVersion`; vor dem Merge mit den Defaults auslesen!). Ältere Werkstatt-Zeilen ohne `cost` rechnen weiter über `code`.
 - Motoren je Montagezettel in `sheet.engines` (1–4 × { make, model, number, hours }; altes `sheet.engine` wird in

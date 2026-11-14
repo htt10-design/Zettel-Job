@@ -77,6 +77,7 @@ function createDefaultData() {
       startBalance: 0,
       codes: DEFAULT_CODES.map(c => ({ ...c })),
       costCenters: defaultCostCenters(), // Kostenstellen für Werkstatt: { no, label }
+      workshopPause: { on: true, from: '11:30', to: '12:00' }, // Pause, die neue Werkstattzettel schon enthalten
       costCentersVersion: 1, // Version der eingetragenen Standard-Kostenstellen
       ownSignature: null
     },
@@ -102,6 +103,7 @@ function normalizeData(data) {
   if (!Array.isArray(s.targets) || s.targets.length !== 7) s.targets = DEFAULT_TARGETS.slice();
   if (!Array.isArray(s.codes) || !s.codes.length) s.codes = DEFAULT_CODES.map(c => ({ ...c }));
   if (!Array.isArray(s.costCenters)) s.costCenters = [];
+  if (!s.workshopPause || typeof s.workshopPause !== 'object') s.workshopPause = { on: true, from: '11:30', to: '12:00' };
   // Standardliste einmalig eintragen, wenn noch keine Kostenstellen angelegt sind
   if (costVersion < 1) {
     if (!s.costCenters.length) s.costCenters = defaultCostCenters();

@@ -154,6 +154,13 @@ function defaultTravel(key) {
   };
 }
 
+// Werkstatt: vorbelegte Pause-Zeile (Einstellungen → Werkstatt-Pause)
+function workshopPauseEntries() {
+  const p = appData.settings.workshopPause || {};
+  if (!p.on || parseTime(p.from) == null || parseTime(p.to) == null) return [];
+  return [{ id: uid(), from: formatClock(parseTime(p.from)), to: formatClock(parseTime(p.to)), code: 'AZ', cost: 'P', desc: '', auto: true }];
+}
+
 function createSheet(type) {
   const sheet = {
     id: uid(),
@@ -171,6 +178,7 @@ function createSheet(type) {
     signCustomer: null,
     signWorker: null
   };
+  if (type === 'werkstatt') sheet.days[0].entries = workshopPauseEntries();
   appData.sheets.push(sheet);
   saveData(true);
   closeModal();
@@ -214,6 +222,7 @@ function nextDaySheet(id, from) {
   const lastDay = src.days[src.days.length - 1] || {};
   // Datum: vorgegeben (Wochenleiste) oder Folgetag des Quell-Zettels
   const day = newDay(newSheetDate ? takeNewSheetDate() : (dates.length ? addDaysISO(dates[dates.length - 1], 1) : todayISO()));
+  if (src.type === 'werkstatt') day.entries = workshopPauseEntries();
   if (src.type === 'montage') {
     day.away = lastDay.away || '';
     day.hotel = !!lastDay.hotel;

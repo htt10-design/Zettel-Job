@@ -192,7 +192,7 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     await page.emulateMedia({ media: 'screen' });
 
     // Werkstattzettel
-    await page.evaluate(() => { closeEditor(); createSheet('werkstatt'); });
+    await page.evaluate(() => { closeEditor(); appData.settings.workshopPause.on = false; createSheet('werkstatt'); appData.settings.workshopPause.on = true; });
     await page.waitForTimeout(200);
     // Werkstatt: Kostenstellen statt Zeitarten, P = Pause zählt nicht
     await page.evaluate(() => { getActiveSheet().days[0].date = '2026-11-04'; renderEditor(); });
@@ -520,8 +520,9 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
       showView('jobs'); openJob('jw');
       createSheetFromJob('jw');
       const sh = getActiveSheet();
-      sh.days[0].entries[sh.days[0].entries.length - 1].from = '07:00';
-      sh.days[0].entries[sh.days[0].entries.length - 1].to = '09:30';
+      const jobLine = sh.days[0].entries.find(e => e.cost === 'SR26/000888');
+      jobLine.from = '07:00';
+      jobLine.to = '09:30';
       const ret1 = editorReturn;
       closeEditor();
       createSheetFromJob('jw'); // zweites Mal → gleicher Werkstattzettel von heute
@@ -640,6 +641,22 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
       return [days, okDay, oct, panel, ocDays, filtered, head].join('|');
     });
     assert(cal === '30|true|true|true|30|1|true', `Kalender ${cal}`, errors);
+
+    // ---------- Werkstatt: Pause 11:30–12:00 vorbelegt ----------
+    const pause = await page.evaluate(() => {
+      createSheet('werkstatt');
+      const s = getActiveSheet();
+      const start = s.days[0].entries.map(e => `${e.from}-${e.to} ${e.cost}`).join(',');
+      addEntry(0, null, '120');                 // erste echte Zeile → vor die Pause, endet um 11:30
+      s.days[0].entries[0].from = '07:00';
+      addEntry(0);                              // nächste Zeile → nach der Pause, beginnt 12:00, Kostenstelle 120
+      const lines = s.days[0].entries.map(e => `${e.from}-${e.to} ${e.cost}`).join(',');
+      const t = sheetTotals(s).worked;          // 07:00–11:30 = 4,5 h (Pause zählt nicht)
+      closeEditor();
+      appData.sheets = appData.sheets.filter(x => x.id !== s.id);
+      return [start, lines, t].join('|');
+    });
+    assert(pause === '11:30-12:00 P|07:00-11:30 120,11:30-12:00 P,12:00- 120|270', `Werkstatt-Pause ${pause}`, errors);
 
     // Persistenz: neu laden, Daten müssen noch da sein
     await page.evaluate(() => saveData(true));

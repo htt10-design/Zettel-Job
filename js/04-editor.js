@@ -541,22 +541,28 @@ document.addEventListener('DOMContentLoaded', () => {
 function addEntry(di, code, cost) {
   const sheet = getActiveSheet();
   const day = sheet.days[di];
-  const last = day.entries[day.entries.length - 1];
+  // Steht nur die vorbelegte Pause drin, kommt die erste echte Zeile davor (Vormittag)
+  const onlyAutoPause = day.entries.length > 0 && day.entries.every(e => e.auto);
+  const last = onlyAutoPause ? null : day.entries[day.entries.length - 1];
   const entry = {
     id: uid(),
     from: last && last.to ? last.to : '',
-    to: '',
+    to: onlyAutoPause ? day.entries[0].from : '',
     code: code || (last ? last.code : 'AZ'),
     desc: ''
   };
-  // Werkstatt: Kostenstelle statt Zeitart (letzte wird übernommen)
-  if (sheet.type === 'werkstatt') entry.cost = cost != null ? cost : (last && last.cost != null ? last.cost : '');
-  day.entries.push(entry);
+  // Werkstatt: Kostenstelle statt Zeitart (letzte echte wird übernommen, nie die Pause)
+  if (sheet.type === 'werkstatt') {
+    const lastCost = [...day.entries].reverse().find(e => e.cost != null && !isPauseCost(e.cost));
+    entry.cost = cost != null ? cost : (lastCost ? lastCost.cost : '');
+  }
+  const insertAt = onlyAutoPause ? 0 : day.entries.length;
+  day.entries.splice(insertAt, 0, entry);
   touchSheet(sheet);
   renderEditor(true);
   // Fokus auf das passende Feld der neuen Zeile
   const rows = document.querySelectorAll(`.day-card[data-day="${di}"] .entry`);
-  const row = rows[rows.length - 1];
+  const row = rows[insertAt];
   if (row) {
     const inputs = row.querySelectorAll('.t-in');
     (inputs[0].value ? inputs[1] : inputs[0]).focus();

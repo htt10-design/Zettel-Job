@@ -62,6 +62,14 @@ function renderSettings() {
             <input type="text" inputmode="decimal" value="${String(s.targets[i]).replace('.', ',')}" onchange="setTarget(${i}, this.value)" ${managed ? 'disabled' : ''}>
           </label>`).join('')}
       </div>
+      <div class="pause-setting">
+        <label class="check"><input type="checkbox" ${(s.workshopPause || {}).on ? 'checked' : ''} onchange="setWorkshopPause('on', this.checked)"><span>Werkstattzettel mit Pause vorbelegen</span></label>
+        <div class="pause-times">
+          <input type="text" inputmode="numeric" value="${escapeHtml((s.workshopPause || {}).from || '')}" onchange="setWorkshopPause('from', this.value)" aria-label="Pause von" ${(s.workshopPause || {}).on ? '' : 'disabled'}>
+          <span>–</span>
+          <input type="text" inputmode="numeric" value="${escapeHtml((s.workshopPause || {}).to || '')}" onchange="setWorkshopPause('to', this.value)" aria-label="Pause bis" ${(s.workshopPause || {}).on ? '' : 'disabled'}>
+        </div>
+      </div>
       <label class="field"><span>Übertrag Überstunden (Startsaldo in Std.)</span>
         <input type="text" inputmode="decimal" value="${String(s.startBalance || 0).replace('.', ',')}" onchange="setStartBalance(this.value)" ${managed ? 'disabled' : ''}>
       </label>
@@ -160,6 +168,18 @@ function parseNum(v) {
 
 function setTarget(i, value) {
   appData.settings.targets[i] = Math.max(0, Math.min(24, parseNum(value)));
+  saveData();
+  renderSettings();
+}
+
+function setWorkshopPause(key, value) {
+  const p = appData.settings.workshopPause || (appData.settings.workshopPause = { on: true, from: '11:30', to: '12:00' });
+  if (key === 'on') p.on = !!value;
+  else {
+    const m = parseTime(value);
+    if (m == null) { showToast('Bitte Uhrzeit wie 1130 eingeben'); renderSettings(); return; }
+    p[key] = formatClock(m);
+  }
   saveData();
   renderSettings();
 }
@@ -315,6 +335,7 @@ window.setSetting = setSetting;
 window.setTheme = setTheme;
 window.setTarget = setTarget;
 window.setStartBalance = setStartBalance;
+window.setWorkshopPause = setWorkshopPause;
 window.updateCode = updateCode;
 window.addCode = addCode;
 window.removeCode = removeCode;
