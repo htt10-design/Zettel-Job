@@ -946,6 +946,21 @@ button.app-tile:hover { border-color: var(--accent); }
 .pause-times input:focus { border-color: var(--accent); }
 .pause-times input:disabled { opacity: .5; }
 
+/* ---------- Synchronisation ---------- */
+#btn-sync[hidden] { display: none; }
+#btn-sync.sync-busy svg { animation: syncpulse 1s ease-in-out infinite; }
+#btn-sync.sync-error, #btn-sync.sync-offline { color: #ffd166; }
+[data-theme="dark"] #btn-sync.sync-error, [data-theme="dark"] #btn-sync.sync-offline { color: var(--warn); }
+@keyframes syncpulse { 50% { opacity: .35; } }
+.sync-status { display: flex; align-items: flex-start; gap: 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; margin-bottom: 10px; }
+.sync-status > span:last-child { display: flex; flex-direction: column; min-width: 0; }
+.sync-status small { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.sync-dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; background: var(--pos); flex: 0 0 10px; }
+.sync-status.st-busy .sync-dot { background: var(--accent); animation: syncpulse 1s infinite; }
+.sync-status.st-error .sync-dot { background: var(--neg); }
+.sync-status.st-offline .sync-dot, .sync-status.st-off .sync-dot { background: var(--warn); }
+.sync-err { color: var(--neg) !important; font-weight: 600; font-size: 12.5px; }
+
 /* ---------- Druck ---------- */
 #print-area { display: none; }
 

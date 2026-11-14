@@ -188,6 +188,7 @@ async function writeData() {
       tx.oncomplete = resolve;
       tx.onerror = () => reject(tx.error);
     });
+    if (typeof scheduleSync === 'function') scheduleSync(); // Änderungen bald zum Server
   } catch (e) {
     try { localStorage.setItem(ZJ_DB_KEY, JSON.stringify(appData)); }
     catch (e2) { showToast('Speichern fehlgeschlagen!'); console.error(e2); }
@@ -227,6 +228,7 @@ async function initApp() {
   applyRole();
   renderDemoBanner();
   requestPersistentStorage();
+  initSync();
   if (appData.role === 'office') showView('jobs'); else renderSheetList();
   if (!appData.role) openRoleChooser();
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {

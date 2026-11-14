@@ -23,6 +23,8 @@ function renderSettings() {
       <button class="btn btn-soft" onclick="openRoleChooser()">Rolle wechseln</button>
     </div>
 
+    ${syncCardHtml()}
+
     ${isStandalone() ? '' : `<div class="card install-card">
       <div><b>Als App installieren</b><span class="muted small-text">Eigenes Symbol, ohne Browserleiste, offline nutzbar</span></div>
       <button class="btn btn-primary" onclick="installApp()">${installPromptEvent ? 'Jetzt installieren' : 'So geht’s'}</button>
@@ -133,7 +135,7 @@ function renderSettings() {
 
     <div class="card">
       <h3 class="card-title">Datensicherung</h3>
-      <p class="muted small-text">Alle Daten liegen nur auf diesem Gerät. Bitte regelmäßig ein Backup speichern.</p>
+      <p class="muted small-text">${syncActive() ? 'Die Daten werden mit deinem Server abgeglichen. Ein zusätzliches Backup schadet trotzdem nicht.' : 'Alle Daten liegen nur auf diesem Gerät. Bitte regelmäßig ein Backup speichern.'}</p>
       <div class="btn-row">
         <button class="btn btn-primary" onclick="exportBackup()">Backup speichern</button>
         <button class="btn btn-soft" onclick="document.getElementById('import-file').click()">Backup laden</button>
@@ -310,6 +312,7 @@ function importBackup(input) {
     for (const id of Object.keys(files)) {
       try { await saveFile(id, await (await fetch(files[id])).blob()); } catch (e) { console.warn('Datei nicht wiederhergestellt', id, e); }
     }
+    await resetSyncTracking(); // mit dem Server zusammenführen statt dort zu löschen
     await saveData(true);
     applyTheme();
     applyRole();
@@ -320,7 +323,11 @@ function importBackup(input) {
 }
 
 async function resetAll() {
-  if (!(await confirmDialog('Wirklich ALLE Zettel, Stunden und Einstellungen löschen? Vorher am besten ein Backup speichern.', 'Alles löschen', true))) return;
+  const msg = syncActive()
+    ? 'Alle Daten auf DIESEM Gerät löschen? Auf dem Server bleibt alles erhalten und wird beim nächsten Abgleich wieder geladen.'
+    : 'Wirklich ALLE Zettel, Stunden und Einstellungen löschen? Vorher am besten ein Backup speichern.';
+  if (!(await confirmDialog(msg, 'Alles löschen', true))) return;
+  await resetSyncTracking();
   const role = appData.role;
   appData = createDefaultData();
   appData.role = role;

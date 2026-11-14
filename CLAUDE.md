@@ -36,6 +36,7 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
 | 13-demo | Demo-Modus: echte Daten unter `appDataBeforeDemo` sichern, Beispieldaten relativ zu heute (`buildDemoData`), Beenden stellt alles wieder her; gelbes Demo-Banner |
 | 14-apps | App-Umschalter (Symbol oben) zur Schwester-App **Befunde** (`../Befunde/`); liest deren IndexedDB `befunde` nur lesend (`loadBefundeData`) und zeigt im Auftrag/Zettel die Befunde-Box mit Direktlinks `#auftrag=` / `#bericht=` |
 | 15-staff | Monteur-Akte (Büro): Eintritt, Telefon, Übertrag, Sollstunden je Monteur (`appData.technicians`), Überstundenkonto ab Eintritt (`staffBalance`), Tag ändern/Überstunden streichen/Tag streichen und Buchungen als `daysOff`-Korrektur `{ by:'office', kind }` |
+| 16-sync | Abgleich mit eigenem PocketBase (Collections `zj_items`/`zj_files`, Einrichtung `tools/pocketbase/`): je Eintrag ein Datensatz (`key` = `sheet:<id>`, `job:`, `tech:`, `off:`, `order:`, `profile:`, `team:settings`), Hash-Vergleich gegen `syncMeta`, neuerer Stand gewinnt, Löschen als `deleted`; pro Gerät bleiben Rolle/Name/Theme |
 
 ## Zettel-Modell
 
@@ -72,7 +73,7 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
   (15-staff). Vom Büro gesetzte Werte (startDate, startBalance, targets) gelten auch in der Monteur-App (`applyStaffToSettings`,
   `currentStaffRecord`; Tage vor Eintritt zählen nicht in `overtimeBalance`), dort sind die Felder dann gesperrt.
   CSS-Klassen `tech-only` / `office-only` blenden je Rolle aus (body.role-tech / body.role-office).
-- Alles lokal auf einem Gerät – Austausch zwischen Geräten (Server) folgt später.
+- Daten lokal (offline zuerst); optional Abgleich über eigenen PocketBase-Server (16-sync). Ohne Anmeldung bleibt alles auf dem Gerät.
 - Büro: Aufträge anlegen/bearbeiten, alle Zettel nur ansehen (Editor gesperrt), Filter nach Techniker (`sheet.worker`).
 - Techniker: sieht nur eigene Zettel (`isOwnSheet`, Zettel ohne Namen zählen mit); Stunden nur aus eigenen Zetteln;
   „Zettel für diesen Auftrag anlegen“ füllt Auftragsnr., Kunde, Schiff, Motoren; Auftragsinfo (Beschreibung/PDF) im Zettel.
@@ -118,5 +119,6 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
 ```
 for f in js/*.js; do node --check "$f"; done
 node tools/smoke-test.js        # legt Zettel an, prüft Rechnungen, klickt alles durch, meldet JS-Fehler
+node tools/sync-test.js         # zwei Browser gleichen über einen nachgebauten PocketBase-Server ab
 ```
 Screenshots landen in `.smoke/` (ignoriert).
