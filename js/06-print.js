@@ -74,9 +74,10 @@ function buildPrintDoc(doc) {
   const byCode = {};
 
   const items = doc.items.slice().sort((a, b) => (a.sheet.days[a.di].date || '').localeCompare(b.sheet.days[b.di].date || ''));
-  const dayRows = items.map(({ sheet, di }) => {
+  const dayRows = items.map(({ sheet, di, onlyCost }) => {
     const d = sheet.days[di];
-    const split = daySplit(sheet, di);
+    const split = onlyCost ? orderDaySplit(sheet, di, onlyCost) : daySplit(sheet, di);
+    if (onlyCost) split.lines.forEach(l => { l.code = 'WS'; }); // Werkstatt-Zeilen dieses Auftrags
     totals.worked += split.worked; totals.normal += split.normal; totals.ot += split.ot;
     const lines = split.lines;
     lines.forEach(l => { if (l.minutes) byCode[l.code || '?'] = (byCode[l.code || '?'] || 0) + l.minutes; });
@@ -103,6 +104,7 @@ function buildPrintDoc(doc) {
 
     // Kopfzeile des Tages: Datum links, Auslöse/Hotel rechts
     const info = [];
+    if (onlyCost) info.push('Werkstatt');
     if (doc.isMontage && d.away) info.push(awayText(d.away));
     if (doc.isMontage && d.hotel) info.push('Hotel' + (d.hotelName ? ': ' + d.hotelName : '') + ' · Frühstück ' + yesNoText(d.breakfast));
     const wd = parseISODate(d.date);
@@ -128,7 +130,7 @@ function buildPrintDoc(doc) {
 
   // Legende: Zeitarten (Montage) bzw. verwendete Kostenstellen mit Bezeichnung (Werkstatt)
   const legend = doc.isMontage
-    ? s.codes.map(c => `${escapeHtml(c.code)} = ${escapeHtml(c.label)}`).join(' · ')
+    ? s.codes.map(c => `${escapeHtml(c.code)} = ${escapeHtml(c.label)}`).join(' · ') + (byCode.WS ? ' · WS = Werkstatt' : '')
     : Object.keys(byCode).map(k => getCostCenter(k)).filter(c => c && c.label).map(c => `${escapeHtml(c.no)} = ${escapeHtml(c.label)}`).join(' · ');
   const codeTotals = Object.keys(byCode).map(k => `<span><b>${escapeHtml(k)}</b> ${formatHours(byCode[k])}</span>`).join('');
   const sigImg = sig => sig && sig.img ? `<img src="${sig.img}" alt="">` : '';

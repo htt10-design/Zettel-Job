@@ -42,6 +42,9 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
 - Ein Zettel = ein Tag (`days` hat einen Eintrag; ältere Mehrtages-Zettel werden weiter angezeigt).
 - An-/Rückfahrt pro Zettel ein-/ausschaltbar (`travelOut.on` / `travelBack.on`; ohne `on` aktiv, wenn Fahrzeit gesetzt).
 - Zusammenstellung verändert keine Einzelzettel; sie wird bei jedem Öffnen neu berechnet.
+- Zusammenstellung/Ordner umfassen Montagezettel mit der Auftragsnummer UND Werkstattzettel mit Zeilen, deren Kostenstelle
+  die Auftragsnummer ist (`orderAllSheets`, `orderDaySplit` zählt/druckt nur diese Zeilen, im Druck als „WS“). Ein
+  Werkstattzettel verschwindet nur dann aus der Liste, wenn alle seine Kostenstellen Ordner-Aufträge sind (`workshopSheetInFolders`).
 - Ordner: `appData.orders[nr].folder` gesetzt → alle Montagezettel dieser Auftragsnummer (auch neue) erscheinen
   nicht mehr einzeln in der Liste, sondern als Ordner-Karte (`folderList`, `folderCardHtml`). Auflösen löscht nichts.
 - `sheet.worker` (Name des Monteurs) wird beim Anlegen gesetzt – Vorbereitung für mehrere Benutzer.

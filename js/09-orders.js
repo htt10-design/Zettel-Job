@@ -28,6 +28,49 @@ function orderSheets(no) {
     .sort((a, b) => (sheetFirstDate(a) || '').localeCompare(sheetFirstDate(b) || ''));
 }
 
+// Werkstattzettel mit mindestens einer Zeile, deren Kostenstelle die Auftragsnummer ist
+function orderWorkshopSheets(no) {
+  if (!normOrderNo(no)) return [];
+  return appData.sheets
+    .filter(s => s.type === 'werkstatt' && s.days.some(d => d.entries.some(e => sameOrder(e.cost, no))))
+    .sort((a, b) => (sheetFirstDate(a) || '').localeCompare(sheetFirstDate(b) || ''));
+}
+
+// Alle Zettel zu einer Auftragsnummer: Montagezettel + Werkstattzettel mit passenden Zeilen
+function orderAllSheets(no) {
+  return orderSheets(no).concat(orderWorkshopSheets(no))
+    .sort((a, b) => (sheetFirstDate(a) || '').localeCompare(sheetFirstDate(b) || ''));
+}
+
+// Tagesrechnung für einen Auftrag: Werkstatt → nur Zeilen mit dieser Auftragsnummer
+// (Normal-/Überstunden aus der Rechnung des ganzen Tages)
+function orderDaySplit(sheet, di, no) {
+  const split = daySplit(sheet, di);
+  if (sheet.type !== 'werkstatt') return split;
+  const lines = split.lines.filter(l => l.kind === 'entry' && l.counts && sameOrder(l.code, no));
+  return {
+    lines, travel: {}, target: split.target,
+    worked: lines.reduce((a, l) => a + l.minutes, 0),
+    normal: lines.reduce((a, l) => a + l.normal, 0),
+    ot: lines.reduce((a, l) => a + l.ot, 0)
+  };
+}
+
+function orderSheetTotals(no, sheet) {
+  return sheet.days.reduce((t, d, di) => { const x = orderDaySplit(sheet, di, no); t.worked += x.worked; t.normal += x.normal; t.ot += x.ot; return t; }, { worked: 0, normal: 0, ot: 0 });
+}
+
+// Werkstattzettel liegt komplett in Ordnern (alle echten Kostenstellen sind Ordner-Aufträge)?
+function workshopSheetInFolders(sheet) {
+  const costs = sheet.days.flatMap(d => d.entries.map(e => String(e.cost || '').trim())).filter(c => c && !isPauseCost(c));
+  return costs.length > 0 && costs.every(c => isFolder(c));
+}
+
+// Sieht eine Kostenstelle nach Auftragsnummer aus (SR26/000249 oder angelegter Auftrag)?
+function looksLikeOrderNo(cost) {
+  return /^SR\d{2}\/\d{6}$/i.test(String(cost || '').trim()) || !!jobForOrder(cost);
+}
+
 // Übersicht aller vorhandenen Auftragsnummern
 function allOrders() {
   const map = new Map();
@@ -37,6 +80,17 @@ function allOrders() {
     const key = no.toLowerCase();
     if (!map.has(key)) map.set(key, { no, sheets: [] });
     map.get(key).sheets.push(s);
+  });
+  // Aufträge, die (auch) nur in Werkstattzeilen vorkommen
+  appData.sheets.forEach(s => {
+    if (s.type !== 'werkstatt') return;
+    s.days.forEach(d => d.entries.forEach(e => {
+      const no = normOrderNo(e.cost);
+      if (!no || !looksLikeOrderNo(no)) return;
+      const key = no.toLowerCase();
+      if (!map.has(key)) map.set(key, { no, sheets: [] });
+      if (!map.get(key).sheets.includes(s)) map.get(key).sheets.push(s);
+    }));
   });
   return Array.from(map.values()).map(o => {
     const dates = o.sheets.flatMap(s => s.days.map(d => d.date)).filter(Boolean).sort();
@@ -60,10 +114,10 @@ function isFolder(no) {
 function folderList() {
   return Object.keys(appData.orders).filter(k => appData.orders[k] && appData.orders[k].folder).map(k => {
     const rec = appData.orders[k];
-    const sheets = orderSheets(rec.folder.no || k);
+    const sheets = orderAllSheets(rec.folder.no || k);
     const dates = sheets.flatMap(s => s.days.map(d => d.date)).filter(Boolean).sort();
     return {
-      no: normOrderNo(sheets[0] ? sheets[0].orderNo : rec.folder.no || k),
+      no: normOrderNo(rec.folder.no || (sheets[0] && sheets[0].orderNo) || k),
       sheets, rec,
       first: dates[0] || '', last: dates[dates.length - 1] || rec.folder.createdAt || '',
       customer: distinctJoin(sheets.map(s => s.customer)),
@@ -74,7 +128,7 @@ function folderList() {
 }
 
 function folderCardHtml(f) {
-  const totals = f.sheets.reduce((t, s) => { const x = sheetTotals(s); t.worked += x.worked; t.ot += x.ot; return t; }, { worked: 0, ot: 0 });
+  const totals = f.sheets.reduce((t, s) => { const x = orderSheetTotals(f.no, s); t.worked += x.worked; t.ot += x.ot; return t; }, { worked: 0, ot: 0 });
   const range = f.first ? (f.first === f.last ? formatDate(f.first) : formatDateShort(f.first) + ' – ' + formatDate(f.last, false)) : '';
   const badges = [
     f.rec.signCustomer ? '<span class="badge badge-ok">Unterschrieben</span>' : '',
@@ -115,6 +169,9 @@ async function dissolveFolder(no) {
 
 // Neuer Zettel im Ordner: Folgetag des letzten Zettels, sonst leerer Montagezettel mit Auftragsnummer
 function newSheetInFolder(no) {
+  // Werkstatt- oder gemischter Auftrag → wie „Zettel schreiben“ (Werkstattzeile bzw. Rückfrage)
+  const job = jobForOrder(no);
+  if (job && job.kind !== 'montage') { createSheetFromJob(job.id); return; }
   const sheets = orderSheets(no);
   if (sheets.length) { nextDaySheet(sheets[sheets.length - 1].id, 'order'); return; }
   createSheet('montage');
@@ -158,15 +215,16 @@ function openComposeModal() {
 function composeFromInput() {
   const no = normOrderNo(formatOrderNo(document.getElementById('compose-no').value));
   if (!no) { showToast('Bitte Auftragsnummer wählen oder eingeben'); return; }
-  if (!orderSheets(no).length) { showToast(`Keine Montagezettel mit Auftrag „${no}“`); return; }
+  if (!orderAllSheets(no).length) { showToast(`Keine Zettel mit Auftrag „${no}“`); return; }
   closeModal();
   openOrder(no);
 }
 
 function openOrder(no) {
-  const sheets = orderSheets(no);
+  const sheets = orderAllSheets(no);
   if (!sheets.length && !isFolder(no)) { showToast('Keine Zettel zu diesem Auftrag'); return; }
-  activeOrderNo = normOrderNo(sheets.length ? sheets[0].orderNo : no);
+  const m = orderSheets(no)[0];
+  activeOrderNo = normOrderNo(m ? m.orderNo : no);
   flushSave();
   showView('order');
 }
@@ -194,9 +252,15 @@ function orderEngines(sheets) {
 
 // ---------- Übersicht ----------
 function orderData(no) {
-  const sheets = orderSheets(no);
+  const montage = orderSheets(no);
+  const sheets = orderAllSheets(no);
+  const job = jobForOrder(no);
   const items = [];
-  sheets.forEach(sheet => sheet.days.forEach((d, di) => items.push({ sheet, di, day: d, split: daySplit(sheet, di) })));
+  sheets.forEach(sheet => sheet.days.forEach((d, di) => {
+    const split = orderDaySplit(sheet, di, no);
+    if (sheet.type === 'werkstatt' && !split.lines.length) return; // Tag ohne Zeilen für diesen Auftrag
+    items.push({ sheet, di, day: d, split, workshop: sheet.type === 'werkstatt' });
+  }));
   items.sort((a, b) => (a.day.date || '').localeCompare(b.day.date || ''));
   const totals = items.reduce((t, i) => ({ worked: t.worked + i.split.worked, normal: t.normal + i.split.normal, ot: t.ot + i.split.ot }), { worked: 0, normal: 0, ot: 0 });
   const travels = sheets.flatMap(sheetTravels).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
@@ -207,14 +271,14 @@ function orderData(no) {
     hotel: items.filter(i => i.day.hotel).length,
     breakfast: items.filter(i => i.day.hotel && i.day.breakfast === true).length
   };
-  const lastSheet = sheets[sheets.length - 1];
+  const lastSheet = montage[montage.length - 1];
   return {
     no: normOrderNo(no), sheets, items, totals, travels, km, allowance,
-    customer: distinctJoin(sheets.map(s => s.customer)),
-    vessel: distinctJoin(sheets.map(s => s.vessel)),
-    engines: orderEngines(sheets),
-    material: sheets.some(s => s.material === true) ? true : (sheets.some(s => s.material === false) ? false : null),
-    materialNotes: sheets.filter(s => s.material === true && s.materialNote).map(s => formatDateShort(sheetFirstDate(s)) + ' ' + s.materialNote),
+    customer: distinctJoin(montage.map(s => s.customer).concat(job ? [job.customer] : [])),
+    vessel: distinctJoin(montage.map(s => s.vessel).concat(job ? [job.vessel] : [])),
+    engines: orderEngines(montage.length ? montage : (job ? [job] : [])),
+    material: montage.some(s => s.material === true) ? true : (montage.some(s => s.material === false) ? false : null),
+    materialNotes: montage.filter(s => s.material === true && s.materialNote).map(s => formatDateShort(sheetFirstDate(s)) + ' ' + s.materialNote),
     finished: lastSheet ? lastSheet.finished : null,
     notes: sheets.filter(s => s.note).map(s => formatDateShort(sheetFirstDate(s)) + ' ' + s.note),
     range: items.length ? (items[0].day.date === items[items.length - 1].day.date ? formatDate(items[0].day.date) : formatDateShort(items[0].day.date) + ' – ' + formatDate(items[items.length - 1].day.date, false)) : ''
@@ -236,7 +300,7 @@ function renderOrder() {
   setTopbarTitle('Auftrag ' + o.no);
   const folder = isFolder(o.no);
   if (!o.sheets.length) {
-    body.innerHTML = `<div class="empty"><h3>Keine Zettel</h3><p>Zu diesem Auftrag gibt es keine Montagezettel mehr.</p>
+    body.innerHTML = `<div class="empty"><h3>Keine Zettel</h3><p>Zu diesem Auftrag gibt es keine Zettel mehr.</p>
       ${folder ? `<div class="btn-row center"><button class="btn btn-primary tech-only" onclick="newSheetInFolder(${escapeHtml(JSON.stringify(o.no))})">Neuer Zettel im Ordner</button>
       <button class="btn btn-ghost" onclick="dissolveFolder(${escapeHtml(JSON.stringify(o.no))})">Ordner auflösen</button></div>` : ''}</div>`;
     return;
@@ -250,6 +314,7 @@ function renderOrder() {
   const rows = o.items.map(i => {
     const d = parseISODate(i.day.date);
     const badges = [];
+    if (i.workshop) badges.push('<span class="src off">Werkstatt</span>');
     if (i.split.travel.travelOut) badges.push('<span class="src">Anfahrt</span>');
     if (i.split.travel.travelBack) badges.push('<span class="src">Rückfahrt</span>');
     if (i.day.away) badges.push(`<span class="src off">${i.day.away === '24h' ? '24 h' : '≥ 8,25 h'}</span>`);
@@ -335,7 +400,7 @@ function buildOrderPrintHtml(no) {
     isMontage: true,
     orderNo: o.no, customer: o.customer, vessel: o.vessel,
     engines: o.engines,
-    items: o.items.map(i => ({ sheet: i.sheet, di: i.di })),
+    items: o.items.map(i => ({ sheet: i.sheet, di: i.di, onlyCost: i.workshop ? o.no : null })),
     travels: o.travels,
     material: o.material,
     materialNotes: o.materialNotes,

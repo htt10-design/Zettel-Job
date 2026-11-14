@@ -658,6 +658,31 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     });
     assert(pause === '11:30-12:00 P|07:00-11:30 120,11:30-12:00 P,12:00- 120|270', `Werkstatt-Pause ${pause}`, errors);
 
+    // ---------- Ordner mit Werkstattzetteln (gemischter Auftrag) ----------
+    const wsFolder = await page.evaluate(() => {
+      const no = 'SR26/000950';
+      const base = { worker: appData.settings.name, engines: [{}], travelOut: { on: false }, travelBack: { on: false }, customer: '', vessel: '' };
+      const e = (from, to, cost, code) => ({ id: uid(), from, to, code: code || 'AZ', cost, desc: '' });
+      appData.sheets.push(Object.assign({ id: 'wm1', type: 'montage', orderNo: no, customer: 'Reederei Mix', vessel: 'MS Mix', days: [{ id: uid(), date: '2026-11-23', entries: [{ id: uid(), from: '07:00', to: '15:00', code: 'AZ', desc: '' }], away: '', hotel: false }] }, base, { customer: 'Reederei Mix', vessel: 'MS Mix' }));
+      appData.sheets.push(Object.assign({ id: 'ws1', type: 'werkstatt', orderNo: '', days: [{ id: uid(), date: '2026-11-24', entries: [e('07:00', '11:30', no), e('11:30', '12:00', 'P'), e('12:00', '15:00', '14')] }] }, base));
+      appData.sheets.push(Object.assign({ id: 'ws2', type: 'werkstatt', orderNo: '', days: [{ id: uid(), date: '2026-11-25', entries: [e('07:00', '10:00', no), e('10:00', '10:15', 'P')] }] }, base));
+      const listed = allOrders().some(o => o.no === no);
+      openOrder(no);
+      const o = orderData(no);
+      createFolder(no);
+      homeShowList = true; sheetRange = 'all'; showView('sheets');
+      const html = document.getElementById('sheet-list').innerHTML;
+      const hidden = { wm1: !html.includes("openEditor('wm1')"), ws1: !html.includes("openEditor('ws1')"), ws2: !html.includes("openEditor('ws2')") };
+      const card = (folderList().find(f => f.no === no) || {}).sheets.length;
+      const pr = buildOrderPrintHtml(no);
+      const r = [listed, o.items.length, o.totals.worked, hidden.wm1, hidden.ws1, hidden.ws2, card, pr.includes('WS = Werkstatt'), !pr.includes('>14<')].join('|');
+      appData.orders[no.toLowerCase()].folder = null;
+      appData.sheets = appData.sheets.filter(x => !['wm1', 'ws1', 'ws2'].includes(x.id));
+      return r;
+    });
+    // 8 h Montage + 4,5 h + 3 h Werkstatt; ws1 bleibt sichtbar (enthält auch KST 14)
+    assert(wsFolder === 'true|3|930|true|false|true|3|true|true', `Ordner mit Werkstatt ${wsFolder}`, errors);
+
     // Persistenz: neu laden, Daten müssen noch da sein
     await page.evaluate(() => saveData(true));
     await page.reload();

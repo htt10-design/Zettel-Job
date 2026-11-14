@@ -31,10 +31,12 @@ function renderSheetList() {
     .some(v => String(v || '').toLowerCase().includes(q));
 
   // Zettel, deren Auftrag in einem Ordner liegt, erscheinen nur im Ordner
-  const folders = sheetFilter === 'werkstatt' ? [] : folderList()
+  const folders = folderList()
+    .filter(f => sheetFilter === 'all' || f.sheets.some(x => x.type === sheetFilter))
     .filter(f => (!q || f.no.toLowerCase().includes(q) || f.sheets.some(matches)) && (!f.sheets.length || f.sheets.some(sheetVisibleForRole)));
   renderOfficeHead();
-  sheets = sheets.filter(s => sheetVisibleForRole(s) && !(s.type === 'montage' && isFolder(s.orderNo)) && matches(s));
+  sheets = sheets.filter(s => sheetVisibleForRole(s) && !(s.type === 'montage' && isFolder(s.orderNo))
+    && !(s.type === 'werkstatt' && workshopSheetInFolders(s)) && matches(s));
 
   renderMyJobs();
   // Aktuelle Woche (Mo–So); bei Suche immer alles durchsuchen
