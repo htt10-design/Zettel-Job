@@ -616,7 +616,10 @@ function renderJob() {
       <div class="card">
         <h3 class="card-title">Zettel der Techniker</h3>
         ${sheetsHtml}
-        ${montageSheets.length ? `<button type="button" class="btn btn-soft" onclick="openOrder(${escapeHtml(JSON.stringify(normOrderNo(job.orderNo)))})">Zusammenstellung &amp; Druck</button>` : ''}
+        <div class="btn-row">
+          ${montageSheets.length ? `<button type="button" class="btn btn-soft" onclick="openOrder(${escapeHtml(JSON.stringify(normOrderNo(job.orderNo)))})">Zusammenstellung &amp; Druck</button>` : ''}
+          ${normOrderNo(job.orderNo) ? `<button type="button" class="btn btn-ghost" onclick="openAssignSheets('${job.id}')">Vorhandene Zettel zuordnen</button>` : ''}
+        </div>
       </div>
 
       <div class="editor-footer">
@@ -657,6 +660,7 @@ function renderJob() {
       </div>
       <button type="button" class="btn btn-primary block" onclick="createSheetFromJob('${job.id}')">
         <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> ${job.kind === 'werkstatt' ? 'Werkstattzeit für diesen Auftrag eintragen' : 'Zettel für diesen Auftrag anlegen'}</button>
+      ${normOrderNo(job.orderNo) ? `<button type="button" class="link-btn assign-link" onclick="openAssignSheets('${job.id}')">Schon geschriebene Zettel diesem Auftrag zuordnen</button>` : ''}
       ${mySheets.length ? `<div class="card"><h3 class="card-title">Meine Zettel zu diesem Auftrag</h3>${mySheets.map(s => `
         <button class="o-day" onclick="openEditor('${s.id}','job')">
           <span class="h-date">${escapeHtml(shortDayLabel(s))}</span><span class="h-src"></span>
@@ -878,6 +882,131 @@ function nextDayFor(sheetId, choice) {
   createSheetFromJob(job.id, 'montage', next);
 }
 
+// ---------- Zettel nachträglich einem Auftrag zuordnen ----------
+const isSigned = s => !!(s.signCustomer && s.signCustomer.img);
+
+// Daten aus dem Auftrag in leere Felder des Zettels übernehmen
+function fillSheetFromJob(sheet, job) {
+  if (!sheet.customer && job.customer) sheet.customer = job.customer;
+  if (!sheet.vessel && job.vessel) sheet.vessel = job.vessel;
+  if (!(sheet.engines || []).some(engineHasData) && (job.engines || []).some(engineHasData)) sheet.engines = copyEngines(job.engines);
+}
+
+// Aus dem Auftrag: Liste der Montagezettel, die (noch) nicht zu diesem Auftrag gehören
+function openAssignSheets(jobId) {
+  const job = getJob(jobId);
+  if (!job || !normOrderNo(job.orderNo)) { showToast('Der Auftrag braucht zuerst eine Auftragsnummer'); return; }
+  const list = appData.sheets
+    .filter(s => s.type === 'montage' && !sameOrder(s.orderNo, job.orderNo) && (isOffice() ? true : isOwnSheet(s)))
+    .sort((a, b) => (sheetFirstDate(b) || '').localeCompare(sheetFirstDate(a) || ''))
+    .slice(0, 60);
+  openModal(`
+    <h2 class="modal-title">Zettel zuordnen · ${escapeHtml(job.orderNo)}</h2>
+    <p class="modal-text muted">Montagezettel auswählen, die zu diesem Auftrag gehören. Sie bekommen die Auftragsnummer.</p>
+    ${list.length ? `<div class="assign-list">${list.map(s => {
+      const signed = isSigned(s);
+      return `
+      <label class="assign-row ${signed ? 'disabled' : ''}">
+        <input type="checkbox" value="${s.id}" ${signed ? 'disabled' : ''}>
+        <span class="ar-main"><b>${escapeHtml(shortDayLabel(s))} · ${escapeHtml(s.vessel || s.customer || 'ohne Kunde')}</b>
+          <small>${escapeHtml(s.orderNo ? 'bisher ' + s.orderNo : 'ohne Auftrag')}${isOffice() && s.worker ? ' · ' + escapeHtml(s.worker) : ''}${signed ? ' · unterschrieben – erst Unterschrift entfernen' : ''}</small></span>
+        <span class="ar-h">${formatHours(sheetTotals(s).worked)}</span>
+      </label>`;
+    }).join('')}</div>
+    <label class="check small assign-fill"><input type="checkbox" id="assign-fill" checked><span>Kunde, Schiff und Motordaten aus dem Auftrag in leere Felder übernehmen</span></label>
+    <p class="muted small-text">Werkstattzettel ordnest du im Zettel über das Menü ⋮ zu.</p>`
+    : '<p class="muted">Keine passenden Montagezettel gefunden.</p>'}
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button>
+      ${list.length ? `<button class="btn btn-primary" onclick="confirmAssignSheets('${job.id}')">Zuordnen</button>` : ''}
+    </div>`);
+}
+
+function confirmAssignSheets(jobId) {
+  const job = getJob(jobId);
+  const ids = Array.from(document.querySelectorAll('.assign-list input:checked')).map(i => i.value);
+  if (!ids.length) { showToast('Bitte mindestens einen Zettel auswählen'); return; }
+  const fill = document.getElementById('assign-fill').checked;
+  ids.forEach(id => {
+    const s = appData.sheets.find(x => x.id === id);
+    if (!s || isSigned(s)) return;
+    s.orderNo = normOrderNo(job.orderNo);
+    if (fill) fillSheetFromJob(s, job);
+    s.updatedAt = new Date().toISOString();
+  });
+  saveData(true);
+  closeModal();
+  if (currentView === 'job') renderJob();
+  showToast(`${ids.length} Zettel dem Auftrag ${job.orderNo} zugeordnet`);
+}
+
+// Aus dem Zettel (Menü ⋮): Auftrag wählen
+function openAssignToJob(sheetId) {
+  const sheet = appData.sheets.find(s => s.id === sheetId);
+  if (!sheet) return;
+  if (isSigned(sheet)) { showToast('Zettel ist unterschrieben – erst die Unterschrift entfernen'); return; }
+  const jobs = appData.jobs.filter(j => normOrderNo(j.orderNo))
+    .sort((a, b) => (a.status === 'erledigt') - (b.status === 'erledigt') || (b.createdAt || '').localeCompare(a.createdAt || ''));
+  openModal(`
+    <h2 class="modal-title">Einem Auftrag zuordnen</h2>
+    <p class="modal-text muted">${sheet.type === 'werkstatt' ? 'Werkstattzettel: Im nächsten Schritt wählst du die Zeilen, die zum Auftrag gehören.' : 'Der Zettel bekommt die Auftragsnummer; leere Felder werden aus dem Auftrag ergänzt.'}</p>
+    ${jobs.length ? `<div class="menu-rows">${jobs.map(j => `
+      <button class="menu-row" onclick="assignSheetToJob('${sheet.id}','${j.id}')">
+        <span><b>${escapeHtml(j.orderNo)} · ${escapeHtml(JOB_KINDS[j.kind] || 'Montage')}</b><small>${escapeHtml([j.vessel, j.customer].filter(Boolean).join(' · ') || 'ohne Kunde')}${j.status === 'erledigt' ? ' · erledigt' : ''}</small></span>
+        ${sameOrder(sheet.orderNo, j.orderNo) ? '<span class="badge badge-ok">aktuell</span>' : ''}
+      </button>`).join('')}</div>`
+      : '<p class="muted">Noch keine Aufträge mit Auftragsnummer vorhanden.</p>'}
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button></div>`);
+}
+
+function assignSheetToJob(sheetId, jobId) {
+  const sheet = appData.sheets.find(s => s.id === sheetId);
+  const job = getJob(jobId);
+  if (!sheet || !job) return;
+  if (sheet.type === 'werkstatt') { openAssignWorkshopLines(sheetId, jobId); return; }
+  sheet.orderNo = normOrderNo(job.orderNo);
+  fillSheetFromJob(sheet, job);
+  sheet.updatedAt = new Date().toISOString();
+  saveData(true);
+  closeModal();
+  if (currentView === 'editor') renderEditor(true);
+  showToast(`Zettel dem Auftrag ${job.orderNo} zugeordnet`);
+}
+
+// Werkstatt: Zeilen auswählen, die die Auftragsnummer als Kostenstelle bekommen
+function openAssignWorkshopLines(sheetId, jobId) {
+  const sheet = appData.sheets.find(s => s.id === sheetId);
+  const job = getJob(jobId);
+  const rows = [];
+  sheet.days.forEach((d, di) => d.entries.forEach((e, ei) => { if (!isPauseCost(e.cost)) rows.push({ di, ei, e }); }));
+  openModal(`
+    <h2 class="modal-title">Zeilen für ${escapeHtml(job.orderNo)}</h2>
+    <p class="modal-text muted">Die markierten Zeilen bekommen die Auftragsnummer als Kostenstelle.</p>
+    ${rows.length ? `<div class="assign-list">${rows.map(r => `
+      <label class="assign-row">
+        <input type="checkbox" value="${r.di}.${r.ei}" ${!r.e.cost || sameOrder(r.e.cost, job.orderNo) ? 'checked' : ''}>
+        <span class="ar-main"><b>${escapeHtml(r.e.from || '?')}–${escapeHtml(r.e.to || '?')}</b><small>${escapeHtml(r.e.cost ? 'bisher ' + r.e.cost : 'ohne Kostenstelle')}${r.e.desc ? ' · ' + escapeHtml(r.e.desc) : ''}</small></span>
+        <span class="ar-h">${entryMinutes(r.e) ? formatHours(entryMinutes(r.e)) : ''}</span>
+      </label>`).join('')}</div>` : '<p class="muted">Der Zettel hat noch keine Zeilen.</p>'}
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button>
+      ${rows.length ? `<button class="btn btn-primary" onclick="confirmAssignWorkshopLines('${sheet.id}','${job.id}')">Zuordnen</button>` : ''}
+    </div>`);
+}
+
+function confirmAssignWorkshopLines(sheetId, jobId) {
+  const sheet = appData.sheets.find(s => s.id === sheetId);
+  const job = getJob(jobId);
+  const picked = Array.from(document.querySelectorAll('.assign-list input:checked')).map(i => i.value.split('.').map(Number));
+  if (!picked.length) { showToast('Bitte mindestens eine Zeile auswählen'); return; }
+  picked.forEach(([di, ei]) => { const e = sheet.days[di] && sheet.days[di].entries[ei]; if (e) e.cost = normOrderNo(job.orderNo); });
+  sheet.updatedAt = new Date().toISOString();
+  saveData(true);
+  closeModal();
+  if (currentView === 'editor') renderEditor(true);
+  showToast(`${picked.length} Zeile${picked.length > 1 ? 'n' : ''} dem Auftrag ${job.orderNo} zugeordnet`);
+}
+
 // ---------- Büro: Kopf der Zettel-Liste mit Techniker-Filter ----------
 function renderOfficeHead() {
   const el = document.getElementById('office-head');
@@ -984,6 +1113,11 @@ window.removeJobFile = removeJobFile;
 window.openJobFile = openJobFile;
 window.deleteJob = deleteJob;
 window.createSheetFromJob = createSheetFromJob;
+window.openAssignSheets = openAssignSheets;
+window.confirmAssignSheets = confirmAssignSheets;
+window.openAssignToJob = openAssignToJob;
+window.assignSheetToJob = assignSheetToJob;
+window.confirmAssignWorkshopLines = confirmAssignWorkshopLines;
 window.officeShiftMonth = officeShiftMonth;
 window.officeSelectDay = officeSelectDay;
 window.setJobKind = setJobKind;

@@ -683,6 +683,36 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     // 8 h Montage + 4,5 h + 3 h Werkstatt; ws1 bleibt sichtbar (enthält auch KST 14)
     assert(wsFolder === 'true|3|930|true|false|true|3|true|true', `Ordner mit Werkstatt ${wsFolder}`, errors);
 
+    // ---------- Zettel nachträglich einem Auftrag zuordnen ----------
+    const assign = await page.evaluate(() => {
+      const me = appData.settings.name;
+      const base = { worker: me, engines: [{}], travelOut: { on: false }, travelBack: { on: false }, orderNo: '', customer: '', vessel: '' };
+      appData.jobs.push({ id: 'ja', kind: 'mix', orderNo: 'SR26/000960', customer: 'Reederei Nach', vessel: 'MS Nachtrag', engines: [{ make: 'MTU', number: 'N-1' }], description: '', files: [], status: 'offen', assigned: [me], slots: [] });
+      appData.sheets.push(Object.assign({ id: 'na1', type: 'montage', days: [{ id: 'x1', date: '2026-11-10', entries: [{ id: 'y1', from: '07:00', to: '15:00', code: 'AZ', desc: '' }], away: '', hotel: false }] }, base));
+      appData.sheets.push(Object.assign({ id: 'na2', type: 'montage', signCustomer: { img: 'data:,', name: 'K', at: '2026-11-11T10:00:00Z' }, days: [{ id: 'x2', date: '2026-11-11', entries: [], away: '', hotel: false }] }, base));
+      appData.sheets.push(Object.assign({ id: 'nw1', type: 'werkstatt', days: [{ id: 'x3', date: '2026-11-12', entries: [
+        { id: 'z1', from: '07:00', to: '09:00', code: 'AZ', cost: '', desc: 'Kopf' }, { id: 'z2', from: '09:00', to: '11:30', code: 'AZ', cost: '14', desc: 'Halle' }, { id: 'z3', from: '11:30', to: '12:00', code: 'AZ', cost: 'P', desc: '' }] }] }, base));
+      showView('jobs'); openJob('ja');
+      openAssignSheets('ja');
+      const signedDisabled = document.querySelector('.assign-list input[value="na2"]').disabled;
+      document.querySelector('.assign-list input[value="na1"]').checked = true;
+      confirmAssignSheets('ja');
+      const na1 = appData.sheets.find(x => x.id === 'na1');
+      // Werkstatt über das Zettel-Menü: nur die Zeile ohne Kostenstelle ist vorausgewählt
+      openEditor('nw1');
+      openAssignToJob('nw1');
+      assignSheetToJob('nw1', 'ja');
+      const pre = Array.from(document.querySelectorAll('.assign-list input')).map(i => i.checked).join(',');
+      confirmAssignWorkshopLines('nw1', 'ja');
+      const costs = appData.sheets.find(x => x.id === 'nw1').days[0].entries.map(e => e.cost).join(',');
+      const hours = jobHours(getJob('ja')).worked; // 8 h Montage + 2 h Werkstatt
+      closeEditor();
+      appData.sheets = appData.sheets.filter(x => !['na1', 'na2', 'nw1'].includes(x.id));
+      appData.jobs = appData.jobs.filter(j => j.id !== 'ja');
+      return [signedDisabled, na1.orderNo, na1.vessel, na1.engines[0].number, pre, costs, hours].join('|');
+    });
+    assert(assign === 'true|SR26/000960|MS Nachtrag|N-1|true,false|SR26/000960,14,P|600', `Nachträglich zuordnen ${assign}`, errors);
+
     // Persistenz: neu laden, Daten müssen noch da sein
     await page.evaluate(() => saveData(true));
     await page.reload();

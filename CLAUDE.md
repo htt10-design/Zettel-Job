@@ -83,6 +83,9 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
   heute eine Zeile mit der Auftragsnummer als Kostenstelle an (`addWorkshopEntryForJob`); mix → Auswahl Montage/Werkstatt;
   auch „Nächster Tag“ fragt bei gemischten Aufträgen (`nextDayFor`, `sheetMixJob`), auch aus Werkstattzetteln heraus.
   Stunden je Auftrag: Montagezettel ganz + Werkstattzeilen mit passender Kostenstelle (`jobAllSheets`, `jobSheetHours`).
+- Nachträglich zuordnen: im Auftrag „Vorhandene Zettel zuordnen“ (`openAssignSheets`, Montagezettel, füllt leere Felder per
+  `fillSheetFromJob`), im Zettel-Menü „Einem Auftrag zuordnen“ (`openAssignToJob`; Werkstatt: Zeilen wählen → Kostenstelle).
+  Vom Kunden unterschriebene Zettel werden nicht verändert.
 - Kalender: Startseite Techniker umschaltbar Woche/Monat (`homeCalMode`, im Browser gemerkt; `calCellHtml`), Büro-„Zettel“ mit
   Monatskalender (`officeCalendarHtml`, Tag antippen → `officeDay` filtert die Liste).
 - Startseite Techniker = `renderTechHome` (11-home); die Liste (`#sheet-browser`) ist nur aufgeklappt sichtbar

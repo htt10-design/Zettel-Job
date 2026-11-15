@@ -961,6 +961,17 @@ button.app-tile:hover { border-color: var(--accent); }
 .sync-status.st-offline .sync-dot, .sync-status.st-off .sync-dot { background: var(--warn); }
 .sync-err { color: var(--neg) !important; font-weight: 600; font-size: 12.5px; }
 
+/* ---------- Zettel zuordnen ---------- */
+.assign-list { display: flex; flex-direction: column; gap: 6px; max-height: 50vh; overflow-y: auto; margin-bottom: 10px; }
+.assign-row { display: flex; align-items: center; gap: 10px; border: 1px solid var(--border); background: var(--surface-2); border-radius: 12px; padding: 9px 12px; cursor: pointer; }
+.assign-row input { width: 20px; height: 20px; accent-color: var(--accent); flex: 0 0 20px; }
+.assign-row.disabled { opacity: .5; cursor: default; }
+.ar-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ar-main small { color: var(--muted); font-size: 12px; }
+.ar-h { font-weight: 700; font-size: 13px; white-space: nowrap; }
+.assign-fill { white-space: normal; margin-bottom: 6px; }
+.assign-link { display: block; margin: -6px auto 14px; }
+
 /* ---------- Druck ---------- */
 #print-area { display: none; }
 

@@ -712,6 +712,7 @@ function openSheetMenu() {
       <button onclick="closeModal();printActiveSheet()">Drucken / als PDF speichern</button>
       ${sheet.type === 'montage' || sheetMixJob(sheet) ? `<button onclick="closeModal();nextDayFor('${sheet.id}')">Nächster Tag (gleicher Auftrag)</button>` : ''}
       ${sheet.type === 'montage' && sheet.orderNo ? `<button onclick="closeModal();openOrder(${escapeHtml(JSON.stringify(sheet.orderNo))})">Auftrag ${escapeHtml(sheet.orderNo)} zusammenstellen</button>` : ''}
+      ${!isOffice() ? `<button onclick="closeModal();openAssignToJob('${sheet.id}')">Einem Auftrag zuordnen</button>` : ''}
       <button class="danger" onclick="deleteSheet('${sheet.id}')">Zettel löschen</button>
     </div>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Schließen</button></div>`);
