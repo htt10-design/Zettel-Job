@@ -972,6 +972,26 @@ button.app-tile:hover { border-color: var(--accent); }
 .assign-fill { white-space: normal; margin-bottom: 6px; }
 .assign-link { display: block; margin: -6px auto 14px; }
 
+/* ---------- Übergabe ---------- */
+.ho-tasks { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.ho-task { display: flex; align-items: center; gap: 8px; }
+.ho-task input[type=checkbox] { width: 22px; height: 22px; flex: none; accent-color: var(--accent); }
+.ho-task input[type=text] { flex: 1; min-width: 0; }
+.ho-task > span { flex: 1; }
+.ho-task.done > span, .ho-task.done input[type=text] { text-decoration: line-through; opacity: .6; }
+.ho-bf-list { display: flex; flex-direction: column; gap: 8px; }
+.ho-bf { display: flex; align-items: flex-start; gap: 10px; }
+.ho-bf-text { display: flex; flex-direction: column; min-width: 0; }
+.ho-bf-text small { color: var(--muted); font-size: 12.5px; }
+.ho-bf-note { white-space: pre-wrap; }
+.ho-rate { flex: none; min-width: 78px; text-align: center; border-radius: 8px; padding: 3px 8px; font-size: 12px; font-weight: 700; background: var(--surface); color: var(--muted); }
+.ho-rate.r-ok { background: rgba(31, 157, 85, .14); color: #1f9d55; }
+.ho-rate.r-obs { background: rgba(201, 138, 10, .14); color: var(--warn); }
+.ho-rate.r-bad { background: rgba(214, 51, 51, .14); color: #d63333; }
+.ho-parts { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.ho-part { display: flex; align-items: center; gap: 8px; }
+.ho-title-icon { width: 18px; height: 18px; vertical-align: -3px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
 /* ---------- Druck ---------- */
 #print-area { display: none; }
 
@@ -1029,6 +1049,11 @@ button.app-tile:hover { border-color: var(--accent); }
   .pr-sign-img { height: 55pt; display: flex; align-items: flex-end; }
   .pr-sign-img img { max-height: 55pt; max-width: 100%; filter: grayscale(1) contrast(2); }
   .pr-sign-line { border-top: .8pt solid #000; padding-top: 3pt; font-size: 8.5pt; }
+  .pr-section { font-size: 11pt; font-weight: 700; margin: 12pt 0 4pt; border-bottom: 1pt solid #000; padding-bottom: 2pt; page-break-after: avoid; }
+  .pr-checks { font-size: 10pt; margin-bottom: 10pt; }
+  .pr-checks div { padding: 2pt 0; border-bottom: .5pt solid #999; }
+  .pr-bf th:nth-child(2), .pr-bf td:nth-child(2) { width: 16%; }
+  .pr-bf th:first-child, .pr-bf td:first-child { width: 30%; }
   .pr-foot { margin-top: 16pt; font-size: 7.5pt; text-align: right; }
   tr { page-break-inside: avoid; }
 }

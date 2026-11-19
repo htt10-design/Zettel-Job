@@ -87,7 +87,8 @@ function createDefaultData() {
     profiles: {},    // persönliche Einstellungen je Monteur (beim Wechsel auf einem Gerät)
     sheets: [],
     daysOff: [],
-    orders: {} // Zusammenstellungen je Auftragsnummer (Unterschriften)
+    orders: {}, // Zusammenstellungen je Auftragsnummer (Unterschriften)
+    handovers: [] // Übergaben eines Auftrags an einen anderen Monteur (17-handover)
   };
 }
 
@@ -114,6 +115,8 @@ function normalizeData(data) {
   if (!Array.isArray(data.daysOff)) data.daysOff = [];
   if (!Array.isArray(data.jobs)) data.jobs = [];
   if (!Array.isArray(data.technicians)) data.technicians = [];
+  if (!Array.isArray(data.handovers)) data.handovers = [];
+  data.handovers.forEach(h => { if (!Array.isArray(h.open)) h.open = []; ['done', 'notes', 'contact', 'location', 'from', 'to', 'reason'].forEach(k => { if (typeof h[k] !== 'string') h[k] = ''; }); });
   if (!data.profiles || typeof data.profiles !== 'object' || Array.isArray(data.profiles)) data.profiles = {};
   data.jobs.forEach(j => {
     if (!Array.isArray(j.engines) || !j.engines.length) j.engines = [{}];
@@ -286,7 +289,7 @@ function showView(name) {
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
   document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === name));
   const inEditor = name === 'editor';
-  const inSub = inEditor || name === 'order' || name === 'job' || name === 'staff';
+  const inSub = inEditor || name === 'order' || name === 'job' || name === 'staff' || name === 'handover';
   document.getElementById('btn-back').hidden = !inSub;
   document.getElementById('btn-print').hidden = !(inSub && name !== 'job' && name !== 'staff') && name !== 'plan';
   document.getElementById('btn-sheet-menu').hidden = !inEditor;
@@ -302,6 +305,7 @@ function showView(name) {
   if (name === 'job') renderJob();
   if (name === 'plan') renderPlan();
   if (name === 'staff') renderStaff();
+  if (name === 'handover') renderHandover();
   window.scrollTo(0, 0);
 }
 
@@ -314,6 +318,7 @@ function goBack() {
   if (currentView === 'editor') closeEditor();
   else if (currentView === 'job') showView('jobs');
   else if (currentView === 'staff') showView('settings');
+  else if (currentView === 'handover') closeHandover();
   else showView('sheets');
 }
 
@@ -321,6 +326,7 @@ function goBack() {
 function printCurrent() {
   if (currentView === 'plan') printPlan();
   else if (currentView === 'order') printActiveOrder();
+  else if (currentView === 'handover') printHandover();
   else printActiveSheet();
 }
 

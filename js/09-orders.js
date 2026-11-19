@@ -372,6 +372,8 @@ function renderOrder() {
         ${o.km ? `<p class="muted small-text">Gesamt ${o.km.toLocaleString('de-DE')} km</p>` : ''}` : '<p class="muted small-text">Keine Fahrten eingetragen.</p>'}
     </div>
 
+    ${handoverCardHtml(o.no, 'order')}
+
     <div class="card">
       <h3 class="card-title">Unterschriften für den gesamten Auftrag</h3>
       ${changedAfterSign ? `<p class="warn-text">Achtung: Einzelne Zettel wurden nach der Kunden-Unterschrift geändert.</p>` : ''}

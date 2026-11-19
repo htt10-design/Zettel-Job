@@ -20,6 +20,10 @@ function signTarget(who) {
     if (!activeOrderNo) return null;
     return { obj: orderRecord(activeOrderNo, true), field: who === 'orderCustomer' ? 'signCustomer' : 'signWorker' };
   }
+  if (who === 'hoFrom' || who === 'hoTo') {
+    const ho = getActiveHandover();
+    return ho ? { obj: ho, field: who === 'hoFrom' ? 'signFrom' : 'signTo', name: who === 'hoFrom' ? ho.from : ho.to } : null;
+  }
   return null;
 }
 
@@ -28,6 +32,11 @@ function afterSignChange(who) {
   if (who === 'customer' || who === 'worker') {
     touchSheet(getActiveSheet());
     renderEditor(true);
+  } else if (who === 'hoFrom' || who === 'hoTo') {
+    const ho = getActiveHandover();
+    if (ho) touchHandover(ho);
+    saveData(true);
+    renderHandover();
   } else {
     saveData(true);
     renderOrder();
@@ -36,7 +45,8 @@ function afterSignChange(who) {
 
 function startSignature(who) {
   // Monteur: gespeicherte eigene Unterschrift direkt einsetzen
-  if ((who === 'worker' || who === 'orderWorker') && appData.settings.ownSignature) {
+  const ownHo = (who === 'hoFrom' || who === 'hoTo') && signTarget(who) && sameName(signTarget(who).name, appData.settings.name);
+  if ((who === 'worker' || who === 'orderWorker' || ownHo) && appData.settings.ownSignature) {
     const target = signTarget(who);
     if (!target) return;
     target.obj[target.field] = { img: appData.settings.ownSignature, name: appData.settings.name || '', at: new Date().toISOString() };
@@ -51,7 +61,8 @@ function openSignaturePad(who) {
   signWho = who;
   const titles = {
     customer: 'Unterschrift Kunde', worker: 'Unterschrift Monteur', own: 'Meine Unterschrift',
-    orderCustomer: 'Unterschrift Kunde – Auftrag ' + (activeOrderNo || ''), orderWorker: 'Unterschrift Monteur – Auftrag ' + (activeOrderNo || '')
+    orderCustomer: 'Unterschrift Kunde – Auftrag ' + (activeOrderNo || ''), orderWorker: 'Unterschrift Monteur – Auftrag ' + (activeOrderNo || ''),
+    hoFrom: 'Übergabe – übergeben von', hoTo: 'Übergabe – übernommen von'
   };
   document.getElementById('sign-title').textContent = titles[who] || 'Unterschrift';
   const isCustomer = who === 'customer' || who === 'orderCustomer';
@@ -170,7 +181,7 @@ function confirmSignaturePad() {
   const isCustomer = who === 'customer' || who === 'orderCustomer';
   target.obj[target.field] = {
     img,
-    name: isCustomer ? document.getElementById('sign-name').value.trim() : (appData.settings.name || ''),
+    name: isCustomer ? document.getElementById('sign-name').value.trim() : (target.name !== undefined ? target.name || '' : (appData.settings.name || '')),
     at: now
   };
   closeSignaturePad();

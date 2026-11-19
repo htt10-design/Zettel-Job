@@ -36,7 +36,8 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
 | 13-demo | Demo-Modus: echte Daten unter `appDataBeforeDemo` sichern, Beispieldaten relativ zu heute (`buildDemoData`), Beenden stellt alles wieder her; gelbes Demo-Banner |
 | 14-apps | App-Umschalter (Symbol oben) zur Schwester-App **Befunde** (`../Befunde/`); liest deren IndexedDB `befunde` nur lesend (`loadBefundeData`) und zeigt im Auftrag/Zettel die Befunde-Box mit Direktlinks `#auftrag=` / `#bericht=` |
 | 15-staff | Monteur-Akte (Büro): Eintritt, Telefon, Übertrag, Sollstunden je Monteur (`appData.technicians`), Überstundenkonto ab Eintritt (`staffBalance`), Tag ändern/Überstunden streichen/Tag streichen und Buchungen als `daysOff`-Korrektur `{ by:'office', kind }` |
-| 16-sync | Abgleich mit eigenem PocketBase (Collections `zj_items`/`zj_files`, Einrichtung `tools/pocketbase/`): je Eintrag ein Datensatz (`key` = `sheet:<id>`, `job:`, `tech:`, `off:`, `order:`, `profile:`, `team:settings`), Hash-Vergleich gegen `syncMeta`, neuerer Stand gewinnt, Löschen als `deleted`; pro Gerät bleiben Rolle/Name/Theme |
+| 16-sync | Abgleich mit eigenem PocketBase (Collections `zj_items`/`zj_files`, Einrichtung `tools/pocketbase/`): je Eintrag ein Datensatz (`key` = `sheet:<id>`, `job:`, `handover:`, `tech:`, `off:`, `order:`, `profile:`, `team:settings`), Hash-Vergleich gegen `syncMeta`, neuerer Stand gewinnt, Löschen als `deleted`; pro Gerät bleiben Rolle/Name/Theme |
+| 17-handover | Übergabe eines Auftrags mittendrin (`appData.handovers`): Stand aus Zetteln (`handoverStats`, erledigte Arbeiten aus Zeilen-Beschreibungen `handoverDoneText`) + Befunde-Schnappschuss (`handoverBefundeSnapshot`, nur lesend), offene Arbeiten (Vorschläge aus Ersatzteilen/n.i.O.-Blättern, abhakbar auch nach Unterschrift), Hinweise für den Nachfolger, Unterschriften `hoFrom`/`hoTo` (sperren den Inhalt), Druck; Karte `handoverCardHtml` in Auftrag und Zusammenstellung; Sync-Schlüssel `handover:<id>` |
 
 ## Zettel-Modell
 

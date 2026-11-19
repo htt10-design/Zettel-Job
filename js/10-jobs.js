@@ -621,6 +621,7 @@ function renderJob() {
           ${normOrderNo(job.orderNo) ? `<button type="button" class="btn btn-ghost" onclick="openAssignSheets('${job.id}')">Vorhandene Zettel zuordnen</button>` : ''}
         </div>
       </div>
+      ${handoverCardHtml(job.orderNo, 'job')}
 
       <div class="editor-footer">
         <button type="button" class="btn btn-danger-ghost" onclick="deleteJob('${job.id}')">Auftrag löschen</button>
@@ -666,7 +667,8 @@ function renderJob() {
           <span class="h-date">${escapeHtml(shortDayLabel(s))}</span><span class="h-src"></span>
           <span class="o-num">${formatHours(jobSheetHours(job, s).normal)}</span>
           <span class="o-num ot">${jobSheetHours(job, s).ot ? formatHours(jobSheetHours(job, s).ot) : '–'}</span>
-        </button>`).join('')}</div>` : ''}`;
+        </button>`).join('')}</div>` : ''}
+      ${handoverCardHtml(job.orderNo, 'job')}`;
   }
   document.getElementById('job-body').innerHTML = html;
 }

@@ -72,6 +72,7 @@ function localSyncItems() {
   appData.jobs.forEach(j => m.set('job:' + j.id, { kind: 'job', data: j }));
   appData.technicians.forEach(t => m.set('tech:' + t.id, { kind: 'tech', data: t }));
   appData.daysOff.forEach(o => m.set('off:' + o.id, { kind: 'off', data: o }));
+  (appData.handovers || []).forEach(h => m.set('handover:' + h.id, { kind: 'handover', data: h }));
   Object.keys(appData.orders || {}).forEach(k => { if (appData.orders[k]) m.set('order:' + k, { kind: 'order', data: appData.orders[k] }); });
   Object.keys(appData.profiles || {}).forEach(k => m.set('profile:' + k, { kind: 'profile', data: appData.profiles[k] }));
   const team = {};
@@ -80,7 +81,7 @@ function localSyncItems() {
   return m;
 }
 
-const SYNC_LISTS = { sheet: 'sheets', job: 'jobs', tech: 'technicians', off: 'daysOff' };
+const SYNC_LISTS = { sheet: 'sheets', job: 'jobs', tech: 'technicians', off: 'daysOff', handover: 'handovers' };
 
 // Eintrag vom Server übernehmen (data = null → löschen)
 function applySyncItem(key, kind, data) {

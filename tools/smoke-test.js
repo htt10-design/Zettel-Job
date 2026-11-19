@@ -713,6 +713,60 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     });
     assert(assign === 'true|SR26/000960|MS Nachtrag|N-1|true,false|SR26/000960,14,P|600', `Nachträglich zuordnen ${assign}`, errors);
 
+    // Übergabe: Stand aus Zetteln + Befunden (nur lesend) zusammenfassen
+    await page.evaluate(() => new Promise((res, rej) => {
+      const r = indexedDB.open('befunde', 1);
+      r.onupgradeneeded = () => r.result.createObjectStore('store');
+      r.onsuccess = () => {
+        const tx = r.result.transaction('store', 'readwrite');
+        tx.objectStore('store').put({ orders: [{ id: 'bo1', orderNo: 'SR26/000970', status: 'offen', engines: [{}], sheets: [
+          { id: 'b1', type: 'liner', rating: 'bad', summary: 'Zyl. 3 außer Toleranz', advice: 'Buchse tauschen', data: {} },
+          { id: 'b2', type: 'parts', rating: '', data: { items: [{ part: 'Laufbuchse', reason: 'Zyl. 3', status: 'order' }, { part: 'Dichtsatz', status: 'none' }] } }] }] }, 'appData');
+        tx.oncomplete = () => { r.result.close(); res(); };
+        tx.onerror = () => rej(tx.error);
+      };
+      r.onerror = () => rej(r.error);
+    }));
+    const handover = await page.evaluate(async () => {
+      appData.jobs.push(normalizeData({ jobs: [{ id: 'jh', orderNo: 'SR26/000970', customer: 'Reederei Nord', vessel: 'MS Übergabe', assigned: ['Max Monteur', 'Erik Elektro'] }] }).jobs[0]);
+      appData.sheets.push(normalizeSheet({ id: 'nh1', type: 'montage', orderNo: 'SR26/000970', customer: 'Reederei Nord', vessel: 'MS Übergabe', worker: 'Max Monteur',
+        engines: [{ make: 'MAN', number: 'H-1', hours: '5000' }], days: [{ id: 'dh1', date: '2026-11-17', entries: [
+          { id: 'h1', from: '07:00', to: '12:00', code: 'AZ', desc: 'Zylinderkopf 3 demontiert' }, { id: 'h2', from: '12:30', to: '16:00', code: 'AZ', desc: 'Laufbuchse vermessen' }] }] }));
+      showView('jobs'); openJob('jh');
+      const card = !!document.querySelector('#job-body [onclick^="createHandover"]');
+      await createHandover('SR26/000970', 'job');
+      const ho = getActiveHandover();
+      const view = currentView;
+      const ui = document.querySelectorAll('#handover-body .ho-task').length + '/' + document.querySelectorAll('#handover-body .ho-bf').length;
+      // Eingaben über die Ansicht
+      const notes = document.querySelector('#handover-body [data-hb="notes"]');
+      notes.value = 'Kopf liegt auf der Werkbank'; notes.dispatchEvent(new Event('input', { bubbles: true }));
+      addHandoverTask();
+      const inp = document.querySelector('#handover-body [data-hb-task="2"]');
+      inp.value = 'Zylinderkopf 3 montieren'; inp.dispatchEvent(new Event('input', { bubbles: true }));
+      toggleHandoverTask(0);
+      ho.signFrom = { img: 'data:image/png;base64,iVBORw0KGgo=', name: ho.from, at: new Date().toISOString() };
+      afterSignChange('hoFrom');
+      const locked = document.querySelector('#handover-body [data-hb="notes"]').readOnly;
+      toggleHandoverTask(1); // abhaken geht auch nach Unterschrift
+      const pr = buildHandoverPrintHtml(ho);
+      const prOk = pr.includes('☑') && pr.includes('Laufbuchse') && pr.includes('n.i.O.') && pr.includes('Kopf liegt auf der Werkbank');
+      const syncKey = localSyncItems().has('handover:' + ho.id);
+      closeHandover();
+      const back = currentView + '|' + document.querySelectorAll('#job-body [onclick^="openHandover"]').length;
+      return [card, view, ho.from, ho.to, ho.done, ho.stats.worked, ho.befunde.sheets.length, ho.open.map(t => (t.done ? 'x' : '-') + t.text).join(' ; '), ui, locked, prOk, syncKey, back].join('|');
+    });
+    await page.screenshot({ path: path.join(OUT, `${label}-30-auftrag-mit-uebergabe.png`), fullPage: true });
+    await page.evaluate(() => { openHandover(appData.handovers[0].id, 'job'); });
+    await page.screenshot({ path: path.join(OUT, `${label}-31-uebergabe.png`), fullPage: true });
+    await page.evaluate(() => {
+      appData.handovers = []; appData.jobs = appData.jobs.filter(j => j.id !== 'jh'); appData.sheets = appData.sheets.filter(x => x.id !== 'nh1');
+      showView('sheets');
+      return new Promise(res => { const r = indexedDB.deleteDatabase('befunde'); r.onsuccess = r.onerror = r.onblocked = () => res(); });
+    });
+    assert(handover === 'true|handover|Max Monteur|Erik Elektro|Di 17.11. (Max Monteur): Zylinderkopf 3 demontiert; Laufbuchse vermessen|510|2|'
+      + 'xErsatzteil bestellen: Laufbuchse – Zyl. 3 ; xn.i.O. Laufbuchse: Buchse tauschen ; -Zylinderkopf 3 montieren|2/2|true|true|true|job|1', `Übergabe ${handover}`, errors);
+
     // Persistenz: neu laden, Daten müssen noch da sein
     await page.evaluate(() => saveData(true));
     await page.reload();
