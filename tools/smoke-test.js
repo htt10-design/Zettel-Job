@@ -767,6 +767,18 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     assert(handover === 'true|handover|Max Monteur|Erik Elektro|Di 17.11. (Max Monteur): Zylinderkopf 3 demontiert; Laufbuchse vermessen|510|2|'
       + 'xErsatzteil bestellen: Laufbuchse – Zyl. 3 ; xn.i.O. Laufbuchse: Buchse tauschen ; -Zylinderkopf 3 montieren|2/2|true|true|true|job|1', `Übergabe ${handover}`, errors);
 
+    // Lange Titel dürfen die Seite nicht verbreitern (Handy zoomt sonst heraus)
+    const overflow = await page.evaluate(() => {
+      const long = 'Zwischenrad Räderkasten Abdeckung abgezogen befundet und Laufring von Mitnehmerflansch abgezogen';
+      appData.sheets.push(normalizeSheet({ id: 'ov1', type: 'werkstatt', days: [{ id: 'dov', date: todayISO(), entries: [{ id: 'eov', from: '07:00', to: '15:00', cost: '120', desc: long + ' ' + long }] }] }));
+      homeShowList = true; showView('sheets');
+      const maxRight = Math.max(...Array.from(document.querySelectorAll('#sheet-browser *')).map(e => e.offsetParent ? e.getBoundingClientRect().right : 0), 0);
+      const res = Math.round(maxRight) <= window.innerWidth;
+      appData.sheets = appData.sheets.filter(x => x.id !== 'ov1'); homeShowList = false; showView('sheets');
+      return res;
+    });
+    assert(overflow, 'Langer Zettel-Titel verbreitert die Seite', errors);
+
     // Persistenz: neu laden, Daten müssen noch da sein
     await page.evaluate(() => saveData(true));
     await page.reload();

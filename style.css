@@ -57,6 +57,9 @@ body {
   transition: background .2s, color .2s;
 }
 
+/* Notbremse: nichts darf die Seite seitlich verbreitern (sonst zoomt das Handy heraus) */
+html, body { overflow-x: clip; }
+
 body.no-scroll { overflow: hidden; }
 
 svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
@@ -254,7 +257,9 @@ fieldset[disabled] .entry-add, fieldset[disabled] > .btn.block, fieldset[disable
 .search input { padding-left: 38px; background: var(--surface); }
 .chips { display: flex; gap: 8px; overflow-x: auto; }
 
-.sheet-list { display: grid; gap: 10px; }
+.sheet-list { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
+/* Karten/Buttons in Grids dürfen schmaler als ihr Inhalt werden – sonst schiebt ein langer Titel die Seite breiter als den Bildschirm */
+.sheet-list > *, .menu-rows > *, .sheet-card, .o-day { min-width: 0; }
 .sheet-card {
   text-align: left; width: 100%;
   background: var(--surface); border: 1px solid var(--border);
