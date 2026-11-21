@@ -48,7 +48,8 @@ function vacationHeadHtml(s, year) {
   return `
     <div class="vac-head">
       <div><span class="vac-label">Urlaub ${year}</span>
-        <span class="muted small-text">${s.carry ? `Anspruch ${s.base} ${s.carry > 0 ? '+' : '−'} ${Math.abs(s.carry)} Übertrag = ${s.total} Tage` : `Anspruch ${s.total} Tage`}</span></div>
+        <span class="muted small-text">${s.months !== null ? `anteilig ${s.months}/12 von ${s.fullBase} = ${s.base}${s.carry ? '' : ' Tage'}` : `Anspruch ${s.base}`}${s.carry ? ` ${s.carry > 0 ? '+' : '−'} ${Math.abs(s.carry)} Übertrag = ${s.total} Tage` : (s.months !== null ? '' : ' Tage')}</span>
+        ${s.months !== null ? '<span class="muted small-text">Eintrittsjahr – je vollem Monat 1/12</span>' : ''}</div>
       <div class="vac-rest ${s.rest < 0 ? 'neg' : ''}"><b>${s.rest}</b><small>übrig</small></div>
     </div>
     ${vacationBarHtml(s)}`;
@@ -275,7 +276,7 @@ function staffVacationHtml(t, year) {
         <label class="field"><span>Urlaubsanspruch pro Jahr (Tage)</span><input type="text" inputmode="decimal" value="${t.vacationDays ?? ''}" placeholder="${VACATION_DEFAULT_DAYS}" onchange="setStaffVacation('vacationDays', this.value)"></label>
         <label class="field"><span>Übertrag / Korrektur ${year} (Tage)</span><input type="text" inputmode="decimal" value="${carry}" placeholder="0" onchange="setStaffVacation('carry', this.value, ${year})"></label>
       </div>
-      <p class="muted small-text">Übertrag z.B. Resturlaub aus dem Vorjahr (+) oder anteiliger Anspruch im Eintrittsjahr (−).</p>
+      <p class="muted small-text">${t.startDate ? `Im Eintrittsjahr (Eintritt ${formatDateShort(t.startDate)}) wird der Anspruch automatisch anteilig berechnet: je vollem Monat 1/12, ab einem halben Tag aufgerundet. ` : 'Mit Eintrittsdatum (Stammdaten unten) rechnet die App den Anspruch im Eintrittsjahr automatisch anteilig. '}Übertrag z.B. Resturlaub aus dem Vorjahr (+) oder Korrektur (±).</p>
       ${list.length ? `<div class="menu-rows leave-list">${list.map(r => leaveRowHtml(r, 'office')).join('')}</div>` : ''}
       <button class="btn btn-soft" onclick="openLeaveRequest(${escapeHtml(JSON.stringify(t.name))})">
         <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Urlaub eintragen</button>

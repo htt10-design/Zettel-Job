@@ -769,7 +769,7 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
       // Feiertag zählt nicht als Urlaubstag
       appData.daysOff.push({ id: 'fu', date: '2027-03-03', type: 'feiertag', worker: 'Uwe Urlaub' });
       showView('hours'); hoursMonth = '2027-03'; renderHours();
-      const card0 = document.querySelector('.vac-card .vac-rest b').textContent;
+      const card0 = document.querySelector('#hours-body .vac-card .vac-rest b').textContent;
       openLeaveRequest();
       document.getElementById('leave-from').value = '2027-03-01'; document.getElementById('leave-to').value = '2027-03-07';
       updateLeaveCalc();
@@ -807,7 +807,7 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
       const s4 = vacationSummary('Uwe Urlaub', 2027);
       // Monteur sieht Antwort
       appData.role = 'tech'; applyRole(); showView('hours');
-      const rejectedShown = document.querySelector('.leave-row.st-rejected small').textContent.includes('Einsatz MS Hanna');
+      const rejectedShown = document.querySelector('#hours-body .leave-row.st-rejected small').textContent.includes('Einsatz MS Hanna');
       // aufräumen
       appData.leaveRequests = appData.leaveRequests.filter(r => r.worker !== 'Uwe Urlaub');
       appData.daysOff = appData.daysOff.filter(o => o.worker !== 'Uwe Urlaub');
@@ -818,6 +818,22 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     });
     assert(leave === '30|4 Tage|0/4/26|false|2|2|true|4/0/26|01,02,04,05|true|30/5/25|3|1/29|true', `Urlaub ${leave}`, errors);
     await page.screenshot({ path: path.join(OUT, `${label}-40-urlaub.png`), fullPage: true });
+
+    // Urlaub anteilig im Eintrittsjahr
+    const prorata = await page.evaluate(() => {
+      appData.technicians.push({ id: 'tp', name: 'Paul Neu', startDate: '2027-03-15' });
+      const t = appData.technicians.find(x => x.id === 'tp');
+      const r = [];
+      r.push(vacationSummary('Paul Neu', 2026).base, vacationSummary('Paul Neu', 2027).base, vacationSummary('Paul Neu', 2028).base);
+      t.startDate = '2027-03-01'; r.push(vacationSummary('Paul Neu', 2027).base);
+      t.startDate = '2027-01-01'; r.push(vacationSummary('Paul Neu', 2027).base);
+      t.startDate = '2027-08-10'; t.vacationDays = 28; r.push(vacationSummary('Paul Neu', 2027).base);
+      openStaff('tp'); staffMonth = '2027-08'; renderStaff();
+      const txt = document.querySelector('#staff-body .vac-head').textContent.replace(/\s+/g, ' ');
+      appData.technicians = appData.technicians.filter(x => x.id !== 'tp'); showView('sheets');
+      return r.join(',') + '|' + txt.includes('anteilig 4/12 von 28 = 9');
+    });
+    assert(prorata === '0,23,30,25,30,9|true', `Urlaub anteilig ${prorata}`, errors);
 
     // Lange Titel dürfen die Seite nicht verbreitern (Handy zoomt sonst heraus)
     const overflow = await page.evaluate(() => {

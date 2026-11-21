@@ -451,15 +451,32 @@ function leaveDayList(name, from, to) {
   return out;
 }
 
+// Volle Beschäftigungsmonate im Eintrittsjahr (Eintritt 01.03. → 10, 15.03. → 9); null = ganzes Jahr
+function vacationMonths(startDate, year) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(startDate || ''));
+  if (!m) return null;
+  const sy = Number(m[1]), sm = Number(m[2]), sd = Number(m[3]);
+  if (sy < Number(year)) return null;
+  if (sy > Number(year)) return 0;
+  return sd === 1 ? 13 - sm : 12 - sm;
+}
+
 function vacationSummary(name, year) {
   const y = String(year);
   const t = techRecord(name);
   const hasBase = t && t.vacationDays !== undefined && t.vacationDays !== null && t.vacationDays !== '';
-  const base = hasBase ? Number(t.vacationDays) || 0 : VACATION_DEFAULT_DAYS;
+  const fullBase = hasBase ? Number(t.vacationDays) || 0 : VACATION_DEFAULT_DAYS;
+  // Eintrittsjahr: 1/12 je vollem Monat, ab einem halben Tag aufrunden
+  const months = t ? vacationMonths(t.startDate, year) : null;
+  let base = fullBase;
+  if (months !== null) {
+    const exact = fullBase * months / 12;
+    base = exact - Math.floor(exact) >= 0.5 - 1e-9 ? Math.ceil(exact) : Math.floor(exact);
+  }
   const carry = t && t.vacationCarry ? Number(t.vacationCarry[y]) || 0 : 0;
   const used = (appData.daysOff || []).filter(o => o.type === 'urlaub' && String(o.date || '').startsWith(y) && workerMatches(o.worker, name)).length;
   const pending = (appData.leaveRequests || []).filter(r => r.status === 'pending' && nameEq(r.worker, name))
     .reduce((n, r) => n + leaveDayList(name, r.from, r.to).filter(iso => iso.startsWith(y)).length, 0);
   const total = base + carry;
-  return { base, carry, total, used, pending, rest: total - used, free: total - used - pending };
+  return { base, fullBase, months, carry, total, used, pending, rest: total - used, free: total - used - pending };
 }

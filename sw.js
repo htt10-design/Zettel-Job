@@ -3,7 +3,7 @@
 // WICHTIG: Bei jeder Änderung an Dateien der App (index.html, start.*, zettel/*, befunde/*)
 // die Versionsnummer hochzählen, sonst bekommen Nutzer die alte Version aus dem Cache.
 // Neue Datei in einem Bereich → hier in APP_SHELL_FILES eintragen.
-const CACHE_VERSION = 'service-app-v35';
+const CACHE_VERSION = 'service-app-v36';
 
 const APP_SHELL_FILES = [
   './',
