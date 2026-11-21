@@ -20,10 +20,10 @@ function leaveRangeText(r) {
 }
 
 function leaveDaysCount(r) {
-  return r.status === 'approved' && r.days ? r.days : leaveDayList(r.worker, r.from, r.to).length;
+  return r.status === 'approved' && r.days ? r.days : leaveDaysSum(leaveDayList(r.worker, r.from, r.to));
 }
 
-function dayWord(n) { return n === 1 ? '1 Tag' : n + ' Tage'; }
+function dayWord(n) { return n === 1 ? '1 Tag' : formatDays(n) + ' Tage'; }
 
 function pendingLeaves() {
   return appData.leaveRequests.filter(r => r.status === 'pending').sort((a, b) => (a.from || '').localeCompare(b.from || ''));
@@ -41,16 +41,16 @@ function vacationBarHtml(s) {
   const total = Math.max(1, s.total, s.used + s.pending);
   const pct = n => Math.max(0, Math.min(100, n / total * 100)).toFixed(1);
   return `<div class="vac-bar"><i class="used" style="width:${pct(s.used)}%"></i><i class="pend" style="width:${pct(s.pending)}%"></i></div>
-    <div class="vac-legend"><span><i class="used"></i>${s.used} genommen</span><span><i class="pend"></i>${s.pending} beantragt</span><span><i></i>${Math.max(0, s.free)} frei</span></div>`;
+    <div class="vac-legend"><span><i class="used"></i>${formatDays(s.used)} genommen</span><span><i class="pend"></i>${formatDays(s.pending)} beantragt</span><span><i></i>${formatDays(Math.max(0, s.free))} frei</span></div>`;
 }
 
 function vacationHeadHtml(s, year) {
   return `
     <div class="vac-head">
       <div><span class="vac-label">Urlaub ${year}</span>
-        <span class="muted small-text">${s.months !== null ? `anteilig ${s.months}/12 von ${s.fullBase} = ${s.base}${s.carry ? '' : ' Tage'}` : `Anspruch ${s.base}`}${s.carry ? ` ${s.carry > 0 ? '+' : '−'} ${Math.abs(s.carry)} Übertrag = ${s.total} Tage` : (s.months !== null ? '' : ' Tage')}</span>
+        <span class="muted small-text">${s.months !== null ? `anteilig ${s.months}/12 von ${s.fullBase} = ${s.base}${s.carry ? '' : ' Tage'}` : `Anspruch ${s.base}`}${s.carry ? ` ${s.carry > 0 ? '+' : '−'} ${formatDays(Math.abs(s.carry))} Übertrag = ${formatDays(s.total)} Tage` : (s.months !== null ? '' : ' Tage')}</span>
         ${s.months !== null ? '<span class="muted small-text">Eintrittsjahr – je vollem Monat 1/12</span>' : ''}</div>
-      <div class="vac-rest ${s.rest < 0 ? 'neg' : ''}"><b>${s.rest}</b><small>übrig</small></div>
+      <div class="vac-rest ${s.rest < 0 ? 'neg' : ''}"><b>${formatDays(s.rest)}</b><small>übrig</small></div>
     </div>
     ${vacationBarHtml(s)}`;
 }
@@ -128,10 +128,11 @@ function updateLeaveCalc() {
   const days = leaveDayList(name, from, to);
   const year = Number(from.slice(0, 4));
   const s = vacationSummary(name, year);
-  const after = s.free - days.filter(iso => iso.startsWith(String(year))).length;
+  const after = s.free - leaveDaysSum(days.filter(iso => iso.startsWith(String(year))));
+  const halfs = days.filter(iso => leaveDayWeight(iso) < 1);
   el.innerHTML = `
-    <div class="leave-sum"><b>${dayWord(days.length)}</b><span>Urlaub (Wochenenden und Feiertage zählen nicht)</span></div>
-    <p class="muted small-text">Danach noch <b class="${after < 0 ? 'neg' : ''}">${after}</b> von ${s.total} Tagen ${year} frei${s.pending ? ' (inkl. offener Anträge)' : ''}.</p>
+    <div class="leave-sum"><b>${dayWord(leaveDaysSum(days))}</b><span>Urlaub (Wochenenden und Feiertage zählen nicht${halfs.length ? '; ' + halfs.map(iso => iso.endsWith('12-24') ? 'Heiligabend' : 'Silvester').join(' und ') + ' halb' : ''})</span></div>
+    <p class="muted small-text">Danach noch <b class="${after < 0 ? 'neg' : ''}">${formatDays(after)}</b> von ${formatDays(s.total)} Tagen ${year} frei${s.pending ? ' (inkl. offener Anträge)' : ''}.</p>
     ${after < 0 ? '<p class="warn-text">Mehr Tage als noch frei sind.</p>' : ''}
     ${leaveOverlap(name, from, to) ? '<p class="warn-text">In diesem Zeitraum ist schon Urlaub eingetragen oder beantragt.</p>' : ''}`;
 }
@@ -146,7 +147,7 @@ function submitLeaveRequest() {
   const days = leaveDayList(name, from, to);
   if (!days.length) { showToast('Im Zeitraum liegen keine Arbeitstage'); return; }
   const now = new Date().toISOString();
-  const r = { id: uid(), worker: name, from, to, days: days.length, note, status: 'pending', createdAt: now, updatedAt: now };
+  const r = { id: uid(), worker: name, from, to, days: leaveDaysSum(days), note, status: 'pending', createdAt: now, updatedAt: now };
   appData.leaveRequests.push(r);
   if (isOffice()) {
     approveLeaveNow(r);
@@ -181,7 +182,7 @@ function approveLeaveNow(r) {
     appData.daysOff.push({ id: uid(), date: iso, type: 'urlaub', note: r.note || 'Urlaubsantrag', hours: null, worker: r.worker, requestId: r.id, by: 'office' });
   });
   const now = new Date().toISOString();
-  Object.assign(r, { status: 'approved', days: days.length, decidedAt: now, decidedBy: appData.settings.officeName || '', answer: '', updatedAt: now });
+  Object.assign(r, { status: 'approved', days: leaveDaysSum(days), decidedAt: now, decidedBy: appData.settings.officeName || '', answer: '', updatedAt: now });
   saveData(true);
 }
 
@@ -248,7 +249,7 @@ function leaveInboxHtml() {
           <div class="lr-main">
             <b>${escapeHtml(r.worker)}</b>
             <span>${escapeHtml(leaveRangeText(r))} · <b>${dayWord(n)}</b></span>
-            <small class="muted">${r.note ? escapeHtml(r.note) + ' · ' : ''}danach ${rest} von ${s.total} Tagen übrig${leaveConflicts(r) ? ' · <span class="neg">Einsatz geplant!</span>' : ''}</small>
+            <small class="muted">${r.note ? escapeHtml(r.note) + ' · ' : ''}danach ${formatDays(rest)} von ${formatDays(s.total)} Tagen übrig${leaveConflicts(r) ? ' · <span class="neg">Einsatz geplant!</span>' : ''}</small>
           </div>
           <div class="lr-actions">
             <button class="btn btn-ghost" onclick="rejectLeave('${r.id}')">Ablehnen</button>

@@ -835,6 +835,26 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     });
     assert(prorata === '0,23,30,25,30,9|true', `Urlaub anteilig ${prorata}`, errors);
 
+    // Heiligabend und Silvester zählen halb
+    const xmas = await page.evaluate(() => {
+      const prevRole = appData.role, prevName = appData.settings.name;
+      appData.role = 'tech'; appData.settings.name = 'Xaver Weihnacht'; applyRole();
+      openLeaveRequest();
+      document.getElementById('leave-from').value = '2027-12-20'; document.getElementById('leave-to').value = '2027-12-31';
+      updateLeaveCalc();
+      const calc = document.querySelector('#leave-calc .leave-sum').textContent.replace(/\s+/g, ' ').trim();
+      submitLeaveRequest();
+      const pend = vacationSummary('Xaver Weihnacht', 2027).pending;
+      appData.role = 'office'; applyRole();
+      approveLeave(appData.leaveRequests.find(r => r.worker === 'Xaver Weihnacht').id);
+      const s = vacationSummary('Xaver Weihnacht', 2027);
+      appData.leaveRequests = appData.leaveRequests.filter(r => r.worker !== 'Xaver Weihnacht');
+      appData.daysOff = appData.daysOff.filter(o => o.worker !== 'Xaver Weihnacht');
+      appData.role = prevRole; appData.settings.name = prevName; applyRole(); showView('sheets');
+      return [calc, pend, s.used, formatDays(s.rest)].join('|');
+    });
+    assert(xmas === '9 TageUrlaub (Wochenenden und Feiertage zählen nicht; Heiligabend und Silvester halb)|9|9|21', `Heiligabend/Silvester halb ${xmas}`, errors);
+
     // Lange Titel dürfen die Seite nicht verbreitern (Handy zoomt sonst heraus)
     const overflow = await page.evaluate(() => {
       const long = 'Zwischenrad Räderkasten Abdeckung abgezogen befundet und Laufring von Mitnehmerflansch abgezogen';

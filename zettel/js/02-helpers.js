@@ -435,6 +435,21 @@ function leaveTargets(name) {
   return appData.settings.targets;
 }
 
+// Heiligabend und Silvester zählen als halber Urlaubstag
+function leaveDayWeight(iso) {
+  const md = String(iso || '').slice(5);
+  return md === '12-24' || md === '12-31' ? 0.5 : 1;
+}
+
+function leaveDaysSum(list) {
+  return list.reduce((n, iso) => n + leaveDayWeight(iso), 0);
+}
+
+// Tage mit Komma, auf halbe Tage gerundet: 4,5
+function formatDays(n) {
+  return String(Math.round((Number(n) || 0) * 2) / 2).replace('.', ',');
+}
+
 // Urlaubstage eines Zeitraums: Tage mit Soll, ohne Feiertage des Monteurs
 function leaveDayList(name, from, to) {
   const out = [];
@@ -474,9 +489,10 @@ function vacationSummary(name, year) {
     base = exact - Math.floor(exact) >= 0.5 - 1e-9 ? Math.ceil(exact) : Math.floor(exact);
   }
   const carry = t && t.vacationCarry ? Number(t.vacationCarry[y]) || 0 : 0;
-  const used = (appData.daysOff || []).filter(o => o.type === 'urlaub' && String(o.date || '').startsWith(y) && workerMatches(o.worker, name)).length;
+  const used = (appData.daysOff || []).filter(o => o.type === 'urlaub' && String(o.date || '').startsWith(y) && workerMatches(o.worker, name))
+    .reduce((n, o) => n + leaveDayWeight(o.date), 0);
   const pending = (appData.leaveRequests || []).filter(r => r.status === 'pending' && nameEq(r.worker, name))
-    .reduce((n, r) => n + leaveDayList(name, r.from, r.to).filter(iso => iso.startsWith(y)).length, 0);
+    .reduce((n, r) => n + leaveDaysSum(leaveDayList(name, r.from, r.to).filter(iso => iso.startsWith(y))), 0);
   const total = base + carry;
   return { base, fullBase, months, carry, total, used, pending, rest: total - used, free: total - used - pending };
 }

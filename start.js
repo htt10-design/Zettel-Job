@@ -203,7 +203,7 @@ function renderStart(zj, bf) {
       zStats.push(chip('Konto ' + formatHours(overtimeBalance(today), true), 'acc'));
       if (name) {
         const vac = vacationSummary(name, d.getFullYear());
-        zStats.push(chip('Urlaub ' + Math.max(0, vac.free) + ' frei'));
+        zStats.push(chip('Urlaub ' + formatDays(Math.max(0, vac.free)) + ' frei'));
         const since = addDaysISO(today, -7);
         zj.leaveRequests.filter(r => nameEq(r.worker, name) && r.status !== 'pending' && (r.decidedAt || '').slice(0, 10) >= since && (r.to || r.from) >= today)
           .forEach(r => todos.push(todoRow('zettel/#urlaub', 'Urlaub ' + ({ approved: 'genehmigt', rejected: 'abgelehnt', cancelled: 'storniert' }[r.status] || ''),
