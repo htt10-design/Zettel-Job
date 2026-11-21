@@ -139,6 +139,8 @@ function renderStaff() {
       </button>
     </div>
 
+    ${staffVacationHtml(t, y)}
+
     <div class="month-nav">
       <button class="icon-btn" onclick="staffShiftMonth(-1)" aria-label="Vorheriger Monat"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
       <strong>${MONTHS[m - 1]} ${y}</strong>

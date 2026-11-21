@@ -73,6 +73,7 @@ function localSyncItems() {
   appData.technicians.forEach(t => m.set('tech:' + t.id, { kind: 'tech', data: t }));
   appData.daysOff.forEach(o => m.set('off:' + o.id, { kind: 'off', data: o }));
   (appData.handovers || []).forEach(h => m.set('handover:' + h.id, { kind: 'handover', data: h }));
+  (appData.leaveRequests || []).forEach(r => m.set('leave:' + r.id, { kind: 'leave', data: r }));
   Object.keys(appData.orders || {}).forEach(k => { if (appData.orders[k]) m.set('order:' + k, { kind: 'order', data: appData.orders[k] }); });
   Object.keys(appData.profiles || {}).forEach(k => m.set('profile:' + k, { kind: 'profile', data: appData.profiles[k] }));
   const team = {};
@@ -81,7 +82,7 @@ function localSyncItems() {
   return m;
 }
 
-const SYNC_LISTS = { sheet: 'sheets', job: 'jobs', tech: 'technicians', off: 'daysOff', handover: 'handovers' };
+const SYNC_LISTS = { sheet: 'sheets', job: 'jobs', tech: 'technicians', off: 'daysOff', handover: 'handovers', leave: 'leaveRequests' };
 
 // Eintrag vom Server übernehmen (data = null → löschen)
 function applySyncItem(key, kind, data) {
@@ -306,7 +307,8 @@ function refreshAfterSync() {
     if (!getActiveSheet()) showView('sheets');
     return;
   }
-  if (['sheets', 'jobs', 'job', 'plan', 'hours', 'settings', 'order', 'staff'].includes(currentView)) showView(currentView);
+  if (['sheets', 'jobs', 'job', 'plan', 'hours', 'settings', 'order', 'staff', 'handover'].includes(currentView)) showView(currentView);
+  updateLeaveBadge();
 }
 
 function scheduleSync(delay) {

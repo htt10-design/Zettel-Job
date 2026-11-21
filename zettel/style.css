@@ -141,6 +141,10 @@ body.in-editor main { padding-bottom: calc(40px + var(--safe-b)); }
   color: var(--muted); font-size: 12px; font-weight: 600;
 }
 .nav-item.active { color: var(--accent-strong); background: var(--accent-soft); }
+.nav-item { position: relative; }
+.nav-badge { position: absolute; top: 4px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+  background: var(--neg); color: #fff; font-size: 11px; font-weight: 800; line-height: 18px; text-align: center; box-shadow: 0 0 0 2px var(--surface); }
+.nav-badge[hidden] { display: none; }
 
 /* ---------- Karten & Felder ---------- */
 .card {
@@ -796,6 +800,7 @@ body.role-tech.home-list-hidden #view-sheets .fab { display: none; }
 .plan-abs { font-size: 11px; font-weight: 700; border-radius: 6px; padding: 2px 6px; background: rgba(125, 147, 168, .2); color: var(--muted); }
 .plan-abs.off-urlaub, .plan-abs.off-abbau { background: rgba(18, 148, 107, .14); color: var(--pos); }
 .plan-abs.off-krank { background: rgba(214, 69, 69, .12); color: var(--neg); }
+.plan-abs.off-antrag, .src.off-antrag { background: transparent; color: var(--pos); border: 1.5px dashed rgba(18, 148, 107, .55); }
 .plan-worked { font-size: 10.5px; font-weight: 700; color: var(--pos); margin-top: auto; }
 .plan-warn { position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%; background: var(--neg); color: #fff; font-size: 12px; font-weight: 800; display: grid; place-items: center; }
 .plan-legend { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 10px; font-size: 12px; color: var(--muted); }
@@ -1054,3 +1059,45 @@ body.role-tech.home-list-hidden #view-sheets .fab { display: none; }
   .pr-foot { margin-top: 16pt; font-size: 7.5pt; text-align: right; }
   tr { page-break-inside: avoid; }
 }
+
+/* ---------- Urlaub (18-leave) ---------- */
+.badge-no { background: rgba(214, 69, 69, .1); color: var(--neg); }
+.vac-card .btn.block { margin-top: 12px; }
+.vac-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+.vac-head > div:first-child { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vac-label { font-weight: 750; font-size: 16px; }
+.vac-rest { text-align: right; line-height: 1; }
+.vac-rest b { font-size: 34px; font-weight: 800; color: var(--accent-strong); letter-spacing: -.5px; }
+.vac-rest.neg b { color: var(--neg); }
+.vac-rest small { display: block; font-size: 12px; color: var(--muted); font-weight: 700; margin-top: 3px; }
+.vac-bar { display: flex; height: 12px; border-radius: 999px; background: var(--accent-soft); overflow: hidden; }
+.vac-bar i { display: block; height: 100%; }
+.vac-bar i.used { background: var(--accent); }
+.vac-bar i.pend { background: repeating-linear-gradient(-45deg, var(--warn) 0 5px, rgba(201, 138, 10, .45) 5px 10px); }
+.vac-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+.vac-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.vac-legend i { width: 10px; height: 10px; border-radius: 3px; background: var(--accent-soft); border: 1px solid var(--border); }
+.vac-legend i.used { background: var(--accent); border-color: var(--accent); }
+.vac-legend i.pend { background: var(--warn); border-color: var(--warn); }
+.vac-card .grid-2 { margin-top: 14px; }
+.leave-list { margin-top: 12px; }
+.leave-row { gap: 10px; }
+.leave-row > span:first-child { min-width: 0; }
+.leave-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.leave-row.st-rejected b, .leave-row.st-cancelled b { text-decoration: line-through; opacity: .6; }
+.leave-calc { margin: 2px 0 6px; }
+.leave-sum { display: flex; align-items: baseline; gap: 10px; padding: 12px 14px; border-radius: 12px; background: var(--accent-softer); border: 1px solid var(--border); margin-bottom: 8px; }
+.leave-sum b { font-size: 22px; color: var(--accent-strong); white-space: nowrap; }
+.leave-sum span { font-size: 13px; color: var(--muted); }
+.leave-inbox { border: 1.5px solid rgba(201, 138, 10, .45); }
+.leave-inbox .card-title { display: flex; align-items: center; gap: 8px; }
+.leave-req { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.leave-req:first-of-type { border-top: 0; }
+.lr-main { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.lr-main small { font-size: 12.5px; }
+.lr-main { flex: 1 1 200px; }
+.lr-actions { display: flex; gap: 8px; margin-left: auto; }
+@media (max-width: 600px) { .lr-actions { flex: 1 1 100%; } .lr-actions .btn { flex: 1; } }
+.leave-chip.st-approved { border-color: var(--pos); color: var(--pos); }
+.leave-chip.st-rejected, .leave-chip.st-cancelled { border-color: var(--neg); color: var(--neg); }
+.vac-card > .btn-soft { margin-top: 12px; }

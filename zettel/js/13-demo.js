@@ -170,6 +170,12 @@ function buildDemoData() {
     { id: id(), date: day(1, 4), type: 'urlaub', note: '', worker: 'Ali Yilmaz' },
     { id: id(), date: day(1, 4), type: 'abbau', note: 'Brückentag', worker: 'Jan Becker' }
   ];
+  // Urlaub: Jan genehmigt, Tom wartet auf das Büro
+  const now = new Date().toISOString();
+  const janLeave = { id: id(), worker: 'Jan Becker', from: day(4, 0), to: day(4, 2), days: 3, note: 'Kurzurlaub', status: 'approved', createdAt: now, updatedAt: now, decidedAt: now, decidedBy: 'Sabine Kraft', answer: '' };
+  [0, 1, 2].forEach(wd => d.daysOff.push({ id: id(), date: day(4, wd), type: 'urlaub', note: 'Kurzurlaub', worker: 'Jan Becker', requestId: janLeave.id, by: 'office' }));
+  d.leaveRequests = [janLeave,
+    { id: id(), worker: 'Tom Schröder', from: day(2, 0), to: day(2, 4), days: 5, note: 'Familienurlaub', status: 'pending', createdAt: now, updatedAt: now }];
   return normalizeData(d);
 }
 

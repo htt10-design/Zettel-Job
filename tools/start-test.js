@@ -81,6 +81,7 @@ const server = http.createServer((req, res) => {
     const expWeek = 'Woche 8,00 h';
     if (!after.startsWith('Moin, Henrik!|') && !after.startsWith('Hallo, Henrik!|') && !after.startsWith('Guten Abend, Henrik!|')) errors.push(`${label}: Begrüßung ${after}`);
     if (!after.includes(expWeek)) errors.push(`${label}: Wochenstunden ${after}`);
+    if (!after.includes('Urlaub 30 frei')) errors.push(`${label}: Urlaubstage ${after}`);
     if (!after.includes('1 offen2 Blätter') && !after.includes('1 offen 2 Blätter')) errors.push(`${label}: Befunde-Zahlen ${after}`);
     if (!after.includes('1 Zettel ohne Kundenunterschrift') || !after.includes('1 Auftrag dir zugeteilt') || !after.includes('1 Ersatzteil zu bestellen')) errors.push(`${label}: Zu erledigen ${after}`);
     if (!after.endsWith('|true')) errors.push(`${label}: Seite zu breit`);

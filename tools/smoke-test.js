@@ -761,6 +761,64 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     assert(handover === 'true|handover|Max Monteur|Erik Elektro|Di 17.11. (Max Monteur): Zylinderkopf 3 demontiert; Laufbuchse vermessen|510|2|'
       + 'xErsatzteil bestellen: Laufbuchse – Zyl. 3 ; xn.i.O. Laufbuchse: Buchse tauschen ; -Zylinderkopf 3 montieren|2/2|true|true|true|job|1', `Übergabe ${handover}`, errors);
 
+    // Urlaub: Monteur beantragt, Büro genehmigt / lehnt ab / storniert, Anspruch anpassen
+    const leave = await page.evaluate(async () => {
+      const prevRole = appData.role, prevName = appData.settings.name;
+      appData.role = 'tech'; appData.settings.name = 'Uwe Urlaub'; applyRole();
+      appData.technicians.push({ id: 'tu', name: 'Uwe Urlaub', phone: '', startDate: '' });
+      // Feiertag zählt nicht als Urlaubstag
+      appData.daysOff.push({ id: 'fu', date: '2027-03-03', type: 'feiertag', worker: 'Uwe Urlaub' });
+      showView('hours'); hoursMonth = '2027-03'; renderHours();
+      const card0 = document.querySelector('.vac-card .vac-rest b').textContent;
+      openLeaveRequest();
+      document.getElementById('leave-from').value = '2027-03-01'; document.getElementById('leave-to').value = '2027-03-07';
+      updateLeaveCalc();
+      const calc = document.querySelector('#leave-calc .leave-sum b').textContent;
+      document.getElementById('leave-note').value = 'Skiurlaub';
+      submitLeaveRequest();
+      const s1 = vacationSummary('Uwe Urlaub', 2027);
+      const optUrlaub = (() => { openDayOffModal(); const has = !!document.querySelector('#off-type option[value="urlaub"]'); closeModal(); return has; })();
+      // zweiter Antrag, der abgelehnt wird
+      openLeaveRequest();
+      document.getElementById('leave-from').value = '2027-06-07'; document.getElementById('leave-to').value = '2027-06-08';
+      submitLeaveRequest();
+      // Büro
+      appData.role = 'office'; applyRole(); showView('plan');
+      planWeekStart = '2027-03-01'; renderPlan();
+      const badge = document.getElementById('plan-badge').textContent;
+      const inbox = document.querySelectorAll('.leave-inbox .leave-req').length;
+      const planAntrag = document.querySelectorAll('.plan-abs.off-antrag').length;
+      const [r1, r2] = appData.leaveRequests.filter(r => r.worker === 'Uwe Urlaub').sort((a, b) => a.from.localeCompare(b.from));
+      approveLeave(r1.id);
+      rejectLeave(r2.id); document.getElementById('leave-answer').value = 'Einsatz MS Hanna'; confirmRejectLeave(r2.id);
+      const s2 = vacationSummary('Uwe Urlaub', 2027);
+      const offs = appData.daysOff.filter(o => o.requestId === r1.id).map(o => o.date.slice(8)).join(',');
+      const badge2 = document.getElementById('plan-badge').hidden;
+      // Akte: Anspruch 28 + 2 Übertrag, Büro trägt 1 Tag direkt ein
+      openStaff('tu'); staffMonth = '2027-03'; renderStaff();
+      setStaffVacation('vacationDays', '28'); setStaffVacation('carry', '2', 2027);
+      openLeaveRequest('Uwe Urlaub');
+      document.getElementById('leave-from').value = '2027-03-10'; document.getElementById('leave-to').value = '2027-03-10';
+      submitLeaveRequest();
+      const s3 = vacationSummary('Uwe Urlaub', 2027);
+      const staffRows = document.querySelectorAll('#staff-body .leave-row').length;
+      // Stornieren gibt die Tage zurück
+      cancelLeave(r1.id); await new Promise(r => setTimeout(r, 50)); document.querySelector('#modal .btn-danger').click(); await new Promise(r => setTimeout(r, 50));
+      const s4 = vacationSummary('Uwe Urlaub', 2027);
+      // Monteur sieht Antwort
+      appData.role = 'tech'; applyRole(); showView('hours');
+      const rejectedShown = document.querySelector('.leave-row.st-rejected small').textContent.includes('Einsatz MS Hanna');
+      // aufräumen
+      appData.leaveRequests = appData.leaveRequests.filter(r => r.worker !== 'Uwe Urlaub');
+      appData.daysOff = appData.daysOff.filter(o => o.worker !== 'Uwe Urlaub');
+      appData.technicians = appData.technicians.filter(t => t.id !== 'tu');
+      appData.role = prevRole; appData.settings.name = prevName; applyRole(); hoursMonth = null; planWeekStart = null; showView('sheets');
+      return [card0, calc, `${s1.used}/${s1.pending}/${s1.free}`, optUrlaub, badge, inbox, planAntrag > 0, `${s2.used}/${s2.pending}/${s2.rest}`, offs, badge2,
+        `${s3.total}/${s3.used}/${s3.rest}`, staffRows, `${s4.used}/${s4.rest}`, rejectedShown].join('|');
+    });
+    assert(leave === '30|4 Tage|0/4/26|false|2|2|true|4/0/26|01,02,04,05|true|30/5/25|3|1/29|true', `Urlaub ${leave}`, errors);
+    await page.screenshot({ path: path.join(OUT, `${label}-40-urlaub.png`), fullPage: true });
+
     // Lange Titel dürfen die Seite nicht verbreitern (Handy zoomt sonst heraus)
     const overflow = await page.evaluate(() => {
       const long = 'Zwischenrad Räderkasten Abdeckung abgezogen befundet und Laufring von Mitnehmerflansch abgezogen';

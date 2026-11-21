@@ -146,7 +146,7 @@ function prepareZettel(d) {
   d.settings = d.settings || {};
   if (!Array.isArray(d.settings.targets) || d.settings.targets.length !== 7) d.settings.targets = [0, 8, 8, 8, 8, 5, 0];
   if (!Array.isArray(d.settings.codes)) d.settings.codes = [];
-  ['sheets', 'daysOff', 'jobs'].forEach(k => { if (!Array.isArray(d[k])) d[k] = []; });
+  ['sheets', 'daysOff', 'jobs', 'technicians', 'leaveRequests'].forEach(k => { if (!Array.isArray(d[k])) d[k] = []; });
   d.sheets.forEach(s => {
     if (!Array.isArray(s.days)) s.days = [];
     s.days.forEach(day => { if (!Array.isArray(day.entries)) day.entries = []; });
@@ -191,6 +191,9 @@ function renderStart(zj, bf) {
       const open = zj.jobs.filter(j => j.status !== 'erledigt');
       zStats.push(chip(open.length + ' offene Aufträge'));
       const unassigned = open.filter(j => !(j.assigned || []).length && !(j.slots || []).length);
+      const leaves = zj.leaveRequests.filter(r => r.status === 'pending');
+      if (leaves.length) todos.push(todoRow('zettel/#urlaub', leaves.length + (leaves.length === 1 ? ' Urlaubsantrag' : ' Urlaubsanträge') + ' offen',
+        leaves.slice(0, 3).map(r => r.worker).join(', ') + ' · Stundennachweis → Plan', 'warn'));
       if (unassigned.length) todos.push(todoRow('zettel/', unassigned.length + (unassigned.length === 1 ? ' Auftrag' : ' Aufträge') + ' ohne Monteur', 'Stundennachweis · Aufträge zuteilen'));
     } else {
       const mon = weekStartISO(today);
@@ -198,6 +201,14 @@ function renderStart(zj, bf) {
       for (let i = 0; i < 7; i++) week += dayInfo(addDaysISO(mon, i)).worked;
       zStats.push(chip('Woche ' + formatHours(week)));
       zStats.push(chip('Konto ' + formatHours(overtimeBalance(today), true), 'acc'));
+      if (name) {
+        const vac = vacationSummary(name, d.getFullYear());
+        zStats.push(chip('Urlaub ' + Math.max(0, vac.free) + ' frei'));
+        const since = addDaysISO(today, -7);
+        zj.leaveRequests.filter(r => nameEq(r.worker, name) && r.status !== 'pending' && (r.decidedAt || '').slice(0, 10) >= since && (r.to || r.from) >= today)
+          .forEach(r => todos.push(todoRow('zettel/#urlaub', 'Urlaub ' + ({ approved: 'genehmigt', rejected: 'abgelehnt', cancelled: 'storniert' }[r.status] || ''),
+            formatDateShort(r.from) + (r.to && r.to !== r.from ? ' – ' + formatDateShort(r.to) : '') + (r.answer ? ' · ' + r.answer : ''), r.status === 'approved' ? 'ok' : 'warn')));
+      }
       const todayInfo = dayInfo(today);
       if (!todayInfo.sources.length && !todayInfo.offs.length && baseTargetMinutes(today) > 0)
         todos.push(todoRow('zettel/', 'Heute noch kein Zettel', 'Stundennachweis'));

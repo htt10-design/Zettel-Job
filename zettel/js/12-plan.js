@@ -36,8 +36,14 @@ function plannedJobsFor(name, iso) {
 
 // Abwesenheiten eines Monteurs (Einträge ohne Namen gehören dem Techniker dieses Geräts)
 function absencesFor(name, iso) {
-  return appData.daysOff.filter(o => o.date === iso && o.type !== 'korrektur'
+  const offs = appData.daysOff.filter(o => o.date === iso && o.type !== 'korrektur'
     && (o.worker ? sameName(o.worker, name) : sameName(appData.settings.name, name)));
+  // offene Urlaubsanträge als „Urlaub?“ (nur Anzeige)
+  (appData.leaveRequests || []).forEach(r => {
+    if (r.status === 'pending' && sameName(r.worker, name) && r.from <= iso && (r.to || r.from) >= iso
+      && !offs.some(o => o.type === 'urlaub') && leaveDayList(name, iso, iso).length) offs.push({ id: 'antrag-' + r.id, date: iso, type: 'antrag', worker: name });
+  });
+  return offs;
 }
 
 // Geschriebene Stunden eines Monteurs an einem Tag
@@ -148,6 +154,7 @@ function renderPlan() {
 
   const unplanned = office ? unplannedJobs() : [];
   document.getElementById('plan-body').innerHTML = `
+    ${office ? leaveInboxHtml() : ''}
     ${agenda}
     <div class="card plan-card">
       <div class="wk-nav">

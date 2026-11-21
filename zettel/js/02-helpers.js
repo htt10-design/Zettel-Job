@@ -410,3 +410,56 @@ function dayTargetMinutes(iso) {
   if (daysOffFor(iso).some(o => o.type === 'urlaub' || o.type === 'krank' || o.type === 'feiertag')) return 0;
   return baseTargetMinutes(iso);
 }
+
+// ---------- Urlaub (Rechnung; auch von der Service-App-Startseite genutzt) ----------
+// Anspruch je Monteur: appData.technicians[].vacationDays (Standard 30) + vacationCarry[Jahr] (Übertrag ±).
+// Genommen = Abwesenheiten „urlaub“ im Jahr; beantragt = offene appData.leaveRequests.
+const VACATION_DEFAULT_DAYS = 30;
+
+function nameEq(a, b) {
+  return String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
+}
+
+// Eintrag ohne Namen gehört dem Monteur dieses Geräts
+function workerMatches(field, name) {
+  return field ? nameEq(field, name) : nameEq(appData.settings.name, name);
+}
+
+function techRecord(name) {
+  return (appData.technicians || []).find(t => nameEq(t.name, name)) || null;
+}
+
+function leaveTargets(name) {
+  const t = techRecord(name);
+  if (t && Array.isArray(t.targets) && t.targets.length === 7) return t.targets;
+  return appData.settings.targets;
+}
+
+// Urlaubstage eines Zeitraums: Tage mit Soll, ohne Feiertage des Monteurs
+function leaveDayList(name, from, to) {
+  const out = [];
+  if (!from) return out;
+  const end = to && to >= from ? to : from;
+  const targets = leaveTargets(name);
+  let iso = from;
+  for (let i = 0; i < 400 && iso <= end; i++, iso = addDaysISO(iso, 1)) {
+    const d = parseISODate(iso);
+    if (!(Number(targets[d.getDay()]) > 0)) continue;
+    if ((appData.daysOff || []).some(o => o.date === iso && o.type === 'feiertag' && workerMatches(o.worker, name))) continue;
+    out.push(iso);
+  }
+  return out;
+}
+
+function vacationSummary(name, year) {
+  const y = String(year);
+  const t = techRecord(name);
+  const hasBase = t && t.vacationDays !== undefined && t.vacationDays !== null && t.vacationDays !== '';
+  const base = hasBase ? Number(t.vacationDays) || 0 : VACATION_DEFAULT_DAYS;
+  const carry = t && t.vacationCarry ? Number(t.vacationCarry[y]) || 0 : 0;
+  const used = (appData.daysOff || []).filter(o => o.type === 'urlaub' && String(o.date || '').startsWith(y) && workerMatches(o.worker, name)).length;
+  const pending = (appData.leaveRequests || []).filter(r => r.status === 'pending' && nameEq(r.worker, name))
+    .reduce((n, r) => n + leaveDayList(name, r.from, r.to).filter(iso => iso.startsWith(y)).length, 0);
+  const total = base + carry;
+  return { base, carry, total, used, pending, rest: total - used, free: total - used - pending };
+}

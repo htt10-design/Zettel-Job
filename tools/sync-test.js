@@ -165,6 +165,19 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
   t = await Promise.all([handy, tablet].map(p => p.evaluate(() => appData.jobs.find(x => x.id === 'jobA').description)));
   assert(t[0] === 'Handy-Version (neuer)' && t[1] === 'Handy-Version (neuer)', `Konflikt: neuerer Stand gewinnt (${t.join(' / ')})`, errors);
 
+  // Urlaub: Handy beantragt → Tablet genehmigt → Handy hat die Urlaubstage
+  await handy.evaluate(async () => {
+    appData.leaveRequests.push({ id: 'leaveA', worker: 'Max Monteur', from: '2027-04-05', to: '2027-04-09', days: 5, note: 'Ostern', status: 'pending', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+    await saveData(true);
+  });
+  await sync(handy);
+  await sync(tablet);
+  t = await tablet.evaluate(() => { const ok = pendingLeaves().some(r => r.id === 'leaveA'); approveLeave('leaveA'); return ok + '|' + document.getElementById('plan-badge').hidden; });
+  await sync(tablet);
+  await sync(handy);
+  const vac = await handy.evaluate(() => { const r = appData.leaveRequests.find(x => x.id === 'leaveA'); const s = vacationSummary('Max Monteur', 2027); return [r && r.status, s.used, s.pending].join('|'); });
+  assert(t.startsWith('true|') && vac === 'approved|5|0', `Urlaub über den Server: ${t} / ${vac}`, errors);
+
   // Löschen wird übertragen
   await handy.evaluate(async () => { appData.sheets = appData.sheets.filter(s => s.id !== 'sheetA'); await saveData(true); });
   await sync(handy);

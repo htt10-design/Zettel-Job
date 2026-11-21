@@ -88,7 +88,8 @@ function createDefaultData() {
     sheets: [],
     daysOff: [],
     orders: {}, // Zusammenstellungen je Auftragsnummer (Unterschriften)
-    handovers: [] // Übergaben eines Auftrags an einen anderen Monteur (17-handover)
+    handovers: [], // Übergaben eines Auftrags an einen anderen Monteur (17-handover)
+    leaveRequests: [] // Urlaubsanträge (18-leave)
   };
 }
 
@@ -116,6 +117,7 @@ function normalizeData(data) {
   if (!Array.isArray(data.jobs)) data.jobs = [];
   if (!Array.isArray(data.technicians)) data.technicians = [];
   if (!Array.isArray(data.handovers)) data.handovers = [];
+  if (!Array.isArray(data.leaveRequests)) data.leaveRequests = [];
   data.handovers.forEach(h => { if (!Array.isArray(h.open)) h.open = []; ['done', 'notes', 'contact', 'location', 'from', 'to', 'reason'].forEach(k => { if (typeof h[k] !== 'string') h[k] = ''; }); });
   if (!data.profiles || typeof data.profiles !== 'object' || Array.isArray(data.profiles)) data.profiles = {};
   data.jobs.forEach(j => {
@@ -233,7 +235,9 @@ async function initApp() {
   renderDemoBanner();
   requestPersistentStorage();
   initSync();
-  if (appData.role === 'office') showView('jobs'); else renderSheetList();
+  if (location.hash === '#urlaub' && appData.role) showView(appData.role === 'office' ? 'plan' : 'hours'); // Direktlink von der Startseite
+  else if (appData.role === 'office') showView('jobs'); else renderSheetList();
+  updateLeaveBadge();
   if (!appData.role) openRoleChooser();
   else if (switched) showToast(`Angemeldet als ${isOffice() ? 'Büro' : 'Monteur'}${currentUserName() ? ' – ' + currentUserName() : ''}`);
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
@@ -308,6 +312,7 @@ function showView(name) {
   if (name === 'plan') renderPlan();
   if (name === 'staff') renderStaff();
   if (name === 'handover') renderHandover();
+  updateLeaveBadge();
   window.scrollTo(0, 0);
 }
 

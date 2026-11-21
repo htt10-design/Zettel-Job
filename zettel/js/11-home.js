@@ -232,6 +232,15 @@ function renderTechHome() {
       </div>`);
   }
 
+  const decided = recentLeaveDecisions();
+  if (decided.length) {
+    todo.push(`
+      <div class="todo-item">
+        <div class="todo-head"><b>Urlaub: ${decided.length === 1 ? 'Antwort vom Büro' : decided.length + ' Antworten vom Büro'}</b><button class="link-btn" onclick="showView('hours')">Urlaubskonto</button></div>
+        <div class="todo-chips">${decided.map(r => `<button class="chip mini leave-chip st-${r.status}" onclick="showView('hours')">${escapeHtml(leaveRangeText(r))} · ${escapeHtml((LEAVE_STATUS[r.status] || {}).label || '')}</button>`).join('')}</div>
+      </div>`);
+  }
+
   const assigned = appData.jobs.filter(j => j.status !== 'erledigt' && isAssignedToMe(j))
     .sort((a, b) => (a.planFrom || '9999').localeCompare(b.planFrom || '9999'));
   if (assigned.length) {

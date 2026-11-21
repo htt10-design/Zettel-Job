@@ -8,7 +8,8 @@ const OFF_TYPES = {
   urlaub: { label: 'Urlaub', short: 'Urlaub' },
   krank: { label: 'Krank', short: 'Krank' },
   feiertag: { label: 'Feiertag', short: 'Feiertag' },
-  korrektur: { label: 'Korrektur (z.B. Auszahlung)', short: 'Korrektur' }
+  korrektur: { label: 'Korrektur (z.B. Auszahlung)', short: 'Korrektur' },
+  antrag: { label: 'Urlaub beantragt', short: 'Urlaub?', hidden: true } // nur Anzeige offener Anträge (12-plan)
 };
 
 let hoursMonth = null; // "YYYY-MM"
@@ -98,6 +99,8 @@ function renderHours() {
       </button>
     </div>
 
+    ${vacationCardHtml(y)}
+
     <div class="month-nav">
       <button class="icon-btn" onclick="shiftHoursMonth(-1)" aria-label="Vorheriger Monat"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
       <strong>${MONTHS[m - 1]} ${y}</strong>
@@ -160,7 +163,7 @@ function openDayOffModal(date) {
     <h2 class="modal-title">Freien Tag / Abwesenheit</h2>
     <label class="field"><span>Art</span>
       <select id="off-type" onchange="updateDayOffForm()">
-        ${Object.keys(OFF_TYPES).map(k => `<option value="${k}">${escapeHtml(OFF_TYPES[k].label)}</option>`).join('')}
+        ${Object.keys(OFF_TYPES).filter(k => !OFF_TYPES[k].hidden && (k !== 'urlaub' || isOffice())).map(k => `<option value="${k}">${escapeHtml(OFF_TYPES[k].label)}</option>`).join('')}
       </select>
     </label>
     <div class="grid-2">
@@ -170,6 +173,7 @@ function openDayOffModal(date) {
     <label class="field" id="off-hours-wrap" hidden><span>Stunden (+ / −)</span><input type="text" id="off-hours" inputmode="decimal" placeholder="z.B. -20 bei Auszahlung"></label>
     <label class="field"><span>Notiz</span><input type="text" id="off-note" placeholder="Optional"></label>
     <p class="muted small-text" id="off-hint"></p>
+    ${isOffice() ? '' : '<p class="muted small-text">Urlaub bitte über „Urlaub beantragen“ – das Büro bestätigt ihn.</p>'}
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button>
       <button class="btn btn-primary" onclick="saveDayOff()">Speichern</button>
