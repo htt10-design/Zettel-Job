@@ -1,13 +1,13 @@
 // =====================================================================
-// 14-apps: Wechsel zur Schwester-App „Befunde“ (Mess- & Befundblätter)
-// - Befunde liegt unter derselben Adresse (…/Befunde/) → gleiche Herkunft,
+// 14-apps: Verknüpfung mit dem Bereich „Befunde“ der Service-App (Mess- & Befundblätter)
+// - Befunde liegt im Nachbarordner (../befunde/) → gleiche Herkunft,
 //   deshalb kann Zettel-Job deren IndexedDB „befunde“ NUR LESEND abfragen
 //   (Blätter je Auftragsnummer). Es wird nie etwas in Befunde geschrieben
 //   und die Datenbank wird nicht angelegt, wenn es sie nicht gibt.
 // - Direktlinks von Befunde: #auftrag=<Nr.> und #bericht=<Nr.>
 // =====================================================================
 
-const BEFUNDE_PATH = '../Befunde/';
+const BEFUNDE_PATH = '../befunde/';
 let befundeCache = null;      // { orders: [...] } oder null (nicht vorhanden)
 let befundeCacheAt = 0;
 
@@ -21,26 +21,6 @@ function befundeUrl(hash) {
 function openBefunde(hash) {
   flushSave();
   location.href = befundeUrl(hash);
-}
-
-// Kleiner App-Umschalter (Symbol oben rechts)
-function openAppSwitcher() {
-  openModal(`
-    <h2 class="modal-title">Apps</h2>
-    <div class="app-switch">
-      <div class="app-tile current">
-        <img src="icons/icon-192.png" alt="">
-        <span><b>Zettel-Job</b><small>Zettel, Stunden, Aufträge, Einsatzplan</small></span>
-        <em>geöffnet</em>
-      </div>
-      <button class="app-tile" onclick="openBefunde()">
-        <span class="bf-icon big">${BEFUNDE_ICON}</span>
-        <span><b>Befunde</b><small>Mess- &amp; Befundblätter, Befundbericht</small></span>
-        <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
-      </button>
-    </div>
-    <p class="muted small-text">Beide Apps nutzen dieselben Auftragsnummern. In Befunde kannst du Aufträge direkt aus Zettel-Job übernehmen.</p>
-    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Schließen</button></div>`);
 }
 
 // Befunde-Daten nur lesen (falls die App auf diesem Gerät schon benutzt wurde)
@@ -97,5 +77,4 @@ function befundeBox(orderNo, elId) {
 
 const BEFUNDE_ICON = '<svg viewBox="0 0 24 24"><path d="M9 3h6v3H9z"/><path d="M8 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-2"/><path d="M9 13l2 2 4-4"/></svg>';
 
-window.openAppSwitcher = openAppSwitcher;
 window.openBefunde = openBefunde;

@@ -26,7 +26,7 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
 
 (async () => {
   await new Promise(r => server.listen(0, r));
-  const url = `http://localhost:${server.address().port}/index.html`;
+  const url = `http://localhost:${server.address().port}/zettel/index.html`;
   fs.mkdirSync(OUT, { recursive: true });
   const launchOpts = fs.existsSync('/opt/pw-browsers/chromium') ? { executablePath: '/opt/pw-browsers/chromium' } : {};
   const browser = await chromium.launch(launchOpts);
@@ -438,29 +438,23 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
 
     // ---------- App-Wechsel und Befunde-Verknüpfung ----------
     const apps = await page.evaluate(async () => {
-      openAppSwitcher();
-      const tiles = document.querySelectorAll('#modal .app-tile').length;
+      const tiles = document.getElementById('btn-home').getAttribute('href');
       const url = befundeUrl('auftrag=SR26%2F000777');
-      closeModal();
       // Befunde-Datenbank simulieren (wie sie die Befunde-App anlegt)
       await new Promise((res, rej) => { const r = indexedDB.open('befunde', 1); r.onupgradeneeded = () => r.result.createObjectStore('store'); r.onsuccess = () => { const db = r.result; const tx = db.transaction('store', 'readwrite'); tx.objectStore('store').put({ orders: [{ orderNo: 'SR26/000777', status: 'offen', sheets: [{}, {}] }] }, 'appData'); tx.oncomplete = () => { db.close(); res(); }; }; r.onerror = rej; });
       await loadBefundeData(true);
       showView('jobs'); openJob(appData.jobs.find(j => j.orderNo === 'SR26/000777').id);
       await new Promise(r => setTimeout(r, 200));
       const box = (document.querySelector('#bf-job .befunde-box') || {}).textContent || '';
-      return [tiles, /\/Befunde\/#auftrag=SR26%2F000777$/.test(url), box.includes('2 Mess-/Befundblätter'), box.includes('Bericht')].join('|');
+      return [tiles, /\/befunde\/#auftrag=SR26%2F000777$/.test(url), box.includes('2 Mess-/Befundblätter'), box.includes('Bericht')].join('|');
     });
-    assert(apps === '2|true|true|true', `App-Wechsel/Befunde ${apps}`, errors);
+    assert(apps === '../|true|true|true', `App-Wechsel/Befunde ${apps}`, errors);
     await page.waitForTimeout(200);
     await page.screenshot({ path: path.join(OUT, `${label}-35-befunde-box.png`), fullPage: true });
     await page.evaluate(async () => {
       await new Promise(r => { const d = indexedDB.deleteDatabase('befunde'); d.onsuccess = d.onerror = d.onblocked = r; });
       befundeCacheAt = 0;
-      openAppSwitcher();
     });
-    await page.waitForTimeout(200);
-    await page.screenshot({ path: path.join(OUT, `${label}-36-app-wechsel.png`) });
-    await page.evaluate(() => closeModal());
 
     await page.evaluate(() => { openRoleChooser(); chooseRole('tech'); });
     await page.waitForTimeout(200);

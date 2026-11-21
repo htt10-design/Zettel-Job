@@ -1,6 +1,12 @@
-# Zettel-Job
+# Service-App
 
-Montage- und Werkstattzettel als offline-fähige Web-App (PWA) fürs Handy.
+Offline-fähige Web-App (PWA) für Servicetechniker – eine Startseite, mehrere Bereiche:
+
+- **Zettel-Job** (`zettel/`): Montage- und Werkstattzettel, Stunden, Aufträge, Einsatzplan, Übergabe
+- **Befunde** (`befunde/`): Mess- und Befundblätter, Ersatzteile, Befundbericht
+- in Planung: Ersatzteile (Teilenummern / Liste scannen), Werkstatthandbücher
+
+## Zettel-Job
 
 - Montagezettel: Auftragsnummer, Kunde, Schiff/Anlage, Zeiten (z.B. `0630`–`0700` RZ), Abwesenheit (≥ 8,25 h / 24 h), Hotel & Frühstück, An-/Rückfahrt, Material, Montage beendet, Unterschrift Kunde & Monteur, Druck/PDF
 - Werkstattzettel: nur Zeiten und ausgeführte Arbeiten

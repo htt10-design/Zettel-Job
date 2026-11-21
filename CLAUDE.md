@@ -1,4 +1,43 @@
-# Zettel-Job
+# Service-App
+
+Eine installierbare, offline-fähige PWA für Servicetechniker (Schiffsmotoren) mit Startseite und
+eigenständigen Bereichen. Kein Server, kein Build-Schritt, keine Abhängigkeiten. UI-Sprache und Kommentare: Deutsch.
+Live: https://htt10-design.github.io/Zettel-Job/ (Repo heißt weiter Zettel-Job; Manifest-`id` bleibt
+`./?app=zettel-job`, damit installierte Zettel-Job-Apps zur Service-App werden).
+
+```
+index.html, start.css, start.js   Startseite: Kacheln je Bereich, „Zu erledigen“, „In Planung“ (Ersatzteile, Handbücher)
+manifest.json, icons/             EIN Manifest/Icon für alles (Shortcuts zu den Bereichen)
+sw.js                             EIN Service Worker für alles (Scope = Wurzel); löscht nur eigene Caches
+zettel/                           Bereich Zettel-Job (Doku unten)
+befunde/                          Bereich Befunde (Doku: befunde/CLAUDE.md) – übernommen aus dem Repo htt10-design/befunde
+tools/                            Tests (start-test, smoke-test, sync-test; tools/befunde/ für Befunde), pocketbase/ (Server-Migrationen beider Bereiche)
+```
+
+- Bereiche sind getrennte Seiten mit eigenem globalem Scope (gleiche Funktionsnamen erlaubt) und eigener IndexedDB
+  (`zettel-job`, `befunde`). Sie verlinken per relativem Pfad (`../`, `../befunde/`) und lesen die Daten des anderen
+  Bereichs nur lesend (gleiche Herkunft). Jeder Bereich hat oben den Knopf `#btn-home` (→ `../`) zur Startseite.
+- Startseite: lädt `zettel/js/02-helpers.js` (nur Funktionen) mit eigener globaler `appData` = Zettel-Job-Daten (nur lesend)
+  für Wochenstunden/Konto/To-dos; liest `befunde` nur lesend; legt nie eine Datenbank an. Theme folgt Zettel-Job.
+- Neuer Bereich = neuer Ordner + Kachel in index.html + Dateien in `sw.js` `APP_SHELL_FILES` + `register('../sw.js')` + `#btn-home`.
+- **Bei jeder Änderung an index.html / start.* / zettel/* / befunde/* `CACHE_VERSION` in `sw.js` (Wurzel) hochzählen**
+  und neue Dateien in `APP_SHELL_FILES` eintragen. Die Bereiche haben keinen eigenen sw.js mehr.
+
+## Prüfen
+
+```
+for f in start.js zettel/js/*.js befunde/js/*.js; do node --check "$f"; done
+node tools/start-test.js          # Startseite: Kacheln, Überblick, Wechsel, keine DB anlegen
+node tools/smoke-test.js          # Zettel-Job
+node tools/sync-test.js           # Zettel-Job-Abgleich (nachgebauter PocketBase)
+node tools/befunde/smoke-test.js  # Befunde (→ .smoke/befunde/)
+node tools/befunde/sync-test.js   # Befunde-Abgleich
+```
+Screenshots landen in `.smoke/` (ignoriert).
+
+---
+
+# Bereich Zettel-Job (`zettel/`)
 
 Offline-fähige Single-Page-PWA für Montage- und Werkstattzettel eines Monteurs:
 Zeiten erfassen (Zeitarten wie AZ/RZ/FZ/LZ, erweiterbar), Auftrag/Kunde/Schiff,
@@ -11,12 +50,10 @@ Farben: Hellblau & Weiß, Hell/Dunkel-Umschaltung.
 ## Aufbau
 
 ```
-index.html        gesamtes Markup (Ansichten, Navigation, Modal, Unterschrift-Overlay, Druckbereich)
-style.css         gesamtes Styling inkl. Dunkelmodus ([data-theme="dark"]) und @media print
-js/NN-*.js        App-Logik, klassische <script>-Dateien (KEINE ES-Module)
-sw.js             Service Worker (App-Shell-Cache, network-first)
-manifest.json, icons/  PWA-Manifest und Icons (icons/icon.svg ist die Vorlage)
-tools/smoke-test.js    Browser-Smoke-Test (Playwright)
+zettel/index.html   gesamtes Markup (Ansichten, Navigation, Modal, Unterschrift-Overlay, Druckbereich)
+zettel/style.css    gesamtes Styling inkl. Dunkelmodus ([data-theme="dark"]) und @media print
+zettel/js/NN-*.js   App-Logik, klassische <script>-Dateien (KEINE ES-Module)
+zettel/icons/       Icon des Bereichs (Favicon/Kachel); Manifest + Service Worker liegen in der Wurzel
 ```
 
 | Datei | Inhalt |
@@ -34,7 +71,7 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
 | 11-home | Startseite Techniker: Wochenleiste (Stunden/Status je Tag, blättern), gewählter Tag mit Zetteln und „Neuer Zettel“, „Zu erledigen“ (fehlende Tage, fehlende Unterschriften, zugeteilte Aufträge), Wochenfortschritt; alte Liste aufklappbar |
 | 12-plan | Einsatzplanung: Wochentafel Monteure × Tage (Büro: einplanen/entfernen, Konflikte, „Noch nicht eingeplant“, Druck), Monteur: „Meine nächsten Einsätze“ + Team-Tafel |
 | 13-demo | Demo-Modus: echte Daten unter `appDataBeforeDemo` sichern, Beispieldaten relativ zu heute (`buildDemoData`), Beenden stellt alles wieder her; gelbes Demo-Banner |
-| 14-apps | App-Umschalter (Symbol oben) zur Schwester-App **Befunde** (`../Befunde/`); liest deren IndexedDB `befunde` nur lesend (`loadBefundeData`) und zeigt im Auftrag/Zettel die Befunde-Box mit Direktlinks `#auftrag=` / `#bericht=` |
+| 14-apps | Verknüpfung zum Bereich **Befunde** (`../befunde/`, `openBefunde`); liest deren IndexedDB `befunde` nur lesend (`loadBefundeData`) und zeigt im Auftrag/Zettel die Befunde-Box mit Direktlinks `#auftrag=` / `#bericht=` |
 | 15-staff | Monteur-Akte (Büro): Eintritt, Telefon, Übertrag, Sollstunden je Monteur (`appData.technicians`), Überstundenkonto ab Eintritt (`staffBalance`), Tag ändern/Überstunden streichen/Tag streichen und Buchungen als `daysOff`-Korrektur `{ by:'office', kind }` |
 | 16-sync | Abgleich mit eigenem PocketBase (Collections `zj_items`/`zj_files`, Einrichtung `tools/pocketbase/`): je Eintrag ein Datensatz (`key` = `sheet:<id>`, `job:`, `handover:`, `tech:`, `off:`, `order:`, `profile:`, `team:settings`), Hash-Vergleich gegen `syncMeta`, neuerer Stand gewinnt, Löschen als `deleted`; pro Gerät bleiben Rolle/Name/Theme |
 | 17-handover | Übergabe eines Auftrags mittendrin (`appData.handovers`): Stand aus Zetteln (`handoverStats`, erledigte Arbeiten aus Zeilen-Beschreibungen `handoverDoneText`) + Befunde-Schnappschuss (`handoverBefundeSnapshot`, nur lesend), offene Arbeiten (Vorschläge aus Ersatzteilen/n.i.O.-Blättern, abhakbar auch nach Unterschrift), Hinweise für den Nachfolger, Unterschriften `hoFrom`/`hoTo` (sperren den Inhalt), Druck; Karte `handoverCardHtml` in Auftrag und Zusammenstellung; Sync-Schlüssel `handover:<id>` |
@@ -112,17 +149,10 @@ tools/smoke-test.js    Browser-Smoke-Test (Playwright)
 
 - Alle Dateien teilen sich den globalen Scope; aus `onclick=""` aufgerufene Funktionen sind global (+ `window.x = x`).
 - Top-Level-Code nur Konstanten/Variablen; Logik ab `DOMContentLoaded`. Kein Name in zwei Dateien deklarieren.
-- Neue Datei in `js/`? → in `index.html` als `<script>` UND in `sw.js` `APP_SHELL_FILES` eintragen.
+- `02-helpers.js` wird auch von der Startseite (`../start.js`) geladen: dort nur Konstanten und Funktionen, kein Code beim Laden,
+  und keine Funktionen aus anderen Dateien in `dayInfo`/`overtimeBalance`-Pfaden ohne `typeof`-Prüfung.
+- Neue Datei in `zettel/js/`? → in `zettel/index.html` als `<script>` UND in `sw.js` (Wurzel) `APP_SHELL_FILES` eintragen.
 - Daten ändern: `appData` mutieren, `saveData()`, dann passende `render*()`.
 - Benutzertext in `innerHTML` immer mit `escapeHtml()`.
 - Datenmodell abwärtskompatibel halten (`normalizeData` ergänzt fehlende Felder), Backups müssen importierbar bleiben.
-- **Bei jeder Änderung an index.html / js / style.css `CACHE_VERSION` in `sw.js` hochzählen.**
-
-## Prüfen
-
-```
-for f in js/*.js; do node --check "$f"; done
-node tools/smoke-test.js        # legt Zettel an, prüft Rechnungen, klickt alles durch, meldet JS-Fehler
-node tools/sync-test.js         # zwei Browser gleichen über einen nachgebauten PocketBase-Server ab
-```
-Screenshots landen in `.smoke/` (ignoriert).
+- **Bei jeder Änderung `CACHE_VERSION` in `sw.js` (Wurzel) hochzählen.**

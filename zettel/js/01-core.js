@@ -235,7 +235,7 @@ async function initApp() {
   if (appData.role === 'office') showView('jobs'); else renderSheetList();
   if (!appData.role) openRoleChooser();
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-    navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW-Registrierung fehlgeschlagen', e));
+    navigator.serviceWorker.register('../sw.js').catch(e => console.warn('SW-Registrierung fehlgeschlagen', e));
   }
 }
 

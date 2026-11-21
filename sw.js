@@ -1,34 +1,57 @@
-// Service Worker für Zettel-Job
+// Service Worker der Service-App (Startseite + alle Bereiche: zettel/, befunde/)
 //
-// WICHTIG: Bei jeder Änderung an index.html / js/*.js / style.css die
-// Versionsnummer hochzählen, sonst bekommen Nutzer die alte Version aus dem Cache.
-const CACHE_VERSION = 'zettel-job-v32';
+// WICHTIG: Bei jeder Änderung an Dateien der App (index.html, start.*, zettel/*, befunde/*)
+// die Versionsnummer hochzählen, sonst bekommen Nutzer die alte Version aus dem Cache.
+// Neue Datei in einem Bereich → hier in APP_SHELL_FILES eintragen.
+const CACHE_VERSION = 'service-app-v33';
 
 const APP_SHELL_FILES = [
   './',
   './index.html',
-  './style.css',
+  './start.css',
+  './start.js',
   './manifest.json',
-  './js/01-core.js',
-  './js/02-helpers.js',
-  './js/03-sheets.js',
-  './js/04-editor.js',
-  './js/05-signature.js',
-  './js/06-print.js',
-  './js/07-hours.js',
-  './js/08-settings.js',
-  './js/09-orders.js',
-  './js/10-jobs.js',
-  './js/11-home.js',
-  './js/12-plan.js',
-  './js/13-demo.js',
-  './js/14-apps.js',
-  './js/15-staff.js',
-  './js/16-sync.js',
-  './js/17-handover.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
-  './icons/icon-maskable-512.png'
+  './icons/icon-maskable-512.png',
+  './zettel/',
+  './zettel/index.html',
+  './zettel/style.css',
+  './zettel/js/01-core.js',
+  './zettel/js/02-helpers.js',
+  './zettel/js/03-sheets.js',
+  './zettel/js/04-editor.js',
+  './zettel/js/05-signature.js',
+  './zettel/js/06-print.js',
+  './zettel/js/07-hours.js',
+  './zettel/js/08-settings.js',
+  './zettel/js/09-orders.js',
+  './zettel/js/10-jobs.js',
+  './zettel/js/11-home.js',
+  './zettel/js/12-plan.js',
+  './zettel/js/13-demo.js',
+  './zettel/js/14-apps.js',
+  './zettel/js/15-staff.js',
+  './zettel/js/16-sync.js',
+  './zettel/js/17-handover.js',
+  './zettel/icons/icon-192.png',
+  './befunde/',
+  './befunde/index.html',
+  './befunde/style.css',
+  './befunde/js/01-core.js',
+  './befunde/js/02-helpers.js',
+  './befunde/js/03-types.js',
+  './befunde/js/04-orders.js',
+  './befunde/js/05-editor.js',
+  './befunde/js/06-special.js',
+  './befunde/js/07-photos.js',
+  './befunde/js/08-signature.js',
+  './befunde/js/09-print.js',
+  './befunde/js/10-settings.js',
+  './befunde/js/11-report.js',
+  './befunde/js/12-sync.js',
+  './befunde/img/sdt-logo.svg',
+  './befunde/icons/icon-192.png'
 ];
 
 // Beim Installieren immer frisch vom Server laden (nicht aus dem HTTP-Cache)
@@ -46,10 +69,12 @@ self.addEventListener('install', (event) => {
   );
 });
 
+// Nur eigene alte Caches löschen (gleiche Herkunft wie andere Apps unter github.io!)
+const OWN_CACHE = k => k.startsWith('service-app-') || k.startsWith('zettel-job-');
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => OWN_CACHE(k) && k !== CACHE_VERSION).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });

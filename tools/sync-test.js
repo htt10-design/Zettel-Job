@@ -104,7 +104,7 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const page = await ctx.newPage();
     page.on('pageerror', e => errors.push(`[${label}] ${e.message}`));
-    await page.goto(base + '/index.html');
+    await page.goto(base + '/zettel/index.html');
     await page.waitForTimeout(600);
     await page.evaluate(([r, n]) => loginAs(r, n), [role, name]);
     // Anmeldung am Server über das Formular in den Einstellungen

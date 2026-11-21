@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1210 406">
+  <rect x="0" y="0" width="1210" height="406" fill="#1f8ed0"/>
+  <g fill="#fff">
+    <!-- S: diagonales Band mit zwei Eckstücken -->
+    <path d="M212 96 L378 202 L378 262 Q378 332 308 332 L198 332 L75 254 L75 166 Q75 96 145 96 Z"/>
+    <path d="M236 96 L357 96 L357 174 Z"/>
+    <path d="M75 278 L75 332 L160 332 Z"/>
+    <!-- Stamm + Bogen D -->
+    <rect x="405" y="96" width="178" height="230"/>
+    <path d="M605 96 L690 96 Q780 102 780 200 L780 222 Q780 320 690 326 L605 326 Z"/>
+    <!-- T -->
+    <path d="M805 90 L1135 90 L1135 168 L1058 112 L1058 320 L885 320 L885 112 L805 172 Z"/>
+  </g>
+</svg>
