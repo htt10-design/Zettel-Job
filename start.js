@@ -6,8 +6,122 @@
 // zettel/js/02-helpers.js (braucht die globale Variable appData).
 // =====================================================================
 
-let appData = null;          // Daten von Zettel-Job (für 02-helpers)
+let appData = null;          // Daten des Stundennachweises (für 02-helpers)
 let installEvent = null;
+let zjRaw = null;            // Zettel-Job-Daten wie gespeichert (für Namen/Monteurliste)
+let bfData = null;
+let whoRole = 'tech';        // im Auswahlfenster gewählte Rolle
+
+// ---------- Wer arbeitet? (gemeinsame Anmeldung) ----------
+// localStorage „serviceApp.identity“ = { role: 'tech'|'office', name, at }. Stundennachweis und Befunde
+// übernehmen sie beim nächsten Öffnen (zettel/js/10-jobs.js applySharedIdentity, befunde/js/01-core.js).
+const IDENTITY_KEY = 'serviceApp.identity';
+
+function readIdentity() {
+  try { return JSON.parse(localStorage.getItem(IDENTITY_KEY) || 'null'); } catch { return null; }
+}
+
+// Aktuell gültige Auswahl: neuere von Startseite und Stundennachweis
+function currentIdentity(zj) {
+  const id = readIdentity();
+  let stamp = 0;
+  try { stamp = Number(localStorage.getItem('serviceApp.applied.zettel')) || 0; } catch { /* egal */ }
+  if (id && (id.role === 'tech' || id.role === 'office') && (!zj || Number(id.at) > stamp)) return { role: id.role, name: id.name || '' };
+  if (zj && zj.role) return { role: zj.role, name: (zj.role === 'office' ? zj.settings.officeName : zj.settings.name) || '' };
+  return id && id.role ? { role: id.role, name: id.name || '' } : null;
+}
+
+// Bekannte Monteure: angelegte + aus Zetteln/Aufträgen
+function knownNames(zj) {
+  const map = new Map();
+  const add = n => { const v = String(n || '').trim(); if (v && !map.has(v.toLowerCase())) map.set(v.toLowerCase(), v); };
+  if (zj) {
+    (zj.technicians || []).forEach(t => add(t.name));
+    (zj.sheets || []).forEach(s => add(s.worker));
+    (zj.jobs || []).forEach(j => { (j.assigned || []).forEach(add); (j.slots || []).forEach(s => add(s.name)); });
+    add(zj.settings && zj.settings.name);
+  }
+  const id = readIdentity();
+  if (id && id.role === 'tech') add(id.name);
+  return Array.from(map.values()).sort((a, b) => a.localeCompare(b, 'de'));
+}
+
+function initialsOf(name) {
+  return String(name || '').trim().split(/\s+/).map(w => w[0] || '').slice(0, 2).join('').toUpperCase() || '?';
+}
+
+function renderWho(id) {
+  document.getElementById('who-avatar').textContent = id && id.name ? initialsOf(id.name) : '?';
+  document.getElementById('who-role').textContent = id ? (id.role === 'office' ? 'Büro / Sachbearbeiter' : 'Monteur') : 'Wer arbeitet?';
+  document.getElementById('who-name').textContent = id ? (id.name || 'ohne Namen') : 'Bitte auswählen';
+  document.getElementById('who').classList.toggle('empty', !id);
+}
+
+function openWho() {
+  const id = currentIdentity(zjRaw);
+  whoRole = id ? id.role : 'tech';
+  renderWhoBody();
+  document.getElementById('who-sheet').classList.add('open');
+}
+
+function closeWho() { document.getElementById('who-sheet').classList.remove('open'); }
+
+function setWhoRole(role) { whoRole = role; renderWhoBody(); }
+
+function renderWhoBody() {
+  document.querySelectorAll('#who-seg button').forEach(b => b.classList.toggle('on', b.dataset.role === whoRole));
+  const id = currentIdentity(zjRaw);
+  const body = document.getElementById('who-body');
+  if (whoRole === 'office') {
+    const name = id && id.role === 'office' ? id.name : (zjRaw && zjRaw.settings.officeName) || '';
+    body.innerHTML = `
+      <label class="field"><span>Dein Name</span>
+        <input type="text" id="who-input" value="${escapeHtml(name)}" placeholder="Vor- und Nachname" autocomplete="name"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();pickWho();}"></label>
+      <p class="muted small">Büro: Aufträge anlegen, Einsätze planen, alle Zettel einsehen.</p>
+      <button type="button" class="btn primary block" onclick="pickWho()">Als Büro anmelden</button>`;
+    return;
+  }
+  const names = knownNames(zjRaw);
+  const cur = id && id.role === 'tech' ? id.name : '';
+  body.innerHTML = `
+    ${names.length ? `<div class="pick">${names.map(n => `
+      <button type="button" class="pick-btn ${cur && cur.toLowerCase() === n.toLowerCase() ? 'current' : ''}" onclick="pickWho(${escapeHtml(JSON.stringify(n))})">
+        <span class="avatar small">${escapeHtml(initialsOf(n))}</span><b>${escapeHtml(n)}</b></button>`).join('')}</div>`
+      : '<p class="muted small">Noch keine Monteure bekannt – Namen eingeben. Das Büro kann Monteure im Stundennachweis unter Einstellungen anlegen.</p>'}
+    <label class="field"><span>${names.length ? 'Oder anderer Name' : 'Dein Name'}</span>
+      <input type="text" id="who-input" placeholder="Vor- und Nachname" autocomplete="name"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();pickWho();}"></label>
+    <button type="button" class="btn primary block" onclick="pickWho()">Als Monteur anmelden</button>`;
+}
+
+function pickWho(picked) {
+  const input = document.getElementById('who-input');
+  const name = String(picked || (input ? input.value : '')).trim();
+  if (!name) { if (input) input.focus(); return; }
+  try { localStorage.setItem(IDENTITY_KEY, JSON.stringify({ role: whoRole, name, at: Date.now() })); }
+  catch { alert('Auswahl konnte nicht gespeichert werden (Speicher gesperrt).'); return; }
+  closeWho();
+  initStart();
+}
+
+// Daten so vorbereiten, als hätte der Stundennachweis die Auswahl schon übernommen (nur im Speicher)
+function applyIdentityInMemory(zj, id) {
+  if (!zj || !id) return;
+  zj.role = id.role;
+  if (id.role === 'office') { zj.settings.officeName = id.name; return; }
+  const old = String(zj.settings.name || '').trim();
+  if (id.name && old.toLowerCase() !== id.name.toLowerCase()) {
+    zj.sheets.forEach(s => { if (!s.worker && old) s.worker = old; });
+    zj.daysOff.forEach(o => { if (!o.worker && old) o.worker = old; });
+    const p = (zj.profiles || {})[id.name.toLowerCase()] || {};
+    const t = (zj.technicians || []).find(x => String(x.name).trim().toLowerCase() === id.name.toLowerCase());
+    zj.settings.startBalance = t && t.startBalance !== undefined && t.startBalance !== '' ? Number(t.startBalance) || 0 : Number(p.startBalance) || 0;
+    if (t && Array.isArray(t.targets)) zj.settings.targets = t.targets.slice();
+    else if (Array.isArray(p.targets) && p.targets.length === 7) zj.settings.targets = p.targets.slice();
+  }
+  zj.settings.name = id.name;
+}
 
 function readDb(name, store, key) {
   return new Promise(resolve => {
@@ -62,18 +176,22 @@ function renderStart(zj, bf) {
   const todos = [];
   const zStats = [];
 
+  const ident = currentIdentity(zjRaw);
+  renderWho(ident);
+  const hour = d.getHours();
+  const greet = hour < 11 ? 'Moin' : hour < 18 ? 'Hallo' : 'Guten Abend';
+  document.getElementById('hello-title').textContent = ident && ident.name ? `${greet}, ${String(ident.name).split(' ')[0]}!` : `${greet}!`;
+  if (zj && ident) applyIdentityInMemory(zj, ident);
+
   if (zj) {
     appData = zj;
     const office = zj.role === 'office';
     const name = office ? zj.settings.officeName : zj.settings.name;
-    const hour = d.getHours();
-    const greet = hour < 11 ? 'Moin' : hour < 18 ? 'Hallo' : 'Guten Abend';
-    document.getElementById('hello-title').textContent = name ? `${greet}, ${String(name).split(' ')[0]}!` : `${greet}!`;
     if (office) {
       const open = zj.jobs.filter(j => j.status !== 'erledigt');
       zStats.push(chip(open.length + ' offene Aufträge'));
       const unassigned = open.filter(j => !(j.assigned || []).length && !(j.slots || []).length);
-      if (unassigned.length) todos.push(todoRow('zettel/', unassigned.length + (unassigned.length === 1 ? ' Auftrag' : ' Aufträge') + ' ohne Monteur', 'Zettel-Job · Aufträge zuteilen'));
+      if (unassigned.length) todos.push(todoRow('zettel/', unassigned.length + (unassigned.length === 1 ? ' Auftrag' : ' Aufträge') + ' ohne Monteur', 'Stundennachweis · Aufträge zuteilen'));
     } else {
       const mon = weekStartISO(today);
       let week = 0;
@@ -82,11 +200,11 @@ function renderStart(zj, bf) {
       zStats.push(chip('Konto ' + formatHours(overtimeBalance(today), true), 'acc'));
       const todayInfo = dayInfo(today);
       if (!todayInfo.sources.length && !todayInfo.offs.length && baseTargetMinutes(today) > 0)
-        todos.push(todoRow('zettel/', 'Heute noch kein Zettel', 'Zettel-Job'));
+        todos.push(todoRow('zettel/', 'Heute noch kein Zettel', 'Stundennachweis'));
       const from = addDaysISO(today, -60);
       const unsigned = zj.sheets.filter(s => s.type === 'montage' && isOwnSheet(s) && !(s.signCustomer && s.signCustomer.img)
         && sheetWorkedMinutes(s) > 0 && (sheetFirstDate(s) || '') >= from).length;
-      if (unsigned) todos.push(todoRow('zettel/', unsigned + (unsigned === 1 ? ' Zettel' : ' Zettel') + ' ohne Kundenunterschrift', 'Zettel-Job · letzte 60 Tage', 'warn'));
+      if (unsigned) todos.push(todoRow('zettel/', unsigned + (unsigned === 1 ? ' Zettel' : ' Zettel') + ' ohne Kundenunterschrift', 'Stundennachweis · letzte 60 Tage', 'warn'));
       const me = String(name || '').trim().toLowerCase();
       const mine = me ? zj.jobs.filter(j => j.status !== 'erledigt' && (j.assigned || []).some(n => String(n).trim().toLowerCase() === me)) : [];
       if (mine.length) todos.push(todoRow('zettel/', mine.length + (mine.length === 1 ? ' Auftrag' : ' Aufträge') + ' dir zugeteilt', mine.slice(0, 3).map(j => j.orderNo || j.vessel || j.customer).filter(Boolean).join(', ')));
@@ -116,8 +234,10 @@ function renderStart(zj, bf) {
 }
 
 async function initStart() {
-  const zj = prepareZettel(await readDb('zettel-job', 'store', 'appData'));
-  const bf = await readDb('befunde', 'store', 'appData');
+  const raw = await readDb('zettel-job', 'store', 'appData');
+  zjRaw = prepareZettel(raw ? JSON.parse(JSON.stringify(raw)) : null);
+  const zj = prepareZettel(raw);
+  const bf = bfData = await readDb('befunde', 'store', 'appData');
   applyTheme(zj && zj.settings.theme);
   try { renderStart(zj, bf); }
   catch (e) { console.warn('Überblick nicht berechenbar', e); renderStart(null, bf); }
@@ -144,4 +264,4 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 // Beim Zurückkommen aus einem Bereich (bfcache) neu einlesen
 window.addEventListener('pageshow', e => { if (e.persisted) initStart(); });
-window.installApp = installApp;
+Object.assign(window, { installApp, openWho, closeWho, setWhoRole, pickWho });

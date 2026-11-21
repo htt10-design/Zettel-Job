@@ -148,7 +148,7 @@ function renderSettings() {
       <button class="btn btn-danger-ghost" onclick="resetAll()">Alle Daten löschen</button>
     </div>
 
-    <p class="version muted small-text">Zettel-Job · offline-fähig</p>`;
+    <p class="version muted small-text">Stundennachweis · Service-App · offline-fähig</p>`;
 }
 
 function setSetting(key, value) {
@@ -302,7 +302,7 @@ function importBackup(input) {
     let data;
     try { data = JSON.parse(reader.result); }
     catch { showToast('Datei ist kein gültiges Backup'); return; }
-    if (!data || !Array.isArray(data.sheets)) { showToast('Datei ist kein Zettel-Job-Backup'); return; }
+    if (!data || !Array.isArray(data.sheets)) { showToast('Datei ist kein Stundennachweis-Backup'); return; }
     const ok = await confirmDialog(`Backup mit ${data.sheets.length} Zettel(n) laden? Die aktuellen Daten auf diesem Gerät werden ersetzt.`, 'Laden', true);
     if (!ok) return;
     const files = data.files || {};

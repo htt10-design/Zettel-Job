@@ -385,7 +385,7 @@ function buildHandoverPrintHtml(ho) {
         <div class="pr-sign"><div class="pr-sign-img">${sig(ho.signFrom)}</div><div class="pr-sign-line">Übergeben: ${escapeHtml(ho.from || '')} ${meta(ho.signFrom) ? '· ' + meta(ho.signFrom) : ''}</div></div>
         <div class="pr-sign"><div class="pr-sign-img">${sig(ho.signTo)}</div><div class="pr-sign-line">Übernommen: ${escapeHtml(ho.to || '')} ${meta(ho.signTo) ? '· ' + meta(ho.signTo) : ''}</div></div>
       </div>
-      <div class="pr-foot">Erstellt mit Zettel-Job · ${escapeHtml(new Date().toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }))}</div>
+      <div class="pr-foot">Erstellt mit der Service-App · ${escapeHtml(new Date().toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }))}</div>
     </div>`;
 }
 

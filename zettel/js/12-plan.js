@@ -348,7 +348,7 @@ function buildPlanPrintHtml() {
           return `<td>${escapeHtml(parts.join('\n'))}</td>`;
         }).join('')}</tr>`).join('')}</tbody>
       </table>
-      <div class="pr-foot">Erstellt mit Zettel-Job · ${escapeHtml(new Date().toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }))}</div>
+      <div class="pr-foot">Erstellt mit der Service-App · ${escapeHtml(new Date().toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }))}</div>
     </div>`;
 }
 

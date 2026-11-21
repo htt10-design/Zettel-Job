@@ -76,7 +76,7 @@ function renderSettings() {
       <h3 class="card-title">Ausprobieren</h3>
       <button class="btn btn-ghost" onclick="createDemoOrder()">Beispielauftrag anlegen</button>
     </div>
-    <p class="muted small-text version">Befunde ${APP_VERSION} · im Design von Zettel-Job</p>`;
+    <p class="muted small-text version">Befunde ${APP_VERSION} · Service-App</p>`;
   bindForm(body, () => appData.settings, () => saveData());
   offerZettelJobLogin();
 }

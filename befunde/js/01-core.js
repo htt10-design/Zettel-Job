@@ -152,6 +152,7 @@ function flushSave() {
 // ---------- Start ----------
 async function initApp() {
   appData = await loadData();
+  applySharedIdentity();
   applyTheme();
   requestPersistentStorage();
   showView('orders');
@@ -161,6 +162,22 @@ async function initApp() {
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('../sw.js').catch(e => console.warn('SW-Registrierung fehlgeschlagen', e));
   }
+}
+
+// Auswahl „wer arbeitet“ von der Service-App-Startseite (localStorage „serviceApp.identity“):
+// Monteur → als Prüfer eintragen, wenn neuer als zuletzt übernommen. Büro ändert hier nichts.
+function applySharedIdentity() {
+  try {
+    const id = JSON.parse(localStorage.getItem('serviceApp.identity') || 'null');
+    const stamp = Number(localStorage.getItem('serviceApp.applied.befunde')) || 0;
+    if (!id || !(Number(id.at) > stamp)) return;
+    localStorage.setItem('serviceApp.applied.befunde', String(id.at));
+    const name = String(id.name || '').trim();
+    if (id.role === 'tech' && name && name !== appData.settings.name) {
+      appData.settings.name = name;
+      saveData(true);
+    }
+  } catch { /* ohne Speicher: nichts übernehmen */ }
 }
 
 document.addEventListener('DOMContentLoaded', initApp);

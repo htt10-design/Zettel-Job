@@ -383,7 +383,7 @@ function syncCardHtml() {
         </div>
         <p class="muted small-text">Aufträge, alle Blätter, Fotos und gemerkte Sollwerte werden automatisch abgeglichen – das Büro sieht Berichte sofort. Prüfername und eigene Unterschrift bleiben pro Gerät. Beispielaufträge bleiben lokal.</p>`
       : `
-        <p class="muted small-text">Derselbe Server und dieselbe Anmeldung wie in Zettel-Job: Handy, Tablet und Büro-PC haben denselben Stand.</p>
+        <p class="muted small-text">Derselbe Server und dieselbe Anmeldung wie im Stundennachweis: Handy, Tablet und Büro-PC haben denselben Stand.</p>
         ${c.lastError ? `<p class="sync-err">${escapeHtml(c.lastError)}</p>` : ''}
         <div id="zj-login-offer"></div>
         <label class="field"><span>Server-Adresse</span><input type="url" id="sync-url" value="${escapeHtml(c.url || SYNC_DEFAULT_URL)}" autocomplete="off"></label>
@@ -393,7 +393,7 @@ function syncCardHtml() {
             onkeydown="if(event.key==='Enter'){event.preventDefault();syncLoginFromForm();}"></label>
         </div>
         <button class="btn btn-primary" onclick="syncLoginFromForm()">Anmelden &amp; abgleichen</button>
-        <p class="muted small-text">Benutzer wie in Zettel-Job (PocketBase-Admin → „users“). Das Gerät braucht die Tailscale-App.</p>`}
+        <p class="muted small-text">Benutzer wie im Stundennachweis (PocketBase-Admin → „users“). Das Gerät braucht die Tailscale-App.</p>`}
     </div>`;
 }
 
@@ -406,7 +406,7 @@ async function offerZettelJobLogin() {
   window.__zjLogin = zj;
   box.innerHTML = `
     <button class="menu-row zj-login" onclick="syncUseZettelJobLogin()">
-      <span><b>Anmeldung von Zettel-Job übernehmen</b><small>${escapeHtml(zj.email || '')} · ${escapeHtml(zj.url)}</small></span>
+      <span><b>Anmeldung vom Stundennachweis übernehmen</b><small>${escapeHtml(zj.email || '')} · ${escapeHtml(zj.url)}</small></span>
       <span class="chip mini">verbinden</span>
     </button>`;
 }

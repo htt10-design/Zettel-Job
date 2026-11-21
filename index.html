@@ -28,11 +28,17 @@
       <p class="muted" id="hello-date"></p>
     </section>
 
+    <button class="who" id="who" onclick="openWho()" type="button">
+      <span class="avatar" id="who-avatar">?</span>
+      <span class="who-text"><small id="who-role">Wer arbeitet?</small><b id="who-name">Bitte auswählen</b></span>
+      <span class="who-change">Wechseln</span>
+    </button>
+
     <section class="tiles">
       <a class="tile" id="tile-zettel" href="zettel/">
         <span class="tile-icon"><svg viewBox="0 0 24 24"><path d="M7 3h7l5 5v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg></span>
         <span class="tile-body">
-          <b>Zettel-Job</b>
+          <b>Stundennachweis</b>
           <small>Montage- &amp; Werkstattzettel, Stunden, Aufträge, Einsatzplan</small>
           <span class="tile-stats" id="stats-zettel"></span>
         </span>
@@ -73,7 +79,20 @@
     <p class="foot muted">Alle Daten bleiben auf diesem Gerät. Abgleich mit dem Server: in den Einstellungen des jeweiligen Bereichs.</p>
   </main>
 
-  <!-- Rechenfunktionen von Zettel-Job (nur Funktionen, keine Startlogik) -->
+  <!-- Auswahl: wer arbeitet -->
+  <div class="sheet-backdrop" id="who-sheet" onclick="if(event.target===this)closeWho()">
+    <div class="sheet" role="dialog" aria-labelledby="who-title">
+      <h2 id="who-title">Wer arbeitet?</h2>
+      <div class="seg" id="who-seg">
+        <button type="button" data-role="tech" onclick="setWhoRole('tech')">Monteur</button>
+        <button type="button" data-role="office" onclick="setWhoRole('office')">Büro</button>
+      </div>
+      <div id="who-body"></div>
+      <div class="sheet-actions"><button type="button" class="btn ghost" onclick="closeWho()">Abbrechen</button></div>
+    </div>
+  </div>
+
+  <!-- Rechenfunktionen des Stundennachweises (nur Funktionen, keine Startlogik) -->
   <script src="zettel/js/02-helpers.js"></script>
   <script src="start.js"></script>
 </body>

@@ -26,6 +26,46 @@ function currentUserName() {
   return isOffice() ? (appData.settings.officeName || '') : (appData.settings.name || '');
 }
 
+// ---------- Gemeinsame Anmeldung der Service-App ----------
+// Die Startseite (../start.js) legt fest, wer arbeitet: localStorage „serviceApp.identity“ = { role, name, at }.
+// Ist sie neuer als das, was der Stundennachweis zuletzt übernommen hat, wird sie beim Start angewendet
+// (wie loginAs, inkl. Profilwechsel). Umgekehrt meldet loginAs eine Änderung an die Startseite.
+const IDENTITY_KEY = 'serviceApp.identity';
+const IDENTITY_STAMP = 'serviceApp.applied.zettel';
+
+function readSharedIdentity() {
+  try { return JSON.parse(localStorage.getItem(IDENTITY_KEY) || 'null'); } catch { return null; }
+}
+
+function publishIdentity(role, name) {
+  if (isDemo()) return;
+  const at = Date.now();
+  try {
+    localStorage.setItem(IDENTITY_KEY, JSON.stringify({ role, name: name || '', at }));
+    localStorage.setItem(IDENTITY_STAMP, String(at));
+  } catch { /* ohne Speicher: nur lokal */ }
+}
+
+// Beim Start: Auswahl der Startseite übernehmen → true, wenn sich etwas geändert hat
+function applySharedIdentity() {
+  const id = readSharedIdentity();
+  if (!id || (id.role !== 'tech' && id.role !== 'office') || isDemo()) return false;
+  let stamp = 0;
+  try { stamp = Number(localStorage.getItem(IDENTITY_STAMP)) || 0; } catch { return false; }
+  if (!(Number(id.at) > stamp)) return false;
+  try { localStorage.setItem(IDENTITY_STAMP, String(id.at)); } catch { /* egal */ }
+  const name = String(id.name || '').trim();
+  const before = appData.role + '|' + currentUserName();
+  appData.role = id.role;
+  if (name) {
+    if (id.role === 'office') appData.settings.officeName = name;
+    else switchTechnician(name);
+  }
+  if (before === appData.role + '|' + currentUserName()) return false;
+  saveData(true);
+  return true;
+}
+
 // ---------- Rolle / Anmeldung ----------
 function applyRole() {
   const role = appData.role || 'tech';
@@ -42,7 +82,7 @@ function applyRole() {
 function openRoleChooser() {
   const first = !appData.role;
   openModal(`
-    <h2 class="modal-title">${first ? 'Willkommen bei Zettel-Job' : 'Rolle wechseln'}</h2>
+    <h2 class="modal-title">${first ? 'Willkommen im Stundennachweis' : 'Rolle wechseln'}</h2>
     <p class="modal-text muted">Als was möchtest du dich anmelden?</p>
     <div class="type-choice">
       <button class="type-btn ${appData.role === 'tech' ? 'current' : ''}" onclick="chooseRole('tech')">
@@ -149,6 +189,7 @@ function loginAs(role, pickedName) {
     else switchTechnician(name);
   }
   saveData(true);
+  publishIdentity(role, currentUserName());
   applyRole();
   closeModal();
   if (typeof homeSelected !== 'undefined') { homeSelected = null; homeWeekStart = null; }

@@ -189,7 +189,7 @@ function buildPrintDoc(doc) {
         <div class="pr-sign"><div class="pr-sign-img">${sigImg(doc.signCustomer)}</div><div class="pr-sign-line">Unterschrift Kunde ${sigMeta(doc.signCustomer) ? '· ' + sigMeta(doc.signCustomer) : ''}</div></div>
       </div>` : (notes.length ? `<table class="pr-info"><tr><th>Bemerkung</th><td class="pre">${escapeHtml(notes.join('\n'))}</td></tr></table>` : '')}
 
-      <div class="pr-foot">Erstellt mit Zettel-Job · ${escapeHtml(new Date().toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }))}</div>
+      <div class="pr-foot">Erstellt mit der Service-App · ${escapeHtml(new Date().toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }))}</div>
     </div>`;
 }
 

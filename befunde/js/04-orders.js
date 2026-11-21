@@ -123,7 +123,7 @@ async function openNewOrderModal() {
   if (box && jobs && jobs.length) {
     window.__zjJobs = jobs;
     box.innerHTML = `
-      <div class="modal-sub">Aus Zettel-Job übernehmen</div>
+      <div class="modal-sub">Aus dem Stundennachweis übernehmen</div>
       <div class="menu-rows zj-list">${jobs.slice(0, 12).map((j, i) => `
         <button class="menu-row" onclick="createOrderFromZJ(${i})">
           <span><b>${escapeHtml(j.orderNo || '–')}</b><small>${escapeHtml([j.customer, j.vessel].filter(Boolean).join(' · '))}</small></span>
@@ -177,7 +177,7 @@ function createOrderFromZJ(i) {
   });
   closeModal();
   openOrder(order.id);
-  showToast('Aus Zettel-Job übernommen');
+  showToast('Aus dem Stundennachweis übernommen');
 }
 
 // "16V 4000 M63" → V, 16 Zyl. · "12V2000" → V, 12 · "R6"/"6R" → Reihe

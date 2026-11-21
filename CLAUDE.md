@@ -19,6 +19,12 @@ tools/                            Tests (start-test, smoke-test, sync-test; tool
   Bereichs nur lesend (gleiche Herkunft). Jeder Bereich hat oben den Knopf `#btn-home` (→ `../`) zur Startseite.
 - Startseite: lädt `zettel/js/02-helpers.js` (nur Funktionen) mit eigener globaler `appData` = Zettel-Job-Daten (nur lesend)
   für Wochenstunden/Konto/To-dos; liest `befunde` nur lesend; legt nie eine Datenbank an. Theme folgt Zettel-Job.
+- Sichtbarer Name des Bereichs `zettel/` ist **„Stundennachweis“** (Code, Ordner, DB-Name `zettel-job` bleiben).
+- **Wer arbeitet?** (Startseite, `openWho`/`pickWho`): `localStorage['serviceApp.identity'] = { role: 'tech'|'office', name, at }`.
+  Bereiche übernehmen sie beim Start, wenn `at` neuer ist als ihr Stempel `serviceApp.applied.<bereich>`:
+  Stundennachweis `applySharedIdentity` (10-jobs, wie `loginAs` inkl. `switchTechnician`/Profilwechsel; `loginAs` meldet per
+  `publishIdentity` zurück), Befunde setzt bei Monteur `settings.name` (Prüfer). Die Startseite rechnet bis dahin mit
+  `applyIdentityInMemory` (nur im Speicher). Monteurliste = angelegte Monteure + Namen aus Zetteln/Aufträgen.
 - Neuer Bereich = neuer Ordner + Kachel in index.html + Dateien in `sw.js` `APP_SHELL_FILES` + `register('../sw.js')` + `#btn-home`.
 - **Bei jeder Änderung an index.html / start.* / zettel/* / befunde/* `CACHE_VERSION` in `sw.js` (Wurzel) hochzählen**
   und neue Dateien in `APP_SHELL_FILES` eintragen. Die Bereiche haben keinen eigenen sw.js mehr.

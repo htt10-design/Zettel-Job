@@ -227,6 +227,7 @@ function flushSave() {
 // ---------- Start ----------
 async function initApp() {
   appData = await loadData();
+  const switched = applySharedIdentity(); // Auswahl von der Service-App-Startseite
   applyTheme();
   applyRole();
   renderDemoBanner();
@@ -234,6 +235,7 @@ async function initApp() {
   initSync();
   if (appData.role === 'office') showView('jobs'); else renderSheetList();
   if (!appData.role) openRoleChooser();
+  else if (switched) showToast(`Angemeldet als ${isOffice() ? 'Büro' : 'Monteur'}${currentUserName() ? ' – ' + currentUserName() : ''}`);
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('../sw.js').catch(e => console.warn('SW-Registrierung fehlgeschlagen', e));
   }
@@ -251,7 +253,7 @@ window.addEventListener('beforeinstallprompt', e => {
 });
 window.addEventListener('appinstalled', () => {
   installPromptEvent = null;
-  showToast('Zettel-Job wurde installiert');
+  showToast('Service-App wurde installiert');
   if (appData && currentView === 'settings') renderSettings();
 });
 
@@ -295,7 +297,7 @@ function showView(name) {
   document.getElementById('btn-sheet-menu').hidden = !inEditor;
   document.getElementById('bottom-nav').classList.toggle('hidden', inSub);
   document.body.classList.toggle('in-editor', inSub);
-  if (!inSub) setTopbarTitle('Zettel-Job');
+  if (!inSub) setTopbarTitle('Stundennachweis');
 
   if (name === 'sheets') renderSheetList();
   if (name === 'hours') renderHours();

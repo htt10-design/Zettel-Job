@@ -1,5 +1,5 @@
 {
-  "name": "Service-App – Zettel, Befunde & mehr",
+  "name": "Service-App – Stundennachweis, Befunde & mehr",
   "short_name": "Service-App",
   "description": "Die App für Servicetechniker: Montage- und Werkstattzettel, Stunden, Aufträge, Mess- und Befundblätter – offline auf dem Handy",
   "id": "./?app=zettel-job",
@@ -11,7 +11,7 @@
   "theme_color": "#3aa8e6",
   "lang": "de",
   "shortcuts": [
-    { "name": "Zettel-Job", "url": "./zettel/index.html?source=pwa", "icons": [{ "src": "zettel/icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Stundennachweis", "url": "./zettel/index.html?source=pwa", "icons": [{ "src": "zettel/icons/icon-192.png", "sizes": "192x192" }] },
     { "name": "Befunde", "url": "./befunde/index.html?source=pwa", "icons": [{ "src": "befunde/icons/icon-192.png", "sizes": "192x192" }] }
   ],
   "icons": [

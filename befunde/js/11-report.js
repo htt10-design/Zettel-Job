@@ -371,7 +371,7 @@ function openReportViewMenu() {
       <button onclick="copyReportLink()">🔗 Link zu diesem Bericht kopieren</button>
       <button onclick="openReportDialog()">✏️ Fazit / Empfehlung bearbeiten</button>
     </div>
-    <p class="muted small-text">Der Link öffnet den Bericht direkt – auf jedem Gerät, auf dem dieser Auftrag gespeichert ist (z.B. später aus Zettel-Job heraus).</p>
+    <p class="muted small-text">Der Link öffnet den Bericht direkt – auf jedem Gerät, auf dem dieser Auftrag gespeichert ist (z.B. aus dem Stundennachweis heraus).</p>
     <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Schließen</button></div>`);
 }
 
