@@ -73,20 +73,24 @@ function ownSheetsOn(iso) {
 }
 
 // Status eines Tages für die Wochenleiste
-// ok = Zettel mit Zeiten · draft = Zettel ohne Zeiten · off = frei/Urlaub/krank/Feiertag
-// missing = Arbeitstag in der Vergangenheit ohne Zettel · '' = nichts
+// ok = Zettel mit Zeiten · draft = Zettel ohne Zeiten · vac = genehmigter Urlaub · vacreq = Urlaub beantragt
+// off = frei/krank/Feiertag · missing = Arbeitstag in der Vergangenheit ohne Zettel · '' = nichts
 function dayStatus(iso) {
   const sheets = ownSheetsOn(iso);
   const offs = daysOffFor(iso).filter(o => o.type !== 'korrektur');
   const worked = dayInfo(iso).worked;
   if (worked > 0) return 'ok';
   if (sheets.length) return 'draft';
+  if (offs.some(o => o.type === 'urlaub')) return 'vac';
   if (offs.length) return 'off';
+  const me = appData.settings.name;
+  if (me && (appData.leaveRequests || []).some(r => r.status === 'pending' && nameEq(r.worker, me) && r.from <= iso && (r.to || r.from) >= iso)
+    && baseTargetMinutes(iso) > 0) return 'vacreq';
   if (baseTargetMinutes(iso) > 0 && iso < todayISO()) return 'missing';
   return '';
 }
 
-const STATUS_MARK = { ok: '✓', draft: '…', off: '–', missing: '!' };
+const STATUS_MARK = { ok: '✓', draft: '…', off: '–', missing: '!', vac: 'U', vacreq: 'U?' };
 
 function homeShiftWeek(n) {
   homeWeekStart = addDaysISO(homeWeekStart || weekStartISO(todayISO()), n * 7);
@@ -262,7 +266,7 @@ function renderTechHome() {
           <button type="button" class="${monthMode ? '' : 'on'}" onclick="setHomeCalMode('week')">Woche</button>
           <button type="button" class="${monthMode ? 'on' : ''}" onclick="setHomeCalMode('month')">Monat</button>
         </div>
-        <span class="cal-legend"><i class="lg-ok"></i>Zettel <i class="lg-missing"></i>fehlt <i class="lg-off"></i>frei</span>
+        <span class="cal-legend"><i class="lg-ok"></i>Zettel <i class="lg-missing"></i>fehlt <i class="lg-vac"></i>Urlaub <i class="lg-off"></i>frei</span>
       </div>
       <div class="wk-nav">
         <button class="icon-btn small" onclick="${monthMode ? 'homeShiftMonth(-1)' : 'homeShiftWeek(-1)'}" aria-label="Zurück"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
