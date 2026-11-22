@@ -150,6 +150,15 @@ async function refreshHandover() {
   showToast(hoWithBefunde(ho) ? 'Aus Zetteln und Befunden aktualisiert' : 'Aus den Zetteln aktualisiert');
 }
 
+// Schalter „Bisherige Stunden und Tage anzeigen“ (Ansicht und Ausdruck)
+function toggleHandoverHours() {
+  const ho = getActiveHandover();
+  if (!handoverEditable(ho)) return;
+  ho.withHours = !ho.withHours;
+  touchHandover(ho);
+  renderHandover();
+}
+
 // Befunde-Stand holen und Vorschläge als offene Arbeiten ergänzen
 async function loadHandoverBefunde(ho) {
   ho.befunde = handoverBefundeSnapshot(ho.orderNo, await loadBefundeData(true));
@@ -264,7 +273,7 @@ function renderHandover() {
           <div class="oh-title">Auftrag ${escapeHtml(ho.orderNo)}</div>
           <div class="muted">${escapeHtml([st.vessel, st.customer].filter(Boolean).join(' · ') || 'ohne Kunde')}</div>
         </div>
-        <div class="oh-range"><b>${formatHours(st.worked || 0)}</b><small>${escapeHtml(st.days ? 'bisher · ' + st.days + ' Tag' + (st.days > 1 ? 'e' : '') : 'noch keine Zettel')}</small></div>
+        ${ho.withHours ? `<div class="oh-range"><b>${formatHours(st.worked || 0)}</b><small>${escapeHtml(st.days ? 'bisher · ' + st.days + ' Tag' + (st.days > 1 ? 'e' : '') : 'noch keine Zettel')}</small></div>` : ''}
       </div>
       ${engines.length ? `<div class="engine-facts">${engines.map((e, i) => `
         <div class="engine-fact"><b>${escapeHtml(e.label || (engines.length > 1 ? 'Motor ' + (i + 1) : 'Motor'))}</b>
@@ -279,6 +288,7 @@ function renderHandover() {
         <label class="field"><span>Datum</span><input type="date" data-hb="date" value="${escapeHtml(ho.date)}"${ro}></label>
         <label class="field"><span>Grund (optional)</span><input type="text" data-hb="reason" value="${escapeHtml(ho.reason)}" placeholder="z.B. Urlaub, anderer Einsatz" autocomplete="off"${ro}></label>
       </div>
+      ${edit ? `<label class="switch-row ho-switch"><input type="checkbox" class="switch" ${ho.withHours ? 'checked' : ''} onchange="toggleHandoverHours()"><span>Bisherige Stunden und Tage anzeigen${ho.withHours ? ` <small class="muted">(${formatHours(st.worked || 0)} · ${st.days || 0} Tag${st.days === 1 ? '' : 'e'})</small>` : ''}</span></label>` : ''}
     </div>
 
     <div class="card">
@@ -359,7 +369,7 @@ function buildHandoverPrintHtml(ho) {
     <div class="pr-page">
       <div class="pr-head">
         <div><div class="pr-title">Übergabe</div><div class="pr-sub">Auftrag ${escapeHtml(ho.orderNo)} · ${escapeHtml(formatDate(ho.date))}</div></div>
-        <div class="pr-worker"><span>Stunden bisher</span><strong>${formatHours(st.worked || 0)}</strong></div>
+        ${ho.withHours ? `<div class="pr-worker"><span>Bisher</span><strong>${formatHours(st.worked || 0)}${st.days ? ' · ' + st.days + ' Tag' + (st.days > 1 ? 'e' : '') : ''}</strong></div>` : ''}
       </div>
       <table class="pr-info">
         <tr><th>Auftragsnummer</th><td>${escapeHtml(ho.orderNo)}</td><th>Auftraggeber / Kunde</th><td>${escapeHtml(st.customer || '–')}</td></tr>
@@ -393,11 +403,10 @@ function buildHandoverPrintHtml(ho) {
         <tr><th>Werkzeug &amp; Teile</th><td>${escapeHtml(ho.location || '–')}</td></tr>
       </table>
 
-      <div class="pr-signs">
-        <div class="pr-sign"><div class="pr-sign-img">${sig(ho.signFrom)}</div><div class="pr-sign-line">Übergeben ${meta(ho.signFrom) ? '· ' + meta(ho.signFrom) : ''}</div></div>
-        <div class="pr-sign"><div class="pr-sign-img">${sig(ho.signTo)}</div><div class="pr-sign-line">Übernommen ${meta(ho.signTo) ? '· ' + meta(ho.signTo) : ''}</div></div>
-      </div>
-      <div class="pr-foot">Erstellt mit der Service-App · ${escapeHtml(new Date().toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }))}</div>
+      ${[['Übergeben', ho.signFrom], ['Übernommen', ho.signTo]].some(x => x[1] && x[1].img) ? `<div class="pr-signs">
+        ${[['Übergeben', ho.signFrom], ['Übernommen', ho.signTo]].filter(x => x[1] && x[1].img).map(([label, s]) => `
+        <div class="pr-sign"><div class="pr-sign-img">${sig(s)}</div><div class="pr-sign-line">${label} ${meta(s) ? '· ' + meta(s) : ''}</div></div>`).join('')}
+      </div>` : ''}
     </div>`;
 }
 
@@ -425,3 +434,4 @@ window.toggleHandoverTask = toggleHandoverTask;
 window.printHandover = printHandover;
 window.renderHandover = renderHandover;
 window.toggleHandoverBefunde = toggleHandoverBefunde;
+window.toggleHandoverHours = toggleHandoverHours;

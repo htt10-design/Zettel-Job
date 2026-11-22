@@ -752,10 +752,18 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
       toggleHandoverTask(1); // abhaken geht auch nach Unterschrift
       const pr = buildHandoverPrintHtml(ho);
       const prOk = pr.includes('☑') && pr.includes('Laufbuchse') && pr.includes('n.i.O.') && pr.includes('Kopf liegt auf der Werkbank') && !pr.includes('Monteure bisher');
+      // Stunden nur auf Wunsch, Unterschriften nur wenn genutzt, kein „Erstellt mit“
+      const hoursOff = !pr.includes('8,50 h') && !document.querySelector('#handover-body .oh-range');
+      const signs = (pr.match(/class="pr-sign"/g) || []).length + ',' + pr.includes('Übernommen') + ',' + pr.includes('Erstellt mit');
+      ho.signFrom = null; afterSignChange('hoFrom');
+      toggleHandoverHours();
+      const hoursOn = buildHandoverPrintHtml(ho).includes('8,50 h · 1 Tag') && !!document.querySelector('#handover-body .oh-range');
+      const noSigns = !buildHandoverPrintHtml(ho).includes('pr-signs');
+      const hoursCheck = [hoursOff, signs, hoursOn, noSigns].join(',');
       const syncKey = localSyncItems().has('handover:' + ho.id);
       closeHandover();
       const back = currentView + '|' + document.querySelectorAll('#job-body [onclick^="openHandover"]').length;
-      return [card, view, before, ho.done, ho.stats.worked, ho.befunde.sheets.length, ho.open.map(t => (t.done ? 'x' : '-') + t.text).join(' ; '), ui, offState, locked, prOk, syncKey, back].join('|');
+      return [hoursCheck, card, view, before, ho.done, ho.stats.worked, ho.befunde.sheets.length, ho.open.map(t => (t.done ? 'x' : '-') + t.text).join(' ; '), ui, offState, locked, prOk, syncKey, back].join('|');
     });
     await page.screenshot({ path: path.join(OUT, `${label}-30-auftrag-mit-uebergabe.png`), fullPage: true });
     await page.evaluate(() => { openHandover(appData.handovers[0].id, 'job'); });
@@ -765,7 +773,7 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
       showView('sheets');
       return new Promise(res => { const r = indexedDB.deleteDatabase('befunde'); r.onsuccess = r.onerror = r.onblocked = () => res(); });
     });
-    assert(handover === 'true|handover|true,0,0,false|Zylinderkopf 3 demontiert\nLaufbuchse vermessen|510|2|'
+    assert(handover === 'true,1,false,false,true,true|true|handover|true,0,0,false|Zylinderkopf 3 demontiert\nLaufbuchse vermessen|510|2|'
       + 'xErsatzteil bestellen: Laufbuchse – Zyl. 3 ; xZylinderkopf 3 montieren ; -n.i.O. Laufbuchse: Buchse tauschen|2/2|true,2,false|true|true|true|job|1', `Übergabe ${handover}`, errors);
 
     // Urlaub: Monteur beantragt, Büro genehmigt / lehnt ab / storniert, Anspruch anpassen
