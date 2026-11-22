@@ -731,6 +731,9 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
       await createHandover('SR26/000970', 'job');
       const ho = getActiveHandover();
       const view = currentView;
+      const before = [ho.befunde === null, ho.open.length, document.querySelectorAll('#handover-body .ho-bf').length, !!document.querySelector('#handover-body [data-hb="to"]')].join(',');
+      // Befunde nur auf Wunsch
+      await toggleHandoverBefunde();
       const ui = document.querySelectorAll('#handover-body .ho-task').length + '/' + document.querySelectorAll('#handover-body .ho-bf').length;
       // Eingaben über die Ansicht
       const notes = document.querySelector('#handover-body [data-hb="notes"]');
@@ -739,16 +742,20 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
       const inp = document.querySelector('#handover-body [data-hb-task="2"]');
       inp.value = 'Zylinderkopf 3 montieren'; inp.dispatchEvent(new Event('input', { bubbles: true }));
       toggleHandoverTask(0);
-      ho.signFrom = { img: 'data:image/png;base64,iVBORw0KGgo=', name: ho.from, at: new Date().toISOString() };
+      // Befunde wieder aus → nicht abgehakter Vorschlag fällt weg, eigene Arbeit und abgehakter bleiben
+      await toggleHandoverBefunde();
+      const offState = [ho.befunde === null, ho.open.length, buildHandoverPrintHtml(ho).includes('n.i.O.')].join(',');
+      await toggleHandoverBefunde();
+      ho.signFrom = { img: 'data:image/png;base64,iVBORw0KGgo=', name: 'Max Monteur', at: new Date().toISOString() };
       afterSignChange('hoFrom');
       const locked = document.querySelector('#handover-body [data-hb="notes"]').readOnly;
       toggleHandoverTask(1); // abhaken geht auch nach Unterschrift
       const pr = buildHandoverPrintHtml(ho);
-      const prOk = pr.includes('☑') && pr.includes('Laufbuchse') && pr.includes('n.i.O.') && pr.includes('Kopf liegt auf der Werkbank');
+      const prOk = pr.includes('☑') && pr.includes('Laufbuchse') && pr.includes('n.i.O.') && pr.includes('Kopf liegt auf der Werkbank') && !pr.includes('Monteure bisher');
       const syncKey = localSyncItems().has('handover:' + ho.id);
       closeHandover();
       const back = currentView + '|' + document.querySelectorAll('#job-body [onclick^="openHandover"]').length;
-      return [card, view, ho.from, ho.to, ho.done, ho.stats.worked, ho.befunde.sheets.length, ho.open.map(t => (t.done ? 'x' : '-') + t.text).join(' ; '), ui, locked, prOk, syncKey, back].join('|');
+      return [card, view, before, ho.done, ho.stats.worked, ho.befunde.sheets.length, ho.open.map(t => (t.done ? 'x' : '-') + t.text).join(' ; '), ui, offState, locked, prOk, syncKey, back].join('|');
     });
     await page.screenshot({ path: path.join(OUT, `${label}-30-auftrag-mit-uebergabe.png`), fullPage: true });
     await page.evaluate(() => { openHandover(appData.handovers[0].id, 'job'); });
@@ -758,8 +765,8 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
       showView('sheets');
       return new Promise(res => { const r = indexedDB.deleteDatabase('befunde'); r.onsuccess = r.onerror = r.onblocked = () => res(); });
     });
-    assert(handover === 'true|handover|Max Monteur|Erik Elektro|Di 17.11. (Max Monteur): Zylinderkopf 3 demontiert; Laufbuchse vermessen|510|2|'
-      + 'xErsatzteil bestellen: Laufbuchse – Zyl. 3 ; xn.i.O. Laufbuchse: Buchse tauschen ; -Zylinderkopf 3 montieren|2/2|true|true|true|job|1', `Übergabe ${handover}`, errors);
+    assert(handover === 'true|handover|true,0,0,false|Zylinderkopf 3 demontiert\nLaufbuchse vermessen|510|2|'
+      + 'xErsatzteil bestellen: Laufbuchse – Zyl. 3 ; xZylinderkopf 3 montieren ; -n.i.O. Laufbuchse: Buchse tauschen|2/2|true,2,false|true|true|true|job|1', `Übergabe ${handover}`, errors);
 
     // Urlaub: Monteur beantragt, Büro genehmigt / lehnt ab / storniert, Anspruch anpassen
     const leave = await page.evaluate(async () => {

@@ -1,5 +1,6 @@
 // ---------- Übergabe: Auftrag mittendrin an einen anderen Monteur übergeben ----------
-// appData.handovers = [{ id, orderNo, date, from, to, reason, done, stats, befunde, open: [{ text, done }],
+// appData.handovers = [{ id, orderNo, date, reason, done, stats, withBefunde, befunde, open: [{ text, done, fromBefunde }],
+//   (from/to nur noch Altbestand, werden nicht mehr angezeigt)
 //   notes, contact, location, signFrom, signTo, createdAt, updatedAt }]
 // stats und befunde sind ein Stand zum Zeitpunkt der Erstellung (per Knopf aktualisierbar).
 
@@ -27,28 +28,28 @@ function handoverEditable(h) { return !!h && !isOffice() && !handoverSigned(h); 
 // ---------- Daten aus Zettel-Job ----------
 function handoverStats(no) {
   const o = orderData(no);
+  const uniq = list => list.map(v => String(v || '').trim()).filter((v, i, a) => v && a.indexOf(v) === i);
   return {
-    customer: o.customer, vessel: o.vessel, engines: o.engines, range: o.range,
+    customer: o.customer, vessel: o.vessel, engines: o.engines,
     days: o.items.length, worked: o.totals.worked,
-    workers: distinctJoin(o.sheets.map(s => s.worker)),
-    material: o.materialNotes, notes: o.notes, finished: o.finished
+    material: uniq(o.sheets.filter(s => s.material === true).map(s => s.materialNote)),
+    notes: uniq(o.sheets.map(s => s.note)), finished: o.finished
   };
 }
 
-// Erledigte Arbeiten Tag für Tag aus den Zeilen-Beschreibungen
+// Befunde einbezogen? (ältere Übergaben ohne Schalter: wenn ein Befunde-Stand gespeichert ist)
+function hoWithBefunde(h) {
+  return h.withBefunde === undefined ? !!h.befunde : !!h.withBefunde;
+}
+
+// Erledigte Arbeiten: Zeilen-Beschreibungen aller Zettel des Auftrags, jede nur einmal (ohne Datum/Namen)
 function handoverDoneText(no) {
-  const o = orderData(no);
-  return o.items.map(i => {
-    const d = parseISODate(i.day.date);
-    const descs = [];
-    i.split.lines.forEach(l => {
-      const t = l.kind === 'entry' ? String(l.entry.desc || '').trim() : '';
-      if (t && !descs.includes(t)) descs.push(t);
-    });
-    if (!descs.length) return '';
-    const head = (d ? WEEKDAYS_SHORT[d.getDay()] + ' ' : '') + formatDateShort(i.day.date) + (i.sheet.worker ? ' (' + i.sheet.worker + ')' : '');
-    return head + ': ' + descs.join('; ');
-  }).filter(Boolean).join('\n');
+  const descs = [];
+  orderData(no).items.forEach(i => i.split.lines.forEach(l => {
+    const t = l.kind === 'entry' ? String(l.entry.desc || '').trim() : '';
+    if (t && !descs.some(d => d.toLowerCase() === t.toLowerCase())) descs.push(t);
+  }));
+  return descs.join('\n');
 }
 
 // ---------- Daten aus Befunde (nur lesen) ----------
@@ -98,20 +99,13 @@ function handoverOpenFromBefunde(snap) {
 async function createHandover(orderNo, ret) {
   const no = normOrderNo(orderNo);
   if (!no) { showToast('Keine Auftragsnummer'); return; }
-  const bf = handoverBefundeSnapshot(no, await loadBefundeData(true));
   const now = new Date().toISOString();
-  const job = jobForOrder(no);
-  const me = currentUserName();
   const ho = {
-    id: uid(), orderNo: no, date: todayISO(), from: me || '', to: '', reason: '',
-    done: handoverDoneText(no), stats: handoverStats(no), befunde: bf,
-    open: handoverOpenFromBefunde(bf).map(text => ({ text, done: false })),
+    id: uid(), orderNo: no, date: todayISO(), from: '', to: '', reason: '',
+    done: handoverDoneText(no), stats: handoverStats(no), withBefunde: false, befunde: null, open: [],
     notes: '', contact: '', location: '', signFrom: null, signTo: null,
     createdAt: now, updatedAt: now
   };
-  // Nachfolger vorschlagen: einziger anderer zugeteilter Monteur
-  const others = job ? (job.assigned || []).filter(n => !sameName(n, me)) : [];
-  if (others.length === 1) ho.to = others[0];
   appData.handovers.push(ho);
   saveData(true);
   openHandover(ho.id, ret);
@@ -146,16 +140,37 @@ async function deleteHandover() {
 async function refreshHandover() {
   const ho = getActiveHandover();
   if (!handoverEditable(ho)) return;
-  const bf = handoverBefundeSnapshot(ho.orderNo, await loadBefundeData(true));
   ho.stats = handoverStats(ho.orderNo);
-  ho.befunde = bf;
   const newDone = handoverDoneText(ho.orderNo);
   if (!ho.done.trim()) ho.done = newDone;
   else newDone.split('\n').forEach(line => { if (line && !ho.done.includes(line)) ho.done += '\n' + line; });
-  handoverOpenFromBefunde(bf).forEach(text => { if (!ho.open.some(t => t.text === text)) ho.open.push({ text, done: false }); });
+  if (hoWithBefunde(ho)) await loadHandoverBefunde(ho);
   touchHandover(ho);
   renderHandover();
-  showToast('Aus Zetteln und Befunden aktualisiert');
+  showToast(hoWithBefunde(ho) ? 'Aus Zetteln und Befunden aktualisiert' : 'Aus den Zetteln aktualisiert');
+}
+
+// Befunde-Stand holen und Vorschläge als offene Arbeiten ergänzen
+async function loadHandoverBefunde(ho) {
+  ho.befunde = handoverBefundeSnapshot(ho.orderNo, await loadBefundeData(true));
+  handoverOpenFromBefunde(ho.befunde).forEach(text => { if (!ho.open.some(t => t.text === text)) ho.open.push({ text, done: false, fromBefunde: true }); });
+}
+
+// Schalter „Befunde einbeziehen“ – aus: Befunde-Vorschläge, die noch nicht abgehakt sind, wieder entfernen
+async function toggleHandoverBefunde() {
+  const ho = getActiveHandover();
+  if (!handoverEditable(ho)) return;
+  if (hoWithBefunde(ho)) {
+    ho.withBefunde = false;
+    ho.befunde = null;
+    ho.open = ho.open.filter(t => !t.fromBefunde || t.done);
+  } else {
+    ho.withBefunde = true;
+    await loadHandoverBefunde(ho);
+    if (!ho.befunde) showToast('Zu diesem Auftrag gibt es auf diesem Gerät keine Befunde');
+  }
+  touchHandover(ho);
+  renderHandover();
 }
 
 function touchHandover(ho) {
@@ -212,10 +227,10 @@ function renderHandover() {
   const edit = handoverEditable(ho);
   const ro = edit ? '' : ' readonly';
   const st = ho.stats || {};
-  const bf = ho.befunde;
+  const withBf = hoWithBefunde(ho);
+  const bf = withBf ? ho.befunde : null;
   const engines = (st.engines || []).filter(engineHasData);
   const doneCount = ho.open.filter(t => t.done).length;
-  const names = knownTechnicians();
 
   const taskRows = ho.open.map((t, i) => `
     <div class="ho-task ${t.done ? 'done' : ''}">
@@ -248,9 +263,8 @@ function renderHandover() {
           <div class="type-pill"><svg viewBox="0 0 24 24"><path d="M4 12h12M12 6l6 6-6 6"/><path d="M20 4v16"/></svg> Übergabe</div>
           <div class="oh-title">Auftrag ${escapeHtml(ho.orderNo)}</div>
           <div class="muted">${escapeHtml([st.vessel, st.customer].filter(Boolean).join(' · ') || 'ohne Kunde')}</div>
-          ${st.workers ? `<div class="muted small-text">Bisher: ${escapeHtml(st.workers)}</div>` : ''}
         </div>
-        <div class="oh-range"><b>${formatHours(st.worked || 0)}</b><small>${escapeHtml(st.days ? st.days + ' Tag' + (st.days > 1 ? 'e' : '') + ' · ' + (st.range || '') : 'noch keine Zettel')}</small></div>
+        <div class="oh-range"><b>${formatHours(st.worked || 0)}</b><small>${escapeHtml(st.days ? 'bisher · ' + st.days + ' Tag' + (st.days > 1 ? 'e' : '') : 'noch keine Zettel')}</small></div>
       </div>
       ${engines.length ? `<div class="engine-facts">${engines.map((e, i) => `
         <div class="engine-fact"><b>${escapeHtml(e.label || (engines.length > 1 ? 'Motor ' + (i + 1) : 'Motor'))}</b>
@@ -262,12 +276,9 @@ function renderHandover() {
     <div class="card">
       <h3 class="card-title">Übergabe</h3>
       <div class="grid-2">
-        <label class="field"><span>Übergeben von</span><input type="text" data-hb="from" value="${escapeHtml(ho.from)}" list="dl-ho-names" autocomplete="off"${ro}></label>
-        <label class="field"><span>an (Nachfolger)</span><input type="text" data-hb="to" value="${escapeHtml(ho.to)}" list="dl-ho-names" placeholder="Name" autocomplete="off"${ro}></label>
         <label class="field"><span>Datum</span><input type="date" data-hb="date" value="${escapeHtml(ho.date)}"${ro}></label>
         <label class="field"><span>Grund (optional)</span><input type="text" data-hb="reason" value="${escapeHtml(ho.reason)}" placeholder="z.B. Urlaub, anderer Einsatz" autocomplete="off"${ro}></label>
       </div>
-      <datalist id="dl-ho-names">${names.map(n => `<option value="${escapeHtml(n)}">`).join('')}</datalist>
     </div>
 
     <div class="card">
@@ -275,12 +286,15 @@ function renderHandover() {
       <label class="field"><textarea data-hb="done" rows="7" placeholder="Was wurde bisher gemacht?"${ro}>${escapeHtml(ho.done)}</textarea></label>
       ${(st.material || []).length ? `<p class="small-text"><b>Material:</b> ${escapeHtml(st.material.join(' · '))}</p>` : ''}
       ${(st.notes || []).length ? `<p class="small-text"><b>Bemerkungen:</b> ${escapeHtml(st.notes.join(' · '))}</p>` : ''}
-      <p class="muted small-text">Aus den Zeilen-Beschreibungen der Zettel übernommen – frei änderbar.</p>
+      <p class="muted small-text">Aus den Stundenzetteln dieses Auftrags übernommen – frei änderbar.</p>
     </div>
 
     <div class="card">
-      <h3 class="card-title">${BEFUNDE_ICON.replace('<svg', '<svg class="ho-title-icon"')} Befunde</h3>
-      ${bfHtml}
+      <div class="job-status-row">
+        <h3 class="card-title">${BEFUNDE_ICON.replace('<svg', '<svg class="ho-title-icon"')} Befunde</h3>
+        ${edit ? `<label class="switch-row"><span class="muted small-text">einbeziehen</span><input type="checkbox" class="switch" ${withBf ? 'checked' : ''} onchange="toggleHandoverBefunde()"></label>` : ''}
+      </div>
+      ${withBf ? bfHtml : '<p class="muted small-text">Optional: Mess- und Befundblätter sowie Ersatzteile zu diesem Auftrag mit in die Übergabe nehmen.</p>'}
     </div>
 
     <div class="card">
@@ -302,8 +316,8 @@ function renderHandover() {
     <div class="card">
       <h3 class="card-title">Unterschriften</h3>
       <div class="sign-grid">
-        ${signatureBox('Übergeben: ' + (ho.from || 'Monteur'), ho.signFrom, 'hoFrom')}
-        ${signatureBox('Übernommen: ' + (ho.to || 'Nachfolger'), ho.signTo, 'hoTo')}
+        ${signatureBox('Übergeben', ho.signFrom, 'hoFrom')}
+        ${signatureBox('Übernommen', ho.signTo, 'hoTo')}
       </div>
     </div>
 
@@ -326,9 +340,9 @@ function handoverCardHtml(orderNo, ret) {
       ${list.length ? `<div class="menu-rows">${list.map(h => {
         const open = (h.open || []).filter(t => !t.done).length;
         return `<button class="menu-row" onclick="openHandover('${h.id}','${ret}')">
-          <span><b>${escapeHtml([h.from, h.to].filter(Boolean).join(' → ') || 'Übergabe')}</b><small>${escapeHtml(formatDate(h.date))}${h.reason ? ' · ' + escapeHtml(h.reason) : ''}</small></span>
-          <span class="mr-right"><b>${open ? open + ' offen' : 'alles erledigt'}</b><small>${handoverSigned(h) ? 'unterschrieben' : 'Entwurf'}</small></span></button>`;
-      }).join('')}</div>` : '<p class="muted small-text">Muss der Auftrag mittendrin abgegeben werden? Die Übergabe fasst zusammen, was gemacht wurde und was noch fehlt – inkl. Befunde.</p>'}
+          <span><b>Übergabe vom ${escapeHtml(formatDateShort(h.date))}</b><small>${h.reason ? escapeHtml(h.reason) + ' · ' : ''}${handoverSigned(h) ? 'unterschrieben' : 'Entwurf'}</small></span>
+          <span class="mr-right"><b>${open ? open + ' offen' : (h.open || []).length ? 'alles erledigt' : ''}</b></span></button>`;
+      }).join('')}</div>` : '<p class="muted small-text">Muss der Auftrag mittendrin abgegeben werden? Die Übergabe fasst zusammen, was gemacht wurde und was noch offen ist – Befunde auf Wunsch.</p>'}
       <button type="button" class="btn btn-soft tech-only" onclick="createHandover(${escapeHtml(JSON.stringify(no))},'${ret}')">
         <svg viewBox="0 0 24 24"><path d="M4 12h12M12 6l6 6-6 6"/><path d="M20 4v16"/></svg> Übergabe erstellen</button>
     </div>`;
@@ -337,7 +351,7 @@ function handoverCardHtml(orderNo, ret) {
 // ---------- Druck ----------
 function buildHandoverPrintHtml(ho) {
   const st = ho.stats || {};
-  const bf = ho.befunde;
+  const bf = hoWithBefunde(ho) ? ho.befunde : null;
   const sig = s => s && s.img ? `<img src="${s.img}" alt="">` : '';
   const meta = s => s ? escapeHtml([s.name, s.at ? new Date(s.at).toLocaleDateString('de-DE') : ''].filter(Boolean).join(', ')) : '';
   const pre = (label, text) => text && String(text).trim() ? `<tr><th>${label}</th><td class="pre">${escapeHtml(text)}</td></tr>` : '';
@@ -345,14 +359,12 @@ function buildHandoverPrintHtml(ho) {
     <div class="pr-page">
       <div class="pr-head">
         <div><div class="pr-title">Übergabe</div><div class="pr-sub">Auftrag ${escapeHtml(ho.orderNo)} · ${escapeHtml(formatDate(ho.date))}</div></div>
-        <div class="pr-worker"><span>Übergeben von → an</span><strong>${escapeHtml(ho.from || '______')} → ${escapeHtml(ho.to || '______')}</strong></div>
+        <div class="pr-worker"><span>Stunden bisher</span><strong>${formatHours(st.worked || 0)}</strong></div>
       </div>
       <table class="pr-info">
         <tr><th>Auftragsnummer</th><td>${escapeHtml(ho.orderNo)}</td><th>Auftraggeber / Kunde</th><td>${escapeHtml(st.customer || '–')}</td></tr>
         <tr><th>Schiff / Anlage</th><td colspan="3">${escapeHtml(st.vessel || '–')}</td></tr>
         ${engineRows(st.engines)}
-        <tr><th>Zeitraum</th><td>${escapeHtml(st.range || '–')}</td><th>Stunden bisher</th><td>${formatHours(st.worked || 0)}${st.days ? ' · ' + st.days + ' Tag' + (st.days > 1 ? 'e' : '') : ''}</td></tr>
-        <tr><th>Monteure bisher</th><td colspan="3">${escapeHtml(st.workers || '–')}</td></tr>
         ${ho.reason ? `<tr><th>Grund</th><td colspan="3">${escapeHtml(ho.reason)}</td></tr>` : ''}
       </table>
 
@@ -382,8 +394,8 @@ function buildHandoverPrintHtml(ho) {
       </table>
 
       <div class="pr-signs">
-        <div class="pr-sign"><div class="pr-sign-img">${sig(ho.signFrom)}</div><div class="pr-sign-line">Übergeben: ${escapeHtml(ho.from || '')} ${meta(ho.signFrom) ? '· ' + meta(ho.signFrom) : ''}</div></div>
-        <div class="pr-sign"><div class="pr-sign-img">${sig(ho.signTo)}</div><div class="pr-sign-line">Übernommen: ${escapeHtml(ho.to || '')} ${meta(ho.signTo) ? '· ' + meta(ho.signTo) : ''}</div></div>
+        <div class="pr-sign"><div class="pr-sign-img">${sig(ho.signFrom)}</div><div class="pr-sign-line">Übergeben ${meta(ho.signFrom) ? '· ' + meta(ho.signFrom) : ''}</div></div>
+        <div class="pr-sign"><div class="pr-sign-img">${sig(ho.signTo)}</div><div class="pr-sign-line">Übernommen ${meta(ho.signTo) ? '· ' + meta(ho.signTo) : ''}</div></div>
       </div>
       <div class="pr-foot">Erstellt mit der Service-App · ${escapeHtml(new Date().toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' }))}</div>
     </div>`;
@@ -399,10 +411,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const body = document.getElementById('handover-body');
   if (!body) return;
   body.addEventListener('input', handleHandoverInput);
-  body.addEventListener('change', ev => {
-    handleHandoverInput(ev);
-    if (ev.target.dataset.hb === 'from' || ev.target.dataset.hb === 'to') renderHandover(); // Namen in den Unterschriftsfeldern
-  });
+  body.addEventListener('change', handleHandoverInput);
 });
 
 window.createHandover = createHandover;
@@ -415,3 +424,4 @@ window.removeHandoverTask = removeHandoverTask;
 window.toggleHandoverTask = toggleHandoverTask;
 window.printHandover = printHandover;
 window.renderHandover = renderHandover;
+window.toggleHandoverBefunde = toggleHandoverBefunde;
