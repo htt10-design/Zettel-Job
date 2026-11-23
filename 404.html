@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Service-App</title>
+  <script>
+    // GitHub Pages zeigt diese Seite für jede nicht gefundene Adresse (alter Link, alte Verknüpfung,
+    // altes Lesezeichen aus der Zeit vor dem Umbau). → passende Stelle der Service-App öffnen.
+    (function () {
+      var path = location.pathname;
+      var m = path.match(/^(.*?\/zettel-job\/)/i);
+      var base = m ? m[1].replace(/zettel-job\/$/i, 'Zettel-Job/') : '/Zettel-Job/';
+      var rest = m ? path.slice(m[1].length).toLowerCase() : path.toLowerCase();
+      var target = base;
+      if (rest.indexOf('befunde') === 0) target += 'befunde/';
+      else if (rest.indexOf('zettel') === 0) target += 'zettel/';
+      if (target + '' !== path) location.replace(target + location.hash);
+    })();
+  </script>
+  <style>body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#f4f9fd;color:#11283d;display:grid;place-items:center;min-height:100vh;margin:0;text-align:center}a{color:#1d8fd1;font-weight:700}</style>
+</head>
+<body>
+  <div><h1>Service-App</h1><p>Die Seite wurde verschoben.</p><p><a href="/Zettel-Job/">Zur Service-App</a></p></div>
+</body>
+</html>

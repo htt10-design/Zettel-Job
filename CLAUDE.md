@@ -8,6 +8,7 @@ Live: https://htt10-design.github.io/Zettel-Job/ (Repo heißt weiter Zettel-Job;
 ```
 index.html, start.css, start.js   Startseite: Kacheln je Bereich, „Zu erledigen“, „In Planung“ (Ersatzteile, Handbücher)
 manifest.json, icons/             EIN Manifest/Icon für alles (Shortcuts zu den Bereichen)
+404.html                          GitHub Pages: unbekannte/alte Adressen (z.B. vor dem Umbau, Kleinschreibung zettel-job) → passende Stelle der App
 sw.js                             EIN Service Worker für alles (Scope = Wurzel); löscht nur eigene Caches
 zettel/                           Bereich Zettel-Job (Doku unten)
 befunde/                          Bereich Befunde (Doku: befunde/CLAUDE.md) – übernommen aus dem Repo htt10-design/befunde
