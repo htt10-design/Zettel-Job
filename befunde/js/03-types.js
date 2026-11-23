@@ -25,7 +25,8 @@ const ICONS = {
   crank: '<path d="M3 12h4M17 12h4"/><rect x="7" y="8" width="4" height="8" rx="1"/><rect x="13" y="8" width="4" height="8" rx="1"/><path d="M11 10h2M11 14h2"/>',
   bore: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4"/>',
   cam: '<path d="M3 12h4M17 12h4"/><path d="M7 12a4 3 0 1 0 5-3l3-1"/><circle cx="15" cy="12" r="2"/>',
-  nozzle: '<path d="M10 3h4v8l2 3v2H8v-2l2-3z"/><path d="M12 16v2M9 21l3-3 3 3"/>'
+  nozzle: '<path d="M10 3h4v8l2 3v2H8v-2l2-3z"/><path d="M12 16v2M9 21l3-3 3 3"/>',
+  rocker: '<path d="M3 13l9-4 9 2"/><circle cx="12" cy="9.5" r="2.2"/><path d="M12 12v8M8 20h8"/><path d="M3 13v3M21 11v3"/>'
 };
 function icon(name) { return `<svg viewBox="0 0 24 24">${ICONS[name] || ICONS.doc}</svg>`; }
 
@@ -35,6 +36,7 @@ const GROUPS = [
   { id: 'lb', label: 'Laufbuchse' },
   { id: 'kw', label: 'Kurbelwelle' },
   { id: 'nw', label: 'Nockenwelle' },
+  { id: 'vt', label: 'Ventiltrieb' },
   { id: 'esp', label: 'Einspritzung' }
 ];
 
@@ -44,6 +46,7 @@ const INSPECT_ITEMS = {
   kwMain: ['Laufbild i.O.', 'Leichte Riefen', 'Tiefe Riefen', 'Anschmelzungen / Fresser', 'Verfärbung (Überhitzung)', 'Risse', 'Korrosion', 'Lagerschalen verschlissen', 'Lagerschale Materialabtrag', 'Lagerschale verdreht'],
   kwRod: ['Laufbild i.O.', 'Leichte Riefen', 'Tiefe Riefen', 'Anschmelzungen / Fresser', 'Verfärbung (Überhitzung)', 'Risse', 'Korrosion', 'Lagerschalen verschlissen', 'Lagerschale Materialabtrag'],
   cam: ['Laufbild i.O.', 'Riefen', 'Lagerbuchse verschlissen', 'Lagerbuchse verdreht', 'Pittings Nocken', 'Verschleiß Nockenspitze', 'Fresser', 'Verfärbung'],
+  rocker: ['Laufbild i.O.', 'Buchse verschlissen', 'Buchse verdreht / gewandert', 'Riefen Kipphebelachse', 'Fresser', 'Verfärbung (Überhitzung)', 'Druckstück / Kugelpfanne verschlissen', 'Einstellschraube beschädigt', 'Gleitfläche / Rolle verschlissen', 'Ölbohrung zugesetzt', 'Risse', 'Bock-Auflage beschädigt'],
   liner_fit: ['Sitzfläche i.O.', 'Passungsrost', 'Korrosion Bundauflage', 'Kavitation Gehäuse', 'Dichtring-Nut beschädigt', 'Ablagerungen Kühlraum']
 };
 
@@ -178,6 +181,25 @@ const SHEET_TYPES = [
     extra: [
       { k: 'shaft', label: 'Nockenwelle', options: ['—', 'A-Seite', 'B-Seite', 'Einlass', 'Auslass'] },
       { k: 'axial', label: 'Axialspiel (mm)' }
+    ]
+  },
+  {
+    id: 'rocker', group: 'vt', icon: 'rocker', label: 'Kipphebelböcke', printLabel: 'Kipphebelböcke',
+    desc: 'Kipphebelbuchse ↔ Kipphebelachse Ein-/Auslass, Lagerspiel + Sichtbefund',
+    measure: [{
+      kind: 'clearance', key: 'kh', title: 'Kipphebelbuchse / Kipphebelachse', posKind: 'cyl', dec: 3, unit: 'mm',
+      pairs: [
+        { k: 'e', label: 'Einlass-Kipphebel', bore: 'Buchse', shaft: 'Achse' },
+        { k: 'a', label: 'Auslass-Kipphebel', bore: 'Buchse', shaft: 'Achse' }
+      ],
+      dirs: [{ k: 'S', label: 'senkr.' }, { k: 'W', label: 'waager.' }],
+      clrHint: 'Lagerspiel = Buchsenbohrung − Achsdurchmesser, je Kipphebel in zwei Richtungen'
+    }],
+    inspect: [{ key: 'khi', title: 'Sichtbefund Kipphebel / Böcke', posKind: 'cyl', items: INSPECT_ITEMS.rocker }],
+    extra: [
+      { k: 'valveIn', label: 'Ventilspiel Einlass (mm)' },
+      { k: 'valveOut', label: 'Ventilspiel Auslass (mm)' },
+      { k: 'torque', label: 'Anzugsmoment Kipphebelbock' }
     ]
   },
   {

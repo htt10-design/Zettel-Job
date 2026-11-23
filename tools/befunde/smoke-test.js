@@ -80,6 +80,21 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR
     const n = await page.evaluate(() => getActiveOrder().sheets.length);
     assert(n === types.length, `alle ${types.length} Blätter angelegt (${n})`, errors);
 
+    // Kipphebelböcke: Lagerspiel Ein-/Auslass je Zylinder
+    const rocker = await page.evaluate(() => {
+      const sh = getActiveOrder().sheets.find(s => s.type === 'rocker');
+      const sp = { boreMin: '30,000', boreMax: '30,025', shaftMin: '29,960', shaftMax: '29,980', clrMin: '0,020', clrMax: '0,065' };
+      sh.data.kh = { spec: { e: { ...sp }, a: { ...sp } }, rows: { A1: { eb_S: '30,010', eb_W: '30,012', es_S: '29,970', es_W: '29,972', ab_S: '30,060', ab_W: '30,062', as_S: '29,970', as_W: '29,970' } } };
+      const res = computeClearance(getType('rocker').measure[0], sh.data.kh, ['A1']);
+      const p = res.rows[0].pairs;
+      openSheet(sh.id);
+      return [p[0].clr.n.toFixed(3), p[0].clr.st, p[1].clr.n.toFixed(3), p[1].clr.st, res.rows[0].st, printDocTitle ? printDocTitle(sh) : ''].join('|');
+    });
+    assert(rocker.startsWith('0.040|ok|0.091|bad|bad|'), 'Kipphebelböcke Lagerspiel: ' + rocker, errors);
+    await shot('sheet-rocker-werte');
+    await page.click('#btn-back');
+    await page.waitForSelector('#view-order.active');
+
     // Laufbuchse: Sollwerte + Messwerte (inkl. µm-Schnelleingabe)
     await page.evaluate(() => openSheet(getActiveOrder().sheets.find(s => s.type === 'liner').id));
     await page.fill('[data-bind="data.lb.spec.nom"]', '170,000');

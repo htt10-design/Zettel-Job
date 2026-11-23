@@ -15,7 +15,7 @@ Endoskopie, Düsen, Seriennummern, allgemeine Durchsicht). Design, Aufbau und Ko
 |---|---|
 | 01-core | `appData` (settings, orders, specs), IndexedDB `befunde` (Stores `store` + `files` für Fotos), `showView`, Theme, Modal, Toast |
 | 02-helpers | `escapeHtml`, Datum, Zahlen mit Komma (`parseNum`/`formatNum`), µm-Schnelleingabe (`expandQuick`), `formatOrderNo` (wie Zettel-Job), Motorpositionen (`positions`: cyl/main/rod/cam), Bewertungen (`RATINGS` ok/obs/bad), UI-Bausteine (`field`, `ratingSeg` …) |
-| 03-types | **Alle Blattarten in `SHEET_TYPES`** + Auswertung (`computeGrid/Points/Clearance`, `sheetAutoRating`) |
+| 03-types | **Alle Blattarten in `SHEET_TYPES`** (Gruppen `GROUPS`: allg, zyl, lb, kw, nw, vt = Ventiltrieb mit „Kipphebelböcke“ `rocker`: Buchse ↔ Achse Ein-/Auslass je Zylinder, clearance) + Auswertung (`computeGrid/Points/Clearance`, `sheetAutoRating`) |
 | 04-orders | Auftragsliste, Neuer Auftrag, Übernahme aus Zettel-Job (liest IndexedDB `zettel-job` nur lesend), Auftrag mit Motoren, Blatt hinzufügen (Modus mess/befund/beides, Pakete), `createSheet` |
 | 05-editor | Blatt-Editor: `bindForm` (data-bind/data-set/data-tag, Event-Delegation), Messtabellen + `refreshMeasure`, Sichtbefund, Befunde & Fotos, Ergebnis, Blatt-Menü |
 | 06-special | Endoskopie (SVG Draufsicht, KS links, A oben), Düsen, Seriennummern, Allgemeines Befundblatt, Ersatzteile/Bestellliste (`data.items[]` mit `status` order/open/ordered/none, `PART_STATUS`), Skizzen (`sketchSvg`: liner/fit/piston) |
