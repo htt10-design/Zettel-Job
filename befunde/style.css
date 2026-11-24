@@ -1062,3 +1062,12 @@ p.pr-text { border: 0; padding: 0; margin: 4pt 0; }
 .sync-status.st-offline .sync-dot, .sync-status.st-off .sync-dot { background: var(--warn); }
 .sync-err { color: var(--neg) !important; font-weight: 600; font-size: 12.5px; }
 .zj-login { margin-bottom: 12px; border-color: var(--accent); background: var(--accent-softer); }
+.nz-count { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.nz-count > span:first-child { font-weight: 700; color: var(--muted); font-size: 13px; margin-right: 2px; }
+.nz-count input { width: 64px; text-align: center; margin-top: 0 !important; }
+.nz-step { width: 38px; padding: 8px 0 !important; font-size: 18px; line-height: 1; }
+.nz-suggest { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--muted); margin-left: auto; }
+.nz-row .nz-top input.nz-label { width: 74px !important; flex: 0 0 74px; font-weight: 800; text-align: center; color: var(--accent-strong); margin-top: 0 !important; }
+.nz-row { position: relative; }
+.nz-del { position: absolute; top: -8px; right: -6px; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 15px; line-height: 1; cursor: pointer; }
+.nz-del:hover { color: var(--t-bad); border-color: var(--t-bad); }

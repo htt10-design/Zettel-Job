@@ -338,8 +338,8 @@ function sheetIssues(order, sheet) {
     if (r.rating === 'bad' || r.rating === 'obs') out.push({ st: r.rating, text: `Endoskopie Zyl. ${p}: ${[(r.tags || []).join(', '), r.note].filter(Boolean).join(' – ') || ratingLabel(r.rating)}` });
   });
   if (t.special === 'nozzles') {
-    const bad = nozzleRows(order, sheet).filter(r => r.st === 'bad').map(r => r.pos);
-    if (bad.length) out.push({ st: 'bad', text: 'Einspritzdüsen n.i.O. (' + nozzleStageLabel(sheet) + '): Zyl. ' + bad.join(', ') });
+    const bad = nozzleRows(order, sheet).filter(r => r.st === 'bad').map(r => r.pos || '?');
+    if (bad.length) out.push({ st: 'bad', text: 'Einspritzdüsen n.i.O. (' + nozzleStageLabel(sheet) + '): ' + bad.join(', ') });
   }
   if (t.special === 'general') GENERAL_CHECK.forEach((c, i) => {
     const r = (sheet.data.check || {})[i] || {};

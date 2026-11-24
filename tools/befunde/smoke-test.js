@@ -168,6 +168,21 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR
     });
     assert(nz === 'bad|bad|tropft nach|ok', 'Düsen Eingang (A1 280 bar < 300, A2 tropft nach, Rest i.O.): ' + nz, errors);
     await shot('11b-duesen-eingang');
+    // Eigene Bezeichnung und Anzahl
+    const nzList = await page.evaluate(async () => {
+      nozzleRename('A1', 'Reserve');
+      await nozzleSetCount(17);
+      const sheet = getActiveSheet();
+      const added = sheet.data.nozzles[16];
+      const lbl = document.querySelectorAll('#sheet-body .nz-label').length + ':' + added.label;
+      await nozzleRemove(added.k);
+      const out = getActiveOrder().sheets.find(s => s.type === 'nozzles' && s.data.stage === 'out');
+      const outRows = nozzleRows(getActiveOrder(), out);
+      const pr = printSheetHtml(getActiveOrder(), sheet, 1, 1);
+      return [lbl, sheet.data.nozzles.length, sheet.data.nozzles[0].label, sheet.data.rows.A1.sn, outRows.length, outRows[0].pos, pr.includes('Einspritzdüse <b>Reserve</b>')].join('|');
+    });
+    assert(nzList === '17:A1|16|Reserve|D-111|16|Reserve|true', 'Düsen: eigene Bezeichnung/Anzahl: ' + nzList, errors);
+    await page.evaluate(() => { nozzleRename('A1', 'A1'); });
     const nzOut = await page.evaluate(() => {
       const out = getActiveOrder().sheets.find(s => s.type === 'nozzles' && s.data.stage === 'out');
       out.data.rows = { A1: { p: '310', result: 'ok', note: 'eingestellt' } };

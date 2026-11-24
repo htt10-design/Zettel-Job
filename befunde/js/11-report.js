@@ -77,7 +77,7 @@ function sheetDigest(order, sheet) {
     const ren = rows.filter(r => /erneuert/.test(r.note)).map(r => r.pos);
     const adj = rows.filter(r => /eingestellt|instandgesetzt/.test(r.note)).map(r => r.pos);
     const parts = [`${nozzleStageLabel(sheet)}: ${rows.filter(r => r.tested).length}/${rows.length} Düsen geprüft`];
-    if (bad.length) parts.push(`n.i.O.: Zyl. ${list(bad)}`);
+    if (bad.length) parts.push(`n.i.O.: ${list(bad)}`);
     if (adj.length) parts.push(`eingestellt/instandgesetzt: ${list(adj)}`);
     if (ren.length) parts.push(`erneuert: ${list(ren)}`);
     lines.push(parts.join(' · '));

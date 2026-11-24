@@ -54,6 +54,7 @@ function specialInit(order, sheet, src) {
   if (t.special === 'nozzles') {
     if (src && src.data.spec) sheet.data.spec = { ...src.data.spec };
     if (src) ['stage', 'part', 'medium', 'nozzleType', 'tester'].forEach(k => { if (src.data[k]) sheet.data[k] = src.data[k]; });
+    if (src && Array.isArray(src.data.nozzles)) sheet.data.nozzles = src.data.nozzles.map(x => ({ ...x }));
     if (!sheet.data.stage) sheet.data.stage = 'in';
   }
   if (t.special === 'general') sheet.data.reason = sheet.data.reason || 'Durchsicht';
@@ -201,7 +202,8 @@ function endoRestOk() {
 // =====================================================================
 // Druckprobe Einspritzdüsen – immer als Paar: Eingangs- und Ausgangsprotokoll
 // sheet.data: { stage: 'in'|'out', part, medium, nozzleType, tester, spec: { min, max },
-//   rows: { [Zyl.]: { sn, p, result: 'ok'|'bad', note } }, pump: { soll, ist, neu, sollChk, istChk, neuChk } }
+//   nozzles: [{ k, label }] (eigene Bezeichnungen/Anzahl; fehlt → Vorschlag aus den Zylindern bzw. vom Gegenstück),
+//   rows: { [k]: { sn, p, result: 'ok'|'bad', note } }, pump: { soll, ist, neu, sollChk, istChk, neuChk } }
 // Ausgang übernimmt leere Angaben (Düsen-Nr., Medium, Sollwerte …) aus dem Eingang (nur Anzeige/Druck).
 // Ältere Blätter (p1/p2, Strahlbild/Dicht/Schnarren, Maßnahme) werden als Eingang gelesen.
 // =====================================================================
@@ -233,14 +235,26 @@ function nozzleSpec(order, sheet) {
   return (p && p.data.spec) || own;
 }
 
-function nozzleRows(order, sheet) {
+// Düsenliste: eigene → vom Gegenstück → Vorschlag aus den Zylindern (Schlüssel = Zylinder, passt zu alten Daten)
+function nozzleDefaultItems(order, sheet) {
   const e = order.engines[sheet.engine || 0] || newEngine();
+  return positions(e, 'cyl').map(p => ({ k: p, label: p }));
+}
+function nozzleItems(order, sheet) {
+  if (Array.isArray(sheet.data.nozzles)) return sheet.data.nozzles;
+  const p = nozzlePartner(order, sheet);
+  if (p && Array.isArray(p.data.nozzles)) return p.data.nozzles;
+  return nozzleDefaultItems(order, sheet);
+}
+
+function nozzleRows(order, sheet) {
   const sp = specNums(nozzleSpec(order, sheet));
   const rows = sheet.data.rows || {};
   const partner = nozzlePartner(order, sheet);
   const prow = (partner && partner.data.rows) || {};
-  return positions(e, 'cyl').map(pos => {
-    const r = rows[pos] || {};
+  return nozzleItems(order, sheet).map(it => {
+    const pos = it.label || '', k = it.k;
+    const r = rows[k] || {};
     const pText = r.p !== undefined && r.p !== '' ? r.p : (r.p1 || '');
     const p = parseNum(pText);
     const pSt = evalRange(p, sp.min, sp.max);
@@ -250,11 +264,11 @@ function nozzleRows(order, sheet) {
       if (checks.length) result = checks.every(c => c === 'ok') ? 'ok' : 'bad';
     }
     const note = r.note || [r.action, r.p2 ? 'neu ' + r.p2 + ' bar' : ''].filter(Boolean).join(', ');
-    const sn = r.sn || (prow[pos] || {}).sn || '';
+    const sn = r.sn || (prow[k] || {}).sn || '';
     const sts = [];
     if (pSt) sts.push(pSt);
     if (result) sts.push(result === 'ok' ? 'ok' : 'bad');
-    return { pos, r, sn, snInherited: !r.sn && !!sn, pText, p: { n: p, st: pSt }, result, note, st: worstRating(sts), tested: p != null || !!result };
+    return { k, pos, r, sn, snInherited: !r.sn && !!sn, pText, p: { n: p, st: pSt }, result, note, st: worstRating(sts), tested: p != null || !!result };
   });
 }
 
@@ -293,25 +307,34 @@ function nozzleEditorHtml(order, sheet) {
       </div>
     </div>
     <div class="card special nozzle-card">
-      <div class="mc-head"><h3 class="card-title">Düsen je Zylinder</h3><span class="mc-sum" id="nozzle-sum"></span></div>
-      <p class="hint">Düsen-Nr. und Prüfdruck eintragen, dann i.O. / n.i.O. – Befund antippen oder frei schreiben.</p>
+      <div class="mc-head"><h3 class="card-title">Düsen</h3><span class="mc-sum" id="nozzle-sum"></span></div>
+      <div class="nz-count">
+        <span>Anzahl</span>
+        <button type="button" class="btn btn-soft nz-step" onclick="nozzleSetCount(${rows.length - 1})" aria-label="Weniger">−</button>
+        <input type="number" min="0" max="60" inputmode="numeric" value="${rows.length}" onchange="nozzleSetCount(this.value)" aria-label="Anzahl Düsen">
+        <button type="button" class="btn btn-soft nz-step" onclick="nozzleSetCount(${rows.length + 1})" aria-label="Mehr">+</button>
+        <span class="nz-suggest">Vorschlag: <button type="button" class="chip mini" onclick="nozzleSuggest('cyl')">Zylinder</button><button type="button" class="chip mini" onclick="nozzleSuggest('num')">1, 2, 3 …</button></span>
+      </div>
+      <p class="hint">Bezeichnung frei wählbar (z.B. „A1“, „BB 3“, „Reserve“). Dann Düsen-Nr. und Prüfdruck eintragen, i.O. / n.i.O. – Befund antippen oder frei schreiben.</p>
       <button type="button" class="btn btn-soft nz-allok" onclick="nozzleAllOk()">Alle übrigen i.O.</button>
       <div class="nz-list">
         ${rows.map(row => {
-          const { pos, r } = row;
-          const p = 'data.rows.' + pos;
+          const { k, pos, r } = row;
+          const p = 'data.rows.' + k;
+          const kJs = escapeHtml(JSON.stringify(k));
           return `
-          <div class="nz-row" data-nz="${escapeHtml(pos)}">
+          <div class="nz-row" data-nz="${escapeHtml(k)}">
             <div class="nz-top">
-              <span class="pos-badge">${escapeHtml(pos)}</span>
+              <input class="nz-label" value="${escapeHtml(pos)}" placeholder="Bez." onchange="nozzleRename(${kJs}, this.value)" autocomplete="off" aria-label="Bezeichnung">
               <input class="nz-sn" data-bind="${p}.sn" value="${escapeHtml(r.sn || '')}" placeholder="${escapeHtml(row.snInherited ? row.sn : 'Düsen-Nr.')}" autocomplete="off">
               <label class="nz-p"><span>bar</span><input class="m-in nz-p1" data-bind="${p}.p" value="${escapeHtml(row.pText)}" inputmode="decimal" placeholder="Prüfdr." autocomplete="off"></label>
             </div>
             <div class="nz-res">${tog(p + '.result', row.result)}
               <input class="nz-note" data-bind="${p}.note" value="${escapeHtml(row.note)}" placeholder="Befund" autocomplete="off"></div>
-            <div class="nz-chips">${NOZZLE_CHIPS.map(c => `<button type="button" class="chip mini" onclick="nozzleChip(${escapeHtml(JSON.stringify(pos))}, ${escapeHtml(JSON.stringify(c))})">${escapeHtml(c)}</button>`).join('')}</div>
+            <div class="nz-chips">${NOZZLE_CHIPS.map(c => `<button type="button" class="chip mini" onclick="nozzleChip(${kJs}, ${escapeHtml(JSON.stringify(c))})">${escapeHtml(c)}</button>`).join('')}</div>
+            <button type="button" class="nz-del" onclick="nozzleRemove(${kJs})" aria-label="Düse entfernen">×</button>
           </div>`;
-        }).join('')}
+        }).join('') || '<p class="muted small-text">Keine Düsen – Anzahl oben einstellen.</p>'}
       </div>
     </div>
     <details class="card special nz-pump" ${pump.soll || pump.ist || pump.neu ? 'open' : ''}>
@@ -344,7 +367,7 @@ function nozzleAllOk() {
   let n = 0;
   nozzleRows(order, sheet).forEach(row => {
     if (row.result) return;
-    (sheet.data.rows[row.pos] = sheet.data.rows[row.pos] || {}).result = 'ok';
+    (sheet.data.rows[row.k] = sheet.data.rows[row.k] || {}).result = 'ok';
     n++;
   });
   touchSheet(sheet);
@@ -358,7 +381,7 @@ function refreshNozzles() {
   const rows = nozzleRows(order, sheet);
   const setSt = (el, st) => { if (!el) return; el.classList.remove('st-ok', 'st-obs', 'st-bad'); if (st) el.classList.add('st-' + st); };
   rows.forEach(r => {
-    const row = document.querySelector(`[data-nz="${CSS.escape(r.pos)}"]`);
+    const row = document.querySelector(`[data-nz="${CSS.escape(r.k)}"]`);
     if (!row) return;
     setSt(row.querySelector('.nz-p1'), r.p.st);
     row.className = 'nz-row rate-' + (r.st || 'none');
@@ -366,6 +389,75 @@ function refreshNozzles() {
   const sum = document.getElementById('nozzle-sum');
   const bad = rows.filter(r => r.st === 'bad').length;
   if (sum) sum.innerHTML = `${rows.filter(r => r.tested).length}/${rows.length} geprüft${bad ? ` · <b class="txt-bad">${bad}× n.i.O.</b>` : ''}`;
+}
+
+// ---------- Bezeichnung / Anzahl der Düsen ----------
+// Beim ersten Ändern wird die angezeigte Liste (Vorschlag bzw. vom Gegenstück) ins Blatt übernommen
+function nozzleOwnList() {
+  const order = getActiveOrder(), sheet = getActiveSheet();
+  if (!order || !sheet) return null;
+  if (!Array.isArray(sheet.data.nozzles)) sheet.data.nozzles = nozzleItems(order, sheet).map(x => ({ k: x.k, label: x.label }));
+  return sheet.data.nozzles;
+}
+function nozzleDone(msg) {
+  touchSheet(getActiveSheet());
+  renderSheet();
+  if (msg) showToast(msg);
+}
+function nozzleRename(k, value) {
+  const list = nozzleOwnList();
+  const it = list && list.find(x => x.k === k);
+  if (!it) return;
+  it.label = String(value || '').trim();
+  nozzleDone();
+}
+function nozzleHasData(k) {
+  const r = ((getActiveSheet() || { data: {} }).data.rows || {})[k] || {};
+  return !!(r.sn || r.p || r.p1 || r.result || r.note);
+}
+// Vorschlag für die nächste Bezeichnung: nächster freier Zylinder, sonst fortlaufende Nummer
+function nozzleNextLabel(list) {
+  const order = getActiveOrder(), sheet = getActiveSheet();
+  const used = new Set(list.map(x => x.label));
+  const cyl = nozzleDefaultItems(order, sheet).map(x => x.label).find(l => !used.has(l));
+  if (cyl) return cyl;
+  let n = list.length + 1;
+  while (used.has(String(n))) n++;
+  return String(n);
+}
+async function nozzleSetCount(n) {
+  const list = nozzleOwnList();
+  if (!list) return;
+  n = Math.max(0, Math.min(60, parseInt(n, 10) || 0));
+  if (n < list.length) {
+    const drop = list.slice(n);
+    if (drop.some(x => nozzleHasData(x.k)) && !(await confirmDialog(`${drop.length === 1 ? 'Die letzte Düse hat' : 'Die letzten ' + drop.length + ' Düsen haben'} schon Einträge. Trotzdem entfernen?`, 'Entfernen', true))) { renderSheet(); return; }
+    const sheet = getActiveSheet();
+    drop.forEach(x => { if (sheet.data.rows) delete sheet.data.rows[x.k]; });
+    list.length = n;
+  } else {
+    while (list.length < n) list.push({ k: 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), label: nozzleNextLabel(list) });
+  }
+  nozzleDone();
+}
+async function nozzleRemove(k) {
+  const list = nozzleOwnList();
+  if (!list) return;
+  const it = list.find(x => x.k === k);
+  if (!it) return;
+  if (nozzleHasData(k) && !(await confirmDialog(`Düse „${it.label || 'ohne Bezeichnung'}“ mit allen Einträgen entfernen?`, 'Entfernen', true))) return;
+  list.splice(list.indexOf(it), 1);
+  const sheet = getActiveSheet();
+  if (sheet.data.rows) delete sheet.data.rows[k];
+  nozzleDone();
+}
+// Bezeichnungen neu vergeben (Einträge bleiben bei ihrer Düse)
+function nozzleSuggest(kind) {
+  const list = nozzleOwnList();
+  if (!list) return;
+  const cyl = nozzleDefaultItems(getActiveOrder(), getActiveSheet()).map(x => x.label);
+  list.forEach((x, i) => { x.label = kind === 'cyl' && cyl[i] ? cyl[i] : String(i + 1); });
+  nozzleDone(kind === 'cyl' ? 'Bezeichnung nach Zylindern' : 'Fortlaufend nummeriert');
 }
 
 // Neues Paar Eingang + Ausgang anlegen (Ausgang übernimmt leere Angaben vom Eingang)
@@ -635,6 +727,6 @@ async function removePart(i) {
   renderSheet();
 }
 
-Object.assign(window, { addPart, removePart, nozzleChip, nozzleAllOk });
+Object.assign(window, { addPart, removePart, nozzleChip, nozzleAllOk, nozzleRename, nozzleSetCount, nozzleRemove, nozzleSuggest });
 
 Object.assign(window, { selectCyl, endoRestOk, serialAddRow, serialRemoveRow, serialAddGroup, serialRemoveGroup });
