@@ -218,18 +218,18 @@ function specialPrintHtml(order, sheet) {
       const has = own[k] || own[k + 'Chk'];
       pump[k] = has ? own[k] : partnerPump[k]; pump[k + 'Chk'] = has ? own[k + 'Chk'] : partnerPump[k + 'Chk'];
     });
-    const chk = v => v === 'ok' ? '✓ i.O.' : v === 'bad' ? '✗ n.i.O.' : '';
+    const chk = v => v === 'ok' ? 'i.O.' : v === 'bad' ? 'n.i.O.' : ''; // schlicht: ohne Farbe und Symbol
     return `
       <div class="pr-block">
         <div class="pr-block-head"><span>${escapeHtml(nozzleStageLabel(sheet))}sprotokoll</span><span class="pr-block-sum">${rows.filter(r => r.tested).length}/${rows.length} geprüft</span></div>
         ${sp.min || sp.max ? `<div class="pr-spec">Prüfdruck Soll: ${escapeHtml((sp.min || '…') + ' – ' + (sp.max || '…') + ' bar')}</div>` : ''}
         <table class="pr-m pr-nozzle"><colgroup><col style="width:22%"><col style="width:12%"><col style="width:17%"><col style="width:15%"><col></colgroup>
           <thead><tr><th>Abzudrückendes Bauteil</th><th>Prüfdruck (bar)</th><th>Prüfmedium</th><th>Düsen Nr.</th><th>geprüft / Befund</th></tr></thead>
-          <tbody>${rows.map(r => `<tr class="${r.pos === 'B1' ? 'bank-start' : ''}"><td>${escapeHtml(part)} <b>${escapeHtml(r.pos)}</b></td><td class="num ${stCls(r.p.st)}">${escapeHtml(r.pText || '')}</td><td>${escapeHtml(r.tested ? medium : '')}</td><td class="mono">${escapeHtml(r.sn)}</td><td class="${r.result ? stCls(r.result) : ''}">${escapeHtml([chk(r.result), r.note].filter(Boolean).join(' – '))}</td></tr>`).join('')}</tbody>
+          <tbody>${rows.map(r => `<tr class="${r.pos === 'B1' ? 'bank-start' : ''}"><td>${escapeHtml(part)} <b>${escapeHtml(r.pos)}</b></td><td class="num ${stCls(r.p.st)}">${escapeHtml(r.pText || '')}</td><td>${escapeHtml(r.tested ? medium : '')}</td><td class="mono">${escapeHtml(r.sn)}</td><td>${escapeHtml([chk(r.result), r.note].filter(Boolean).join(' – '))}</td></tr>`).join('')}</tbody>
         </table>
         <table class="pr-m pr-pump"><colgroup><col style="width:22%"><col style="width:16%"><col style="width:14%"></colgroup>
           <thead><tr><th>Förderbeginn Einspritzpumpe</th><th>(° vor OT)</th><th>geprüft</th></tr></thead>
-          <tbody>${[['Soll', 'soll'], ['Ist', 'ist'], ['Neu', 'neu']].map(([l, k]) => `<tr><td>${l}</td><td class="num">${escapeHtml(pump[k] || '')}</td><td class="${stCls(pump[k + 'Chk'])}">${chk(pump[k + 'Chk'])}</td></tr>`).join('')}</tbody>
+          <tbody>${[['Soll', 'soll'], ['Ist', 'ist'], ['Neu', 'neu']].map(([l, k]) => `<tr><td>${l}</td><td class="num">${escapeHtml(pump[k] || '')}</td><td>${chk(pump[k + 'Chk'])}</td></tr>`).join('')}</tbody>
         </table>
       </div>`;
   }
