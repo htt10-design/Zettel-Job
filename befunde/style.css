@@ -747,6 +747,22 @@ details.collapse[open] > summary::after { content: '▴'; }
 .nz-checks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0; }
 .nz-checks > div > span { display: block; font-size: 11.5px; font-weight: 700; color: var(--muted); margin-bottom: 3px; }
 .nz-bottom select { flex: 1; }
+.nz-stage { margin-bottom: 8px; }
+.nz-allok { margin-bottom: 8px; }
+.nz-res { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.nz-res .mini-seg { flex: none; }
+.nz-note { flex: 1; min-width: 0; margin-top: 0 !important; }
+.nz-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.nz-chips .chip.mini { font-size: 11.5px; padding: 3px 8px; }
+.nz-pump summary { cursor: pointer; list-style: none; padding: 2px 0; }
+.nz-pump summary::-webkit-details-marker { display: none; }
+.nz-pump summary::before { content: '▸ '; color: var(--muted); }
+.nz-pump[open] summary::before { content: '▾ '; }
+.nz-pump-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.nz-pump-row { display: grid; grid-template-columns: 44px 1fr auto; align-items: center; gap: 8px; }
+.nz-pump-row span { font-weight: 700; color: var(--muted); font-size: 13px; }
+.nz-pump-row input { margin-top: 0 !important; }
+.pr-pump { width: 52% !important; margin-top: 6pt; }
 .mini-seg { display: flex; gap: 4px; }
 .mini-seg button { flex: 1; border: 1.5px solid var(--border); background: var(--surface); border-radius: 8px; padding: 6px 2px; font-size: 12px; font-weight: 700; color: var(--muted); }
 .mini-seg button.r-ok.on { background: var(--t-ok); border-color: var(--t-ok); color: #fff; }

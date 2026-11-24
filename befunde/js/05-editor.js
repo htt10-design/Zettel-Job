@@ -155,6 +155,7 @@ function renderSheet() {
   body.innerHTML = html;
   bindForm(body, getActiveSheet, onSheetChange);
   refreshMeasure();
+  refreshNozzles(); // Düsen-Bewertung direkt anzeigen (prüft selbst die Blattart)
   hydratePhotos(body);
   window.scrollTo(0, scrollY);
 }

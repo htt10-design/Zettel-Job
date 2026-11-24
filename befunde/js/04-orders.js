@@ -457,9 +457,11 @@ function chooseSheetType(typeId, mode, engine) {
       <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Abbrechen</button></div>`);
     return;
   }
-  const sheet = createSheet(order, typeId, mode || null, engine || 0);
+  // Druckprobe Einspritzdüsen: immer Eingangs- UND Ausgangsprotokoll
+  const sheet = t.special === 'nozzles' ? createNozzlePair(order, engine || 0) : createSheet(order, typeId, mode || null, engine || 0);
   closeModal();
   openSheet(sheet.id);
+  if (t.special === 'nozzles') showToast('Eingangs- und Ausgangsprotokoll angelegt');
 }
 
 function addPack(id, engine) {

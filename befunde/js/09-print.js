@@ -38,7 +38,7 @@ function printHeadHtml(order, sheet, title) {
     if (hours) info.push(['Betriebsstunden', hours]);
     (t.extra || []).forEach(x => { const v = (sheet.data.extra || {})[x.k]; if (v) info.push([x.label, v]); });
     if (t.special === 'endoscopy') info.push(['Endoskop', sheet.data.scope], ['Zugang', sheet.data.access]);
-    if (t.special === 'nozzles') info.push(['Düsentyp', sheet.data.nozzleType], ['Prüfgerät', sheet.data.tester]);
+    if (t.special === 'nozzles') info.push(['Düsentyp', nozzleField(order, sheet, 'nozzleType')]);
     if (t.special === 'general') info.push(['Anlass', sheet.data.reason], ['Zustand', sheet.data.state]);
   }
   const infoHtml = info.filter(x => x[1]).map(x => `<span><b>${escapeHtml(x[0])}:</b> ${escapeHtml(x[1])}</span>`).join('');
@@ -65,7 +65,7 @@ function printDocTitle(sheet) {
   else if (t.special === 'serials') title = 'Seriennummern Bauteile';
   else if (t.special === 'parts') title = 'Ersatzteilliste / Bestellung';
   else if (t.special === 'endoscopy') title = 'Befundblatt Endoskopie';
-  else if (t.special === 'nozzles') title = 'Prüfprotokoll Einspritzdüsen';
+  else if (t.special === 'nozzles') title = 'Messblatt Druckprobe – ' + nozzleStageLabel(sheet);
   else if (!typeModes(t) || sheet.mode === 'mess') title = 'Messblatt ' + name;
   else if (sheet.mode === 'befund') title = 'Befundblatt ' + name;
   else title = 'Mess- und Befundblatt ' + name;
@@ -207,15 +207,29 @@ function specialPrintHtml(order, sheet) {
       </div>`;
   }
   if (t.special === 'nozzles') {
-    const sp = sheet.data.spec || {};
+    const sp = nozzleSpec(order, sheet);
     const rows = nozzleRows(order, sheet);
-    const ck = v => v ? `<td class="${v === 'ok' ? 'st-ok' : 'st-bad'}">${v === 'ok' ? '✓ i.O.' : '✗ n.i.O.'}</td>` : '<td></td>';
+    const part = nozzleField(order, sheet, 'part') || 'Einspritzdüse';
+    const medium = nozzleField(order, sheet, 'medium');
+    const partnerPump = (nozzlePartner(order, sheet) || { data: {} }).data.pump || {};
+    const own = sheet.data.pump || {};
+    const pump = {};
+    ['soll', 'ist', 'neu'].forEach(k => { // leere Werte vom Gegenstück (Soll/Ist aus dem Eingang)
+      const has = own[k] || own[k + 'Chk'];
+      pump[k] = has ? own[k] : partnerPump[k]; pump[k + 'Chk'] = has ? own[k + 'Chk'] : partnerPump[k + 'Chk'];
+    });
+    const chk = v => v === 'ok' ? '✓ i.O.' : v === 'bad' ? '✗ n.i.O.' : '';
     return `
       <div class="pr-block">
-        <div class="pr-block-head"><span>Prüfung Einspritzdüsen</span><span class="pr-block-sum">${rows.filter(r => r.tested).length}/${rows.length} geprüft</span></div>
-        <div class="pr-spec">Sollwert Öffnungsdruck: ${sp.min || sp.max ? escapeHtml((sp.min || '…') + ' – ' + (sp.max || '…') + ' bar') : '__________ bar'}</div>
-        <table class="pr-m"><thead><tr><th class="pos">Zyl.</th><th>Düsen-Nr. / SN</th><th>Öffn.-Druck bar</th><th>Strahlbild</th><th>Dichtheit</th><th>Schnarren</th><th>Maßnahme</th><th>Druck neu bar</th><th class="sym">Befund</th></tr></thead>
-          <tbody>${rows.map(r => `<tr class="${r.pos === 'B1' ? 'bank-start' : ''}"><th class="pos">${escapeHtml(r.pos)}</th><td>${escapeHtml(r.r.sn || '')}</td><td class="num ${stCls(r.p1.st)}">${escapeHtml(r.r.p1 || '')}</td>${ck(r.r.spray)}${ck(r.r.tight)}${ck(r.r.chatter)}<td>${escapeHtml(r.r.action || '')}</td><td class="num ${stCls(r.p2.st)}">${escapeHtml(r.r.p2 || '')}</td>${symCell(r.st)}</tr>`).join('')}</tbody>
+        <div class="pr-block-head"><span>${escapeHtml(nozzleStageLabel(sheet))}sprotokoll</span><span class="pr-block-sum">${rows.filter(r => r.tested).length}/${rows.length} geprüft</span></div>
+        ${sp.min || sp.max ? `<div class="pr-spec">Prüfdruck Soll: ${escapeHtml((sp.min || '…') + ' – ' + (sp.max || '…') + ' bar')}</div>` : ''}
+        <table class="pr-m pr-nozzle"><colgroup><col style="width:22%"><col style="width:12%"><col style="width:17%"><col style="width:15%"><col></colgroup>
+          <thead><tr><th>Abzudrückendes Bauteil</th><th>Prüfdruck (bar)</th><th>Prüfmedium</th><th>Düsen Nr.</th><th>geprüft / Befund</th></tr></thead>
+          <tbody>${rows.map(r => `<tr class="${r.pos === 'B1' ? 'bank-start' : ''}"><td>${escapeHtml(part)} <b>${escapeHtml(r.pos)}</b></td><td class="num ${stCls(r.p.st)}">${escapeHtml(r.pText || '')}</td><td>${escapeHtml(r.tested ? medium : '')}</td><td class="mono">${escapeHtml(r.sn)}</td><td class="${r.result ? stCls(r.result) : ''}">${escapeHtml([chk(r.result), r.note].filter(Boolean).join(' – '))}</td></tr>`).join('')}</tbody>
+        </table>
+        <table class="pr-m pr-pump"><colgroup><col style="width:22%"><col style="width:16%"><col style="width:14%"></colgroup>
+          <thead><tr><th>Förderbeginn Einspritzpumpe</th><th>(° vor OT)</th><th>geprüft</th></tr></thead>
+          <tbody>${[['Soll', 'soll'], ['Ist', 'ist'], ['Neu', 'neu']].map(([l, k]) => `<tr><td>${l}</td><td class="num">${escapeHtml(pump[k] || '')}</td><td class="${stCls(pump[k + 'Chk'])}">${chk(pump[k + 'Chk'])}</td></tr>`).join('')}</tbody>
         </table>
       </div>`;
   }
@@ -267,7 +281,7 @@ function printFootBlock(order, sheet, idx, total) {
   const box = v => `<span class="pr-box">${r === v ? '☒' : '☐'} ${escapeHtml(ratingInfo(v).label)}</span>`;
   const sig = sheet && sheet.signWorker;
   const cust = sheet && sheet.signCustomer;
-  const tool = sheet && showMeasure(sheet) ? [sheet.data.tool, sheet.data.toolNo ? 'Nr. ' + sheet.data.toolNo : '', sheet.data.temp ? sheet.data.temp + ' °C' : ''].filter(Boolean).join(' · ') : '';
+  const tool = sheet && getType(sheet.type).special === 'nozzles' ? nozzleField(order, sheet, 'tester') : sheet && showMeasure(sheet) ? [sheet.data.tool, sheet.data.toolNo ? 'Nr. ' + sheet.data.toolNo : '', sheet.data.temp ? sheet.data.temp + ' °C' : ''].filter(Boolean).join(' · ') : '';
   const remark = sheet ? [sheet.summary, sheet.advice].filter(Boolean).join('\n') : '';
   return `
     <table class="pr-footbox">
@@ -325,7 +339,7 @@ function sheetIssues(order, sheet) {
   });
   if (t.special === 'nozzles') {
     const bad = nozzleRows(order, sheet).filter(r => r.st === 'bad').map(r => r.pos);
-    if (bad.length) out.push({ st: 'bad', text: 'Einspritzdüsen n.i.O.: Zyl. ' + bad.join(', ') });
+    if (bad.length) out.push({ st: 'bad', text: 'Einspritzdüsen n.i.O. (' + nozzleStageLabel(sheet) + '): Zyl. ' + bad.join(', ') });
   }
   if (t.special === 'general') GENERAL_CHECK.forEach((c, i) => {
     const r = (sheet.data.check || {})[i] || {};

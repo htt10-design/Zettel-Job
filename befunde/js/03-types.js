@@ -203,8 +203,8 @@ const SHEET_TYPES = [
     ]
   },
   {
-    id: 'nozzles', group: 'esp', icon: 'nozzle', label: 'Düsen abdrücken',
-    desc: 'Einspritzdüsen: Öffnungsdruck, Strahlbild, Dichtheit je Zylinder',
+    id: 'nozzles', group: 'esp', icon: 'nozzle', label: 'Druckprobe Einspritzdüsen',
+    desc: 'Eingangs- + Ausgangsprotokoll: Prüfdruck, Prüfmedium, Düsen-Nr., Befund · Förderbeginn optional',
     special: 'nozzles'
   }
 ];
@@ -220,6 +220,7 @@ function showInspect(sheet) { const t = getType(sheet.type); return typeHasInspe
 
 function sheetTitle(sheet) {
   const t = getType(sheet.type);
+  if (t.special === 'nozzles') return t.label + ' · ' + nozzleStageLabel(sheet);
   if (t.special || !typeModes(t)) return (t.measure && !t.inspect ? 'Messprotokoll ' : '') + t.label;
   if (sheet.mode === 'mess') return 'Messprotokoll ' + t.label;
   if (sheet.mode === 'befund') return 'Befundblatt ' + t.label;
@@ -231,7 +232,7 @@ function sheetKindText(sheet) {
   if (t.special === 'serials') return 'Bauteilliste';
   if (t.special === 'parts') return 'Bestellliste';
   if (t.special === 'endoscopy') return 'Befundblatt';
-  if (t.special === 'nozzles') return 'Prüfprotokoll';
+  if (t.special === 'nozzles') return nozzleStageLabel(sheet) + 'sprotokoll';
   if (!typeModes(t)) return 'Messblatt';
   return { mess: 'Messblatt', befund: 'Befundblatt' }[sheet.mode] || 'Mess- + Befundblatt';
 }

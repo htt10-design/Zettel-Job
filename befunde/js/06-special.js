@@ -14,7 +14,6 @@ const ENDO_TAGS = [
   { g: 'Brennraum', items: ['trocken / sauber', 'Öl im Brennraum', 'Wasser im Brennraum', 'Kraftstoff im Brennraum', 'Fremdkörper'] }
 ];
 
-const NOZZLE_ACTIONS = ['', 'wiederverwendet', 'eingestellt', 'instandgesetzt', 'erneuert'];
 
 const GENERAL_CHECK = [
   'Allgemeinzustand / Sauberkeit', 'Leckagen Schmieröl', 'Leckagen Kühlwasser', 'Leckagen Kraftstoff', 'Abgasanlage / Isolierung',
@@ -52,7 +51,11 @@ function specialInit(order, sheet, src) {
       });
     }
   }
-  if (t.special === 'nozzles' && src && src.data.spec) sheet.data.spec = { ...src.data.spec };
+  if (t.special === 'nozzles') {
+    if (src && src.data.spec) sheet.data.spec = { ...src.data.spec };
+    if (src) ['stage', 'part', 'medium', 'nozzleType', 'tester'].forEach(k => { if (src.data[k]) sheet.data[k] = src.data[k]; });
+    if (!sheet.data.stage) sheet.data.stage = 'in';
+  }
   if (t.special === 'general') sheet.data.reason = sheet.data.reason || 'Durchsicht';
   if (t.special === 'parts' && !Array.isArray(sheet.data.items)) sheet.data.items = [];
 }
@@ -67,7 +70,7 @@ function specialEditorHtml(order, sheet, kind) {
 }
 
 function specialOnChange(sheet, el, ev) {
-  if (el.closest('.nozzle-card')) refreshNozzles();
+  refreshNozzles(); // auch Sollwert-Änderungen (prüft selbst die Blattart)
 }
 
 function specialAutoRating(order, sheet) {
@@ -196,72 +199,157 @@ function endoRestOk() {
 }
 
 // =====================================================================
-// Düsen abdrücken
+// Druckprobe Einspritzdüsen – immer als Paar: Eingangs- und Ausgangsprotokoll
+// sheet.data: { stage: 'in'|'out', part, medium, nozzleType, tester, spec: { min, max },
+//   rows: { [Zyl.]: { sn, p, result: 'ok'|'bad', note } }, pump: { soll, ist, neu, sollChk, istChk, neuChk } }
+// Ausgang übernimmt leere Angaben (Düsen-Nr., Medium, Sollwerte …) aus dem Eingang (nur Anzeige/Druck).
+// Ältere Blätter (p1/p2, Strahlbild/Dicht/Schnarren, Maßnahme) werden als Eingang gelesen.
 // =====================================================================
+const NOZZLE_STAGES = { in: 'Eingang', out: 'Ausgang' };
+const NOZZLE_CHIPS = ['Strahlbild i.O.', 'Strahlbild schlecht', 'tropft nach', 'undicht', 'schnarrt nicht', 'Nadel klemmt', 'eingestellt', 'instandgesetzt', 'erneuert'];
+
+function nozzleStage(sheet) { return sheet.data.stage === 'out' ? 'out' : 'in'; }
+function nozzleStageLabel(sheet) { return NOZZLE_STAGES[nozzleStage(sheet)]; }
+
+// Gegenstück (Eingang ↔ Ausgang) für denselben Motor
+function nozzlePartner(order, sheet) {
+  if (!order) return null;
+  const st = nozzleStage(sheet);
+  const list = order.sheets.filter(s => s !== sheet && s.type === 'nozzles' && (s.engine || 0) === (sheet.engine || 0) && nozzleStage(s) !== st);
+  return list[list.length - 1] || null;
+}
+
+// Angabe des Blatts, sonst vom Gegenstück
+function nozzleField(order, sheet, k) {
+  if (sheet.data[k]) return sheet.data[k];
+  const p = nozzlePartner(order, sheet);
+  return (p && p.data[k]) || '';
+}
+
+function nozzleSpec(order, sheet) {
+  const own = sheet.data.spec || {};
+  if (own.min || own.max) return own;
+  const p = nozzlePartner(order, sheet);
+  return (p && p.data.spec) || own;
+}
+
 function nozzleRows(order, sheet) {
   const e = order.engines[sheet.engine || 0] || newEngine();
-  const sp = specNums(sheet.data.spec);
+  const sp = specNums(nozzleSpec(order, sheet));
   const rows = sheet.data.rows || {};
+  const partner = nozzlePartner(order, sheet);
+  const prow = (partner && partner.data.rows) || {};
   return positions(e, 'cyl').map(pos => {
     const r = rows[pos] || {};
-    const p1 = parseNum(r.p1), p2 = parseNum(r.p2);
-    const p1St = evalRange(p1, sp.min, sp.max);
-    const p2St = evalRange(p2, sp.min, sp.max);
-    const checks = ['spray', 'tight', 'chatter'].map(k => r[k]).filter(Boolean);
-    const sts = checks.map(c => c === 'ok' ? 'ok' : 'bad');
-    // Nach Einstellung/Instandsetzung zählt der zweite Druck
-    const pressSt = p2 != null ? p2St : (p1St === 'bad' && r.action ? 'obs' : p1St);
-    if (pressSt) sts.push(pressSt);
-    let st = worstRating(sts);
-    if (r.action === 'erneuert') st = st ? 'obs' : null;
-    return { pos, r, p1: { n: p1, st: p1St }, p2: { n: p2, st: p2St }, st, tested: p1 != null || checks.length > 0 };
+    const pText = r.p !== undefined && r.p !== '' ? r.p : (r.p1 || '');
+    const p = parseNum(pText);
+    const pSt = evalRange(p, sp.min, sp.max);
+    let result = r.result || '';
+    if (!result) { // ältere Blätter: aus den Einzelprüfungen
+      const checks = ['spray', 'tight', 'chatter'].map(k => r[k]).filter(Boolean);
+      if (checks.length) result = checks.every(c => c === 'ok') ? 'ok' : 'bad';
+    }
+    const note = r.note || [r.action, r.p2 ? 'neu ' + r.p2 + ' bar' : ''].filter(Boolean).join(', ');
+    const sn = r.sn || (prow[pos] || {}).sn || '';
+    const sts = [];
+    if (pSt) sts.push(pSt);
+    if (result) sts.push(result === 'ok' ? 'ok' : 'bad');
+    return { pos, r, sn, snInherited: !r.sn && !!sn, pText, p: { n: p, st: pSt }, result, note, st: worstRating(sts), tested: p != null || !!result };
   });
 }
 
 function nozzleEditorHtml(order, sheet) {
   const spec = sheet.data.spec || {};
+  const pSpec = nozzleSpec(order, sheet);
   const rows = nozzleRows(order, sheet);
+  const partner = nozzlePartner(order, sheet);
+  const stage = nozzleStage(sheet);
+  const pump = sheet.data.pump || {};
+  const partnerPump = (partner && partner.data.pump) || {};
+  const ph = (k, def) => escapeHtml(nozzleField(order, sheet, k) && !sheet.data[k] ? 'wie ' + NOZZLE_STAGES[stage === 'in' ? 'out' : 'in'] + ': ' + nozzleField(order, sheet, k) : def);
   const tog = (bind, val) => `<div class="mini-seg">
       <button type="button" class="r-ok ${val === 'ok' ? 'on' : ''}" data-set="${bind}" data-val="ok">i.O.</button>
       <button type="button" class="r-bad ${val === 'bad' ? 'on' : ''}" data-set="${bind}" data-val="bad">n.i.O.</button></div>`;
+  const pumpRow = (k, label) => `
+    <div class="nz-pump-row"><span>${label}</span>
+      <input class="m-in" data-bind="data.pump.${k}" value="${escapeHtml(pump[k] || '')}" inputmode="decimal" placeholder="${escapeHtml(!pump[k] && partnerPump[k] ? partnerPump[k] + ' (' + NOZZLE_STAGES[stage === 'in' ? 'out' : 'in'] + ')' : '° vor OT')}" autocomplete="off">
+      ${tog('data.pump.' + k + 'Chk', pump[k + 'Chk'])}</div>`;
   return `
     <div class="card special">
-      <h3 class="card-title">Prüfbedingungen</h3>
+      <div class="seg nz-stage">
+        <button type="button" class="${stage === 'in' ? 'on' : ''}" data-set="data.stage" data-val="in" data-keep="1">Eingangsprotokoll</button>
+        <button type="button" class="${stage === 'out' ? 'on' : ''}" data-set="data.stage" data-val="out" data-keep="1">Ausgangsprotokoll</button>
+      </div>
+      <p class="hint">${stage === 'in' ? 'Zustand wie ausgebaut / angeliefert.' : 'Nach Einstellung / Instandsetzung.'}${partner ? ` Das ${NOZZLE_STAGES[stage === 'in' ? 'out' : 'in']}sprotokoll liegt im Auftrag – leere Felder werden von dort übernommen.` : ''}</p>
       <div class="grid-2">
-        ${field('Düsentyp / Sachnummer', 'data.nozzleType', sheet.data.nozzleType)}
-        ${field('Prüfgerät', 'data.tester', sheet.data.tester, { placeholder: 'z.B. Düsenprüfgerät' })}
+        ${field('Abzudrückendes Bauteil', 'data.part', sheet.data.part, { placeholder: ph('part', 'Einspritzdüse') })}
+        ${field('Prüfmedium', 'data.medium', sheet.data.medium, { placeholder: ph('medium', 'z.B. Prüföl ISO 4113') })}
+        ${field('Düsentyp / Sachnummer', 'data.nozzleType', sheet.data.nozzleType, { placeholder: ph('nozzleType', '') })}
+        ${field('Messmittel / Prüfgerät', 'data.tester', sheet.data.tester, { placeholder: ph('tester', 'z.B. Düsenprüfgerät') })}
       </div>
       <div class="spec-grid">
-        <label class="field spec-field"><span>Öffnungsdruck min (bar)</span><input class="spec-in" data-bind="data.spec.min" value="${escapeHtml(spec.min || '')}" inputmode="decimal" autocomplete="off" placeholder="z.B. 300"></label>
-        <label class="field spec-field"><span>Öffnungsdruck max (bar)</span><input class="spec-in" data-bind="data.spec.max" value="${escapeHtml(spec.max || '')}" inputmode="decimal" autocomplete="off" placeholder="z.B. 320"></label>
+        <label class="field spec-field"><span>Prüfdruck Soll min (bar)</span><input class="spec-in" data-bind="data.spec.min" value="${escapeHtml(spec.min || '')}" inputmode="decimal" autocomplete="off" placeholder="${escapeHtml(pSpec.min && !spec.min ? pSpec.min : 'z.B. 300')}"></label>
+        <label class="field spec-field"><span>Prüfdruck Soll max (bar)</span><input class="spec-in" data-bind="data.spec.max" value="${escapeHtml(spec.max || '')}" inputmode="decimal" autocomplete="off" placeholder="${escapeHtml(pSpec.max && !spec.max ? pSpec.max : 'z.B. 320')}"></label>
       </div>
     </div>
     <div class="card special nozzle-card">
       <div class="mc-head"><h3 class="card-title">Düsen je Zylinder</h3><span class="mc-sum" id="nozzle-sum"></span></div>
-      <p class="hint">Öffnungsdruck eintragen, dann Strahlbild, Dichtheit (Nachtropfen) und Schnarren antippen.</p>
+      <p class="hint">Düsen-Nr. und Prüfdruck eintragen, dann i.O. / n.i.O. – Befund antippen oder frei schreiben.</p>
+      <button type="button" class="btn btn-soft nz-allok" onclick="nozzleAllOk()">Alle übrigen i.O.</button>
       <div class="nz-list">
-        ${rows.map(({ pos, r }) => {
+        ${rows.map(row => {
+          const { pos, r } = row;
           const p = 'data.rows.' + pos;
           return `
           <div class="nz-row" data-nz="${escapeHtml(pos)}">
             <div class="nz-top">
               <span class="pos-badge">${escapeHtml(pos)}</span>
-              <input class="nz-sn" data-bind="${p}.sn" value="${escapeHtml(r.sn || '')}" placeholder="Düsen-Nr. / SN" autocomplete="off">
-              <label class="nz-p"><span>bar</span><input class="m-in nz-p1" data-bind="${p}.p1" value="${escapeHtml(r.p1 || '')}" inputmode="decimal" placeholder="Ist" autocomplete="off"></label>
+              <input class="nz-sn" data-bind="${p}.sn" value="${escapeHtml(r.sn || '')}" placeholder="${escapeHtml(row.snInherited ? row.sn : 'Düsen-Nr.')}" autocomplete="off">
+              <label class="nz-p"><span>bar</span><input class="m-in nz-p1" data-bind="${p}.p" value="${escapeHtml(row.pText)}" inputmode="decimal" placeholder="Prüfdr." autocomplete="off"></label>
             </div>
-            <div class="nz-checks">
-              <div><span>Strahlbild</span>${tog(p + '.spray', r.spray)}</div>
-              <div><span>Dicht</span>${tog(p + '.tight', r.tight)}</div>
-              <div><span>Schnarren</span>${tog(p + '.chatter', r.chatter)}</div>
-            </div>
-            <div class="nz-bottom">
-              <select data-bind="${p}.action" data-rerender="1">${NOZZLE_ACTIONS.map(a => `<option value="${a}" ${r.action === a ? 'selected' : ''}>${a ? escapeHtml(a) : 'Maßnahme …'}</option>`).join('')}</select>
-              ${r.action === 'eingestellt' || r.action === 'instandgesetzt' || r.p2 ? `<label class="nz-p"><span>neu bar</span><input class="m-in nz-p2" data-bind="${p}.p2" value="${escapeHtml(r.p2 || '')}" inputmode="decimal" placeholder="nach" autocomplete="off"></label>` : ''}
-            </div>
+            <div class="nz-res">${tog(p + '.result', row.result)}
+              <input class="nz-note" data-bind="${p}.note" value="${escapeHtml(row.note)}" placeholder="Befund" autocomplete="off"></div>
+            <div class="nz-chips">${NOZZLE_CHIPS.map(c => `<button type="button" class="chip mini" onclick="nozzleChip(${escapeHtml(JSON.stringify(pos))}, ${escapeHtml(JSON.stringify(c))})">${escapeHtml(c)}</button>`).join('')}</div>
           </div>`;
         }).join('')}
       </div>
-    </div>`;
+    </div>
+    <details class="card special nz-pump" ${pump.soll || pump.ist || pump.neu ? 'open' : ''}>
+      <summary><b>Förderbeginn Einspritzpumpe</b> <span class="muted">(optional · ° vor OT)</span></summary>
+      <div class="nz-pump-list">${pumpRow('soll', 'Soll')}${pumpRow('ist', 'Ist')}${pumpRow('neu', 'Neu')}</div>
+      <p class="hint">Im Ausdruck steht die Tabelle immer – leer, wenn nichts eingetragen ist.</p>
+    </details>`;
+}
+
+// Befund-Baustein antippen → an den Befundtext anhängen
+function nozzleChip(pos, text) {
+  const sheet = getActiveSheet();
+  if (!sheet) return;
+  sheet.data.rows = sheet.data.rows || {};
+  const r = sheet.data.rows[pos] = sheet.data.rows[pos] || {};
+  const cur = String(r.note || '').trim();
+  if (cur.split(/,\s*/).includes(text)) return;
+  r.note = cur ? cur + ', ' + text : text;
+  if (!r.result) r.result = /schlecht|tropft|undicht|klemmt|nicht/.test(text) ? 'bad' : (/i\.O\./.test(text) ? 'ok' : '');
+  if (!r.result) delete r.result;
+  touchSheet(sheet);
+  renderSheet();
+}
+
+// Alle Düsen ohne Ergebnis auf i.O. setzen
+function nozzleAllOk() {
+  const order = getActiveOrder(), sheet = getActiveSheet();
+  if (!order || !sheet) return;
+  sheet.data.rows = sheet.data.rows || {};
+  let n = 0;
+  nozzleRows(order, sheet).forEach(row => {
+    if (row.result) return;
+    (sheet.data.rows[row.pos] = sheet.data.rows[row.pos] || {}).result = 'ok';
+    n++;
+  });
+  touchSheet(sheet);
+  renderSheet();
+  showToast(n ? n + ' Düsen auf i.O. gesetzt' : 'Alle Düsen sind schon bewertet');
 }
 
 function refreshNozzles() {
@@ -272,13 +360,21 @@ function refreshNozzles() {
   rows.forEach(r => {
     const row = document.querySelector(`[data-nz="${CSS.escape(r.pos)}"]`);
     if (!row) return;
-    setSt(row.querySelector('.nz-p1'), r.p1.st);
-    setSt(row.querySelector('.nz-p2'), r.p2.st);
+    setSt(row.querySelector('.nz-p1'), r.p.st);
     row.className = 'nz-row rate-' + (r.st || 'none');
   });
   const sum = document.getElementById('nozzle-sum');
   const bad = rows.filter(r => r.st === 'bad').length;
   if (sum) sum.innerHTML = `${rows.filter(r => r.tested).length}/${rows.length} geprüft${bad ? ` · <b class="txt-bad">${bad}× n.i.O.</b>` : ''}`;
+}
+
+// Neues Paar Eingang + Ausgang anlegen (Ausgang übernimmt leere Angaben vom Eingang)
+function createNozzlePair(order, engine) {
+  const a = createSheet(order, 'nozzles', null, engine || 0);
+  a.data.stage = 'in';
+  const b = createSheet(order, 'nozzles', null, engine || 0);
+  b.data.stage = 'out';
+  return a;
 }
 
 // =====================================================================
@@ -539,6 +635,6 @@ async function removePart(i) {
   renderSheet();
 }
 
-Object.assign(window, { addPart, removePart });
+Object.assign(window, { addPart, removePart, nozzleChip, nozzleAllOk });
 
 Object.assign(window, { selectCyl, endoRestOk, serialAddRow, serialRemoveRow, serialAddGroup, serialRemoveGroup });

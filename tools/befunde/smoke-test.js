@@ -78,7 +78,8 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR
       await page.waitForSelector('#view-order.active');
     }
     const n = await page.evaluate(() => getActiveOrder().sheets.length);
-    assert(n === types.length, `alle ${types.length} Blätter angelegt (${n})`, errors);
+    // Druckprobe Einspritzdüsen legt Eingang + Ausgang an → ein Blatt mehr
+    assert(n === types.length + 1, `alle ${types.length} Blattarten angelegt, Düsen als Paar (${n})`, errors);
 
     // Kipphebelböcke: Lagerspiel Ein-/Auslass je Zylinder
     const rocker = await page.evaluate(() => {
@@ -145,15 +146,42 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR
     assert(endo.B3.rating === 'obs' && endo.B3.tags.includes('Polierstellen') && endo.A1.rating === 'ok', 'Endoskopie B3 + Rest i.O.', errors);
     await shot('11-endo');
 
-    // Düsen
-    await page.evaluate(() => openSheet(getActiveOrder().sheets.find(s => s.type === 'nozzles').id));
+    // Druckprobe Einspritzdüsen: Eingang + Ausgang
+    const nzIn = await page.evaluate(() => { const l = getActiveOrder().sheets.filter(s => s.type === 'nozzles'); return l.map(s => s.data.stage).join(','); });
+    assert(nzIn === 'in,out', 'Düsen: Eingang + Ausgang angelegt: ' + nzIn, errors);
+    await page.evaluate(() => openSheet(getActiveOrder().sheets.find(s => s.type === 'nozzles' && s.data.stage === 'in').id));
     await page.fill('[data-bind="data.spec.min"]', '300');
     await page.fill('[data-bind="data.spec.max"]', '320');
-    await page.fill('[data-bind="data.rows.A1.p1"]', '280');
-    await page.locator('[data-bind="data.rows.A1.p1"]').dispatchEvent('change');
-    await page.click('[data-set="data.rows.A1.spray"][data-val="ok"]');
-    const nz = await page.evaluate(() => nozzleRows(getActiveOrder(), getActiveSheet())[0].st);
-    assert(nz === 'bad', 'Düse A1 280 bar < 300 → n.i.O.: ' + nz, errors);
+    await page.locator('[data-bind="data.spec.max"]').dispatchEvent('change');
+    await page.fill('[data-bind="data.medium"]', 'Prüföl ISO 4113');
+    await page.locator('[data-bind="data.medium"]').dispatchEvent('change');
+    await page.fill('[data-bind="data.rows.A1.sn"]', 'D-111');
+    await page.locator('[data-bind="data.rows.A1.sn"]').dispatchEvent('change');
+    await page.fill('[data-bind="data.rows.A1.p"]', '280');
+    await page.locator('[data-bind="data.rows.A1.p"]').dispatchEvent('change');
+    await page.click('[data-set="data.rows.A1.result"][data-val="ok"]');
+    const nz = await page.evaluate(() => {
+      nozzleChip('A2', 'tropft nach');
+      nozzleAllOk();
+      const rows = nozzleRows(getActiveOrder(), getActiveSheet());
+      return [rows[0].st, rows[1].result, rows[1].note, rows[2].result].join('|');
+    });
+    assert(nz === 'bad|bad|tropft nach|ok', 'Düsen Eingang (A1 280 bar < 300, A2 tropft nach, Rest i.O.): ' + nz, errors);
+    await shot('11b-duesen-eingang');
+    const nzOut = await page.evaluate(() => {
+      const out = getActiveOrder().sheets.find(s => s.type === 'nozzles' && s.data.stage === 'out');
+      out.data.rows = { A1: { p: '310', result: 'ok', note: 'eingestellt' } };
+      openSheet(out.id);
+      const rows = nozzleRows(getActiveOrder(), out);
+      const html = printSheetHtml(getActiveOrder(), out, 1, 1);
+      // ältere Düsenblätter bleiben lesbar
+      const legacy = { id: 'lg', type: 'nozzles', engine: 0, data: { spec: { min: '300', max: '320' }, rows: { A1: { p1: '305', spray: 'ok', tight: 'ok', action: 'eingestellt', p2: '312' } } } };
+      const lr = nozzleRows({ engines: getActiveOrder().engines, sheets: [legacy] }, legacy)[0];
+      return [rows[0].sn, rows[0].snInherited, rows[0].st, printDocTitle(out), html.includes('Prüföl ISO 4113'), html.includes('Förderbeginn Einspritzpumpe'), html.includes('Abzudrückendes Bauteil'),
+        lr.pText, lr.result, lr.note, nozzleStage(legacy)].join('|');
+    });
+    assert(nzOut === 'D-111|true|ok|Messblatt Druckprobe – Ausgang|true|true|true|305|ok|eingestellt, neu 312 bar|in', 'Düsen Ausgang: ' + nzOut, errors);
+    await shot('11c-duesen-ausgang');
 
     // Seriennummern
     await page.evaluate(() => openSheet(getActiveOrder().sheets.find(s => s.type === 'serials').id));
@@ -248,7 +276,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR
     await page.click('.modal-actions .btn-primary');
     await page.waitForFunction(() => window.__printed, null, { timeout: 5000 }).catch(() => errors.push('Druck nicht ausgelöst'));
     const pages = await page.evaluate(() => document.querySelectorAll('#print-area .pr-page').length);
-    assert(pages === types.length + 1, `Druck: Deckblatt + ${types.length} Blätter (${pages})`, errors);
+    assert(pages === types.length + 2, `Druck: Deckblatt + ${types.length + 1} Blätter (${pages})`, errors);
     if (label === 'desktop') {
       await page.emulateMedia({ media: 'print' });
       await page.pdf({ path: path.join(OUT, 'druck-alle-blaetter.pdf'), format: 'A4', printBackground: true });
@@ -263,7 +291,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR
     await page.click('.modal-actions .btn-primary');
     await page.waitForFunction(() => window.__printed, null, { timeout: 5000 }).catch(() => errors.push('Bericht: Druck nicht ausgelöst'));
     const rep = await page.evaluate(() => [document.querySelectorAll('#print-area .pr-page').length, document.querySelector('.pr-report').textContent]);
-    assert(rep[0] === types.length + 1, `Bericht + ${types.length} Anlagen (${rep[0]})`, errors);
+    assert(rep[0] === types.length + 2, `Bericht + ${types.length + 1} Anlagen (${rep[0]})`, errors);
     assert(/außer Toleranz: Zyl\. A2/.test(rep[1]) && /gutem Zustand/.test(rep[1]) && /Handlungsbedarf/.test(rep[1]), 'Bericht enthält Ergebnis, Fazit, Handlungsbedarf', errors);
     if (label === 'desktop') {
       await page.emulateMedia({ media: 'print' });
@@ -277,7 +305,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR
     const rv = await page.evaluate(() => [document.querySelectorAll('#paper .pr-page').length, getComputedStyle(document.querySelector('#paper .pr-title')).textDecorationLine]);
     assert(rv[0] === 1 && /underline/.test(rv[1]), 'Berichtsansicht zeigt Papierseite im Druckstil: ' + rv, errors);
     await page.click('#view-report .chip >> nth=1');
-    await page.waitForFunction(n => document.querySelectorAll('#paper .pr-page').length === n, types.length + 1, { timeout: 5000 }).catch(() => errors.push('Berichtsansicht + alle Blätter'));
+    await page.waitForFunction(n => document.querySelectorAll('#paper .pr-page').length === n, types.length + 2, { timeout: 5000 }).catch(() => errors.push('Berichtsansicht + alle Blätter'));
     await shot('16-report-view');
 
     // Büro: Auftrag als Datei senden → anderes Gerät lädt sie → Link öffnet Bericht
