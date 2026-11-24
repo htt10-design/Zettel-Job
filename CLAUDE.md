@@ -74,7 +74,7 @@ zettel/icons/       Icon des Bereichs (Favicon/Kachel); Manifest + Service Worke
 | 05-signature | Unterschriften-Canvas; Kundenunterschrift sperrt den Zettel |
 | 06-print | Druckansicht A4 (`buildPrintHtml`, `printActiveSheet`) |
 | 07-hours | Stundenübersicht (Monat/KW/Jahr), Überstundenkonto, freie Tage / Urlaub / Krank / Feiertag / Korrektur |
-| 08-settings | Name, Standort, Kennzeichen, Sollzeiten, Startsaldo, Zeitarten, eigene Unterschrift, Backup |
+| 08-settings | Name, Standort, Kennzeichen, Sollzeiten, Startsaldo, Zeitarten, eigene Unterschrift, Backup (Laden mit Auswahl `chooseImportMode`: Zusammenführen `mergeBackupData` = fehlende Einträge dazu, gleiche ID nur ersetzen, wenn Backup nachweislich neuer (`updatedAt`), Geräte-Einstellungen bleiben, fehlende Kostenstellen/Zeitarten ergänzt – oder Ersetzen) |
 | 09-orders | „Auftrag zusammenstellen“ (nur auf Befehl): alle Montagezettel einer Auftragsnummer → Übersicht, Auslöse-Summen, gemeinsamer Druck, Unterschriften in `appData.orders`; Ordner je Auftragsnummer |
 | 10-jobs | Rollen (Anmeldung Servicetechniker / Sachbearbeiter, `appData.role`), Aufträge vom Büro (`appData.jobs`: Auftragsnr., Kunde, Schiff, Motoren, Beschreibung, Dateien), Zettel aus Auftrag, Büro-Ansicht aller Zettel |
 | 11-home | Startseite Techniker: Wochenleiste (Stunden/Status je Tag, blättern), gewählter Tag mit Zetteln und „Neuer Zettel“, „Zu erledigen“ (fehlende Tage, fehlende Unterschriften, zugeteilte Aufträge), Wochenfortschritt; alte Liste aufklappbar |

@@ -143,6 +143,46 @@ async function exportOrder() {
   downloadJson({ type: 'befunde-order', version: 1, at: new Date().toISOString(), order, files }, 'Befund-' + (order.orderNo || 'Auftrag').replace(/[\\/:]/g, '-') + '.json');
 }
 
+// Auswahl beim Backup laden: 'merge' (vorhandene behalten) | 'replace' | null (abbrechen)
+function chooseImportMode(info) {
+  return new Promise(resolve => {
+    window.__importResolve = v => { closeModal(); resolve(v); };
+    openModal(`
+      <h2 class="modal-title">Backup laden</h2>
+      <p class="modal-text muted">${escapeHtml(info)}</p>
+      <div class="type-choice">
+        <button class="type-btn current" onclick="__importResolve('merge')"><strong>Zusammenführen</strong>
+          <span>Vorhandene Daten bleiben erhalten, aus dem Backup kommt dazu, was fehlt. Gibt es denselben Eintrag doppelt, gilt der neuere Stand.</span></button>
+        <button class="type-btn" onclick="__importResolve('replace')"><strong>Ersetzen</strong>
+          <span>Alle Daten auf diesem Gerät werden durch das Backup ersetzt.</span></button>
+      </div>
+      <div class="modal-actions"><button class="btn btn-ghost" onclick="__importResolve(null)">Abbrechen</button></div>`);
+  });
+}
+
+// Sicherung in die vorhandenen Aufträge einfügen: neue Aufträge dazu; gleicher Auftrag → Blätter
+// zusammenführen (gleiche ID: neuerer Stand nach updated gewinnt), Kopf nach updated
+function mergeBackupOrders(inc) {
+  const stats = { added: 0, updated: 0, kept: 0 };
+  const ts = x => Date.parse((x && (x.updated || x.created)) || '') || 0;
+  (inc.orders || []).forEach(o => {
+    const cur = appData.orders.find(x => x.id === o.id);
+    if (!cur) { appData.orders.push(o); stats.added++; return; }
+    const sheets = cur.sheets.slice();
+    let changed = false;
+    (o.sheets || []).forEach(sh => {
+      const i = sheets.findIndex(x => x.id === sh.id);
+      if (i < 0) { sheets.push(sh); changed = true; }
+      else if (ts(sheets[i]) && ts(sh) > ts(sheets[i])) { sheets[i] = sh; changed = true; }
+    });
+    if (ts(cur) && ts(o) > ts(cur)) { Object.assign(cur, o, { sheets }); changed = true; } else cur.sheets = sheets;
+    if (changed) stats.updated++; else stats.kept++;
+  });
+  // gemerkte Sollwerte: fehlende ergänzen
+  Object.keys(inc.specs || {}).forEach(k => { appData.specs[k] = Object.assign({}, inc.specs[k], appData.specs[k] || {}); });
+  return stats;
+}
+
 async function onImportInput(ev) {
   const f = ev.target.files[0];
   ev.target.value = '';
@@ -165,14 +205,19 @@ async function onImportInput(ev) {
     return;
   }
   if (data.type === 'befunde-backup' && data.appData) {
-    if (!await confirmDialog('Sicherung vom ' + new Date(data.at).toLocaleString('de-DE') + ' laden? Aktuelle Daten auf diesem Gerät werden ersetzt.', 'Laden', true)) return;
+    const mode = await chooseImportMode('Sicherung vom ' + new Date(data.at).toLocaleString('de-DE') + ' mit ' + ((data.appData.orders || []).length) + ' Auftrag/Aufträgen. Wie soll sie geladen werden?');
+    if (!mode) return;
     await writeFiles(data.files);
-    appData = normalizeData(data.appData);
-    await resetSyncTracking(); // mit dem Server zusammenführen statt dort zu löschen
+    let stats = null;
+    if (mode === 'merge') stats = mergeBackupOrders(normalizeData(data.appData));
+    else {
+      appData = normalizeData(data.appData);
+      await resetSyncTracking(); // mit dem Server zusammenführen statt dort zu löschen
+    }
     saveData(true);
     applyTheme();
     showView('orders');
-    showToast('Sicherung geladen');
+    showToast(stats ? `Zusammengeführt: ${stats.added} Aufträge neu, ${stats.updated} ergänzt/aktualisiert, ${stats.kept} unverändert` : 'Sicherung geladen (ersetzt)');
     return;
   }
   showToast('Unbekanntes Dateiformat');
@@ -214,4 +259,4 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('import-input').addEventListener('change', onImportInput);
 });
 
-Object.assign(window, { setQuickInput, setTheme, removeOwnSignature, pickLogo, onLogoInput, removeLogo, resetLogo, deleteSpec, exportBackup, exportOrder, createDemoOrder });
+Object.assign(window, { setQuickInput, setTheme, removeOwnSignature, pickLogo, onLogoInput, removeLogo, resetLogo, deleteSpec, exportBackup, exportOrder, createDemoOrder , chooseImportMode });

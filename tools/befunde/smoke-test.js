@@ -81,6 +81,23 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR
     // Druckprobe Einspritzdüsen legt Eingang + Ausgang an → ein Blatt mehr
     assert(n === types.length + 1, `alle ${types.length} Blattarten angelegt, Düsen als Paar (${n})`, errors);
 
+    // Sicherung zusammenführen: vorhandener Auftrag bleibt, neues Blatt + neuer Auftrag kommen dazu
+    const bfMerge = await page.evaluate(() => {
+      const order = getActiveOrder();
+      const n0 = appData.orders.length, s0 = order.sheets.length;
+      const inc = JSON.parse(JSON.stringify(appData));
+      const o = inc.orders.find(x => x.id === order.id);
+      o.customer = 'ALT'; o.updated = '2000-01-01T00:00:00Z';
+      o.sheets.push({ id: 'bksheet', type: 'general', engine: 0, data: {}, findings: [], updated: '2026-01-01T00:00:00Z' });
+      inc.orders.push({ id: 'bkorder', orderNo: 'SR26/000777', engines: [{}], sheets: [], updated: '2026-01-01T00:00:00Z' });
+      const st = mergeBackupOrders(normalizeData(inc));
+      const res = [appData.orders.length - n0, order.sheets.length - s0, order.customer, st.added, st.updated].join('|');
+      order.sheets = order.sheets.filter(s => s.id !== 'bksheet');
+      appData.orders = appData.orders.filter(x => x.id !== 'bkorder');
+      return res;
+    });
+    assert(bfMerge === '1|1|Testkunde|1|1', 'Sicherung zusammenführen: ' + bfMerge, errors);
+
     // Kipphebelböcke: Lagerspiel Ein-/Auslass je Zylinder
     const rocker = await page.evaluate(() => {
       const sh = getActiveOrder().sheets.find(s => s.type === 'rocker');

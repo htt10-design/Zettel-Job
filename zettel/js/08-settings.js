@@ -293,6 +293,44 @@ async function exportBackup() {
   showToast('Backup gespeichert');
 }
 
+// Auswahl beim Backup laden: 'merge' (vorhandene behalten) | 'replace' | null (abbrechen)
+function chooseImportMode(info) {
+  return new Promise(resolve => {
+    window.__importResolve = v => { closeModal(); resolve(v); };
+    openModal(`
+      <h2 class="modal-title">Backup laden</h2>
+      <p class="modal-text muted">${escapeHtml(info)}</p>
+      <div class="type-choice">
+        <button class="type-btn current" onclick="__importResolve('merge')"><strong>Zusammenführen</strong>
+          <span>Vorhandene Daten bleiben erhalten, aus dem Backup kommt dazu, was fehlt. Gibt es denselben Eintrag doppelt, gilt der neuere Stand.</span></button>
+        <button class="type-btn" onclick="__importResolve('replace')"><strong>Ersetzen</strong>
+          <span>Alle Daten auf diesem Gerät werden durch das Backup ersetzt.</span></button>
+      </div>
+      <div class="modal-actions"><button class="btn btn-ghost" onclick="__importResolve(null)">Abbrechen</button></div>`);
+  });
+}
+
+// Backup in die vorhandenen Daten einfügen; gleiche ID → neuerer Stand (updatedAt) gewinnt
+function mergeBackupData(cur, inc) {
+  const stats = { added: 0, updated: 0, kept: 0 };
+  const ts = x => (x && x.updatedAt ? Date.parse(x.updatedAt) || 0 : 0);
+  ['sheets', 'jobs', 'technicians', 'daysOff', 'handovers', 'leaveRequests'].forEach(key => {
+    (inc[key] || []).forEach(item => {
+      if (!item || !item.id) return;
+      const i = cur[key].findIndex(x => x.id === item.id);
+      if (i < 0) { cur[key].push(item); stats.added++; }
+      else if (ts(cur[key][i]) && ts(item) > ts(cur[key][i])) { cur[key][i] = item; stats.updated++; } // ohne Zeitstempel: Vorhandenes bleibt
+      else stats.kept++;
+    });
+  });
+  ['orders', 'profiles'].forEach(key => Object.keys(inc[key] || {}).forEach(k => { if (!cur[key][k]) cur[key][k] = inc[key][k]; }));
+  // Einstellungen dieses Geräts bleiben; fehlende Kostenstellen / Zeitarten ergänzen
+  const s = cur.settings, si = inc.settings || {};
+  (si.costCenters || []).forEach(c => { if (c && !s.costCenters.some(x => String(x.no).trim().toLowerCase() === String(c.no).trim().toLowerCase())) s.costCenters.push(c); });
+  (si.codes || []).forEach(c => { if (c && !s.codes.some(x => x.code === c.code)) s.codes.push(c); });
+  return stats;
+}
+
 function importBackup(input) {
   const file = input.files && input.files[0];
   input.value = '';
@@ -303,21 +341,23 @@ function importBackup(input) {
     try { data = JSON.parse(reader.result); }
     catch { showToast('Datei ist kein gültiges Backup'); return; }
     if (!data || !Array.isArray(data.sheets)) { showToast('Datei ist kein Stundennachweis-Backup'); return; }
-    const ok = await confirmDialog(`Backup mit ${data.sheets.length} Zettel(n) laden? Die aktuellen Daten auf diesem Gerät werden ersetzt.`, 'Laden', true);
-    if (!ok) return;
+    const mode = await chooseImportMode(`Backup mit ${data.sheets.length} Zettel(n), ${(data.jobs || []).length} Auftrag/Aufträgen. Wie soll es geladen werden?`);
+    if (!mode) return;
     const files = data.files || {};
     delete data.files;
-    appData = normalizeData(data);
+    let stats = null;
+    if (mode === 'merge') stats = mergeBackupData(appData, normalizeData(data));
+    else appData = normalizeData(data);
     // Dateianhänge zurückschreiben
     for (const id of Object.keys(files)) {
       try { await saveFile(id, await (await fetch(files[id])).blob()); } catch (e) { console.warn('Datei nicht wiederhergestellt', id, e); }
     }
-    await resetSyncTracking(); // mit dem Server zusammenführen statt dort zu löschen
+    if (mode === 'replace') await resetSyncTracking(); // mit dem Server zusammenführen statt dort zu löschen
     await saveData(true);
     applyTheme();
     applyRole();
     renderSettings();
-    showToast('Backup geladen');
+    showToast(stats ? `Zusammengeführt: ${stats.added} neu, ${stats.updated} aktualisiert, ${stats.kept} unverändert` : 'Backup geladen (ersetzt)');
   };
   reader.readAsText(file);
 }
@@ -338,6 +378,7 @@ async function resetAll() {
 }
 
 window.renderSettings = renderSettings;
+window.chooseImportMode = chooseImportMode;
 window.setSetting = setSetting;
 window.setTheme = setTheme;
 window.setTarget = setTarget;

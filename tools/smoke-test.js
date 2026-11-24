@@ -882,6 +882,28 @@ function assert(cond, msg, errors) { if (!cond) errors.push('ASSERT: ' + msg); }
     });
     assert(overflow, 'Langer Zettel-Titel verbreitert die Seite', errors);
 
+    // Backup laden: Zusammenführen behält Vorhandenes, ergänzt Neues, neuerer Stand gewinnt
+    const merge = await page.evaluate(async () => {
+      const before = appData.sheets.length;
+      const backup = JSON.parse(JSON.stringify(appData));
+      const keep = appData.sheets[0];
+      keep.updatedAt = '2026-06-01T00:00:00Z'; keep.note = 'AKTUELL';
+      backup.sheets[0].updatedAt = '2026-01-01T00:00:00Z'; backup.sheets[0].note = 'ALT';
+      backup.sheets.push(normalizeSheet({ id: 'bk1', type: 'werkstatt', worker: 'Max Monteur', days: [{ id: 'dbk', date: '2026-01-05', entries: [] }], updatedAt: '2026-01-05T00:00:00Z' }));
+      backup.jobs.push({ id: 'bkjob', orderNo: 'SR26/000555', updatedAt: '2026-02-01T00:00:00Z' });
+      const p = chooseImportMode('Test');
+      const btns = document.querySelectorAll('#modal .type-btn').length;
+      __importResolve('merge');
+      const mode = await p;
+      const st = mergeBackupData(appData, normalizeData(backup));
+      const res = [btns, mode, appData.sheets.length - before, keep.note, st.added, appData.jobs.some(j => j.id === 'bkjob')].join('|');
+      appData.sheets = appData.sheets.filter(x => x.id !== 'bk1');
+      appData.jobs = appData.jobs.filter(j => j.id !== 'bkjob');
+      keep.note = '';
+      return res;
+    });
+    assert(merge === '2|merge|1|AKTUELL|2|true', `Backup zusammenführen ${merge}`, errors);
+
     // Persistenz: neu laden, Daten müssen noch da sein
     await page.evaluate(() => saveData(true));
     await page.reload();
