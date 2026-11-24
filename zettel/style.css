@@ -1005,7 +1005,13 @@ body.role-tech.home-list-hidden #view-sheets .fab { display: none; }
 #print-area { display: none; }
 
 @media print {
-  @page { size: A4; margin: 12mm; }
+  @page { size: A4; margin: 0; }
+  /* Rand 0 → keine Browser-Kopf-/Fußzeilen (Adresse, Datum); Abstand über .pr-frame */
+  #print-area { padding: 0 12mm; }
+  #print-area table.pr-frame { width: 100%; border-collapse: collapse; table-layout: auto; margin: 0; border: 0; }
+  #print-area table.pr-frame > thead > tr > td, #print-area table.pr-frame > tfoot > tr > td, #print-area table.pr-frame > tbody > tr > td { border: 0 !important; padding: 0 !important; background: none !important; }
+  .pr-frame-gap { height: 12mm; }
+
   html, body { background: #fff !important; color: #000; color-scheme: light !important; }
   :root, [data-theme="dark"] { --bg: #fff; --text: #000; color-scheme: light; }
   #app, .modal-backdrop, .sign-overlay, .toast { display: none !important; }

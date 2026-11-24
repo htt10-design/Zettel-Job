@@ -27,6 +27,8 @@ tools/                            Tests (start-test, smoke-test, sync-test; tool
   `publishIdentity` zurück), Befunde setzt bei Monteur `settings.name` (Prüfer). Die Startseite rechnet bis dahin mit
   `applyIdentityInMemory` (nur im Speicher). Monteurliste = angelegte Monteure + Namen aus Zetteln/Aufträgen.
 - Neuer Bereich = neuer Ordner + Kachel in index.html + Dateien in `sw.js` `APP_SHELL_FILES` + `register('../sw.js')` + `#btn-home`.
+- Druck: `@page { margin: 0 }` (so druckt Chrome keine Kopf-/Fußzeilen mit Adresse/Datum); Ränder über `printFrame(html)`
+  (Tabelle mit thead/tfoot-Abstand, wiederholt sich je Seite) in zettel/06-print `printHtml` und befunde `printSheets`/`printReport`.
 - **Bei jeder Änderung an index.html / start.* / zettel/* / befunde/* `CACHE_VERSION` in `sw.js` (Wurzel) hochzählen**
   und neue Dateien in `APP_SHELL_FILES` eintragen. Die Bereiche haben keinen eigenen sw.js mehr.
 

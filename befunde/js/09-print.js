@@ -274,6 +274,13 @@ function specialPrintHtml(order, sheet) {
   return '';
 }
 
+// Druckrahmen: @page hat Rand 0 (dann druckt Chrome keine Kopf-/Fußzeilen mit Adresse/Datum).
+// Den oberen/unteren Rand auf JEDER Seite liefern thead/tfoot, die der Browser je Seite wiederholt.
+function printFrame(html) {
+  return `<table class="pr-frame"><thead><tr><td><div class="pr-frame-gap"></div></td></tr></thead>`
+    + `<tfoot><tr><td><div class="pr-frame-gap"></div></td></tr></tfoot><tbody><tr><td>${html}</td></tr></tbody></table>`;
+}
+
 // ---------- Fuß wie SDT-Messblatt ----------
 // Bemerkung / Empfehlung (mit Gesamtbewertung) · Messwerkzeug | Seitenzahl · Datum | Unterschrift | Sonstiges
 function printFootBlock(order, sheet, idx, total) {
@@ -400,7 +407,7 @@ async function printSheets(sheets, opts = {}) {
   let html = cover ? printCoverHtml(order, sheets) : '';
   html += sheets.map((s, i) => printSheetHtml(order, s, i + 1 + off, total)).join('');
   const area = document.getElementById('print-area');
-  area.innerHTML = html;
+  area.innerHTML = printFrame(html);
   await Promise.all([...area.querySelectorAll('img')].map(img => img.complete ? null : new Promise(r => { img.onload = img.onerror = r; })));
   const title = document.title;
   document.title = ['Befund', order.orderNo, sheets.length === 1 ? getType(sheets[0].type).label : 'Bericht'].filter(Boolean).join(' ').replace(/[\\/:]/g, '-');

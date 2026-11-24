@@ -212,10 +212,17 @@ function buildPrintHtml(sheet) {
   });
 }
 
+// Druckrahmen: @page hat Rand 0 (dann druckt Chrome keine Kopf-/Fußzeilen mit Adresse/Datum).
+// Den oberen/unteren Rand auf JEDER Seite liefern thead/tfoot, die der Browser je Seite wiederholt.
+function printFrame(html) {
+  return `<table class="pr-frame"><thead><tr><td><div class="pr-frame-gap"></div></td></tr></thead>`
+    + `<tfoot><tr><td><div class="pr-frame-gap"></div></td></tr></tfoot><tbody><tr><td>${html}</td></tr></tbody></table>`;
+}
+
 // HTML in den Druckbereich setzen und Druckdialog öffnen
 function printHtml(html, fileTitle) {
   flushSave();
-  document.getElementById('print-area').innerHTML = html;
+  document.getElementById('print-area').innerHTML = printFrame(html);
   const oldTitle = document.title;
   // Dateiname-Vorschlag für "Als PDF speichern"
   document.title = fileTitle.replace(/[\\/:*?"<>|]+/g, '-');

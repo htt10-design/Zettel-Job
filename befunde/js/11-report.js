@@ -274,7 +274,7 @@ async function printReport(order, opts = {}) {
   let html = reportHtml(order, opts);
   if (opts.attach) html += order.sheets.map((sh, i) => printSheetHtml(order, sh, i + 2, total)).join('');
   const area = document.getElementById('print-area');
-  area.innerHTML = html;
+  area.innerHTML = printFrame(html);
   await Promise.all([...area.querySelectorAll('img')].map(img => img.complete ? null : new Promise(r => { img.onload = img.onerror = r; })));
   const title = document.title;
   document.title = ['Befundbericht', order.orderNo, order.vessel].filter(Boolean).join(' ').replace(/[\\/:]/g, '-');

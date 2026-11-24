@@ -873,7 +873,13 @@ details.collapse[open] > summary::after { content: '▴'; }
 .pr-sign-line { border-top: .8pt solid #000; padding-top: 2pt; font-size: 8pt; }
 .pr-foot { display: flex; justify-content: space-between; margin-top: 10pt; font-size: 7pt; border-top: .5pt solid #999; padding-top: 2pt; }
 @media print {
-  @page { size: A4; margin: 10mm 11mm; }
+  @page { size: A4; margin: 0; }
+  /* Rand 0 → keine Browser-Kopf-/Fußzeilen (Adresse, Datum); Abstand über .pr-frame */
+  #print-area { padding: 0 11mm; }
+  #print-area table.pr-frame { width: 100%; border-collapse: collapse; table-layout: auto; margin: 0; border: 0; }
+  #print-area table.pr-frame > thead > tr > td, #print-area table.pr-frame > tfoot > tr > td, #print-area table.pr-frame > tbody > tr > td { border: 0 !important; padding: 0 !important; background: none !important; }
+  .pr-frame-gap { height: 10mm; }
+
   html, body { background: #fff !important; color: #000; color-scheme: light !important; }
   :root, [data-theme="dark"] { --bg: #fff; --text: #000; color-scheme: light; --c-ok: #e3f4ec; --c-obs: #fbefcf; --c-bad: #f8d9d9; }
   #app, .modal-backdrop, .sign-overlay, .toast { display: none !important; }
