@@ -502,14 +502,24 @@ function rangeFromText(text) {
   const a = Number(nums[0]), b = Math.abs(Number(nums[1]));
   return a <= b ? [a, b] : [b, a];
 }
-// Höhe: Soll ± Toleranz („0,1“ = ±0,1 · „-0,2“ = nur nach unten · „+0,2“ = nur nach oben)
-function heightRange(soll, tol) {
+// Höhe: Soll mit Toleranz; Richtung per Knopf (dir: 'pm' ±, 'minus' nur Untermaß, 'plus' nur Übermaß)
+// oder – ältere Eingaben – als Vorzeichen im Text („-0,2“)
+function heightRange(soll, tol, dir) {
   const s = parseNum(soll), t = String(tol || '').trim();
-  const n = parseNum(t.replace(/^[±+]/, ''));
+  const n = parseNum(t.replace(/^[±+−-]/, ''));
   if (s == null || n == null) return null;
-  if (/^-/.test(t)) return [s + n, s];
-  if (/^\+/.test(t)) return [s, s + n];
-  return [s - Math.abs(n), s + Math.abs(n)];
+  const a = Math.abs(n);
+  const d = dir || (/^[−-]/.test(t) ? 'minus' : /^\+/.test(t) ? 'plus' : 'pm');
+  if (d === 'minus') return [s - a, s];
+  if (d === 'plus') return [s, s + a];
+  return [s - a, s + a];
+}
+// Anzeige der Toleranz mit Richtung: „±0,10“ / „−0,30“ / „+0,05“
+function heightTolText(sp) {
+  const t = String(sp.hTol || '').trim().replace(/^[±+−-]/, '');
+  if (!t) return '';
+  const d = sp.hTolDir || (/^[−-]/.test(String(sp.hTol).trim()) ? 'minus' : /^\+/.test(String(sp.hTol).trim()) ? 'plus' : 'pm');
+  return ({ pm: '±', minus: '−', plus: '+' }[d]) + t;
 }
 
 function headSpec(order, sheet) {
@@ -521,7 +531,7 @@ function headSpec(order, sheet) {
 
 function headRows(order, sheet) {
   const sp = headSpec(order, sheet);
-  const hr = heightRange(sp.hSoll, sp.hTol), vi = rangeFromText(sp.vinSoll), vo = rangeFromText(sp.voutSoll);
+  const hr = heightRange(sp.hSoll, sp.hTol, sp.hTolDir), vi = rangeFromText(sp.vinSoll), vo = rangeFromText(sp.voutSoll);
   const rows = sheet.data.rows || {};
   const ev = (v, r) => { const n = parseNum(v); return { n, st: r ? evalRange(n, r[0], r[1]) : null }; };
   return nozzleItems(order, sheet).map(it => {
@@ -560,13 +570,17 @@ function headEditorHtml(order, sheet) {
         ${field('Verwendete Messmittel', 'data.tester', sheet.data.tester, { placeholder: ph('tester', 'z.B. Höhenmessgerät, Messuhr') })}
       </div>
       <h4 class="sub-title">Sollwerte</h4>
-      <div class="spec-grid">
-        ${specIn('Zylinderkopfhöhe Soll (mm)', 'hSoll', 'z.B. 120,00')}
-        ${specIn('Toleranz (±, −, +)', 'hTol', 'z.B. 0,10 oder -0,30')}
-        ${specIn('Ventilrückstand Soll Einlass', 'vinSoll', 'z.B. 0,8 – 1,2')}
-        ${specIn('Ventilrückstand Soll Auslass', 'voutSoll', 'z.B. 0,8 – 1,2')}
+      <div class="spec-grid hd-spec">
+        ${specIn('Kopfhöhe Soll (mm)', 'hSoll', 'z.B. 120,00')}
+        <div class="field spec-field hd-tol"><span>Toleranz</span>
+          <div class="hd-tol-row">
+            <div class="seg mini-seg hd-dir">${[['pm', '±'], ['minus', '−'], ['plus', '+']].map(([v, l]) => `<button type="button" class="${(spec.hTolDir || pSpec.hTolDir || 'pm') === v ? 'on' : ''}" data-set="data.spec.hTolDir" data-val="${v}" data-keep="1" aria-label="Toleranz ${l}">${l}</button>`).join('')}</div>
+            <input class="spec-in" data-bind="data.spec.hTol" value="${escapeHtml(String(spec.hTol || '').replace(/^[±+−-]/, ''))}" inputmode="decimal" autocomplete="off" placeholder="${sph('hTol', '0,10')}">
+          </div></div>
+        ${specIn('Ventilrückst. Soll Einlass', 'vinSoll', 'z.B. 0,8 – 1,2')}
+        ${specIn('Ventilrückst. Soll Auslass', 'voutSoll', 'z.B. 0,8 – 1,2')}
       </div>
-      <p class="hint">Bereich mit Bindestrich („0,8 – 1,2“) wird automatisch bewertet, ein Einzelwert steht nur zur Info auf dem Blatt.</p>
+      <p class="hint">Toleranz: ± = nach oben und unten, − = nur Untermaß (Mindestmaß), + = nur Übermaß. Ventilrückstand als Bereich („0,8 – 1,2“) wird automatisch bewertet, ein Einzelwert steht nur zur Info auf dem Blatt.</p>
     </div>
     <div class="card special head-card">
       <div class="mc-head"><h3 class="card-title">Zylinderköpfe</h3><span class="mc-sum" id="head-sum"></span></div>

@@ -240,7 +240,7 @@ function specialPrintHtml(order, sheet) {
     const rows = headRows(order, sheet);
     const x = v => v ? 'X' : '';
     const specTxt = [
-      sp.hSoll || sp.hTol ? 'Zylinderkopfhöhe Soll ' + (sp.hSoll || '…') + (sp.hTol ? ' / Toleranz ' + sp.hTol : '') : '',
+      sp.hSoll || sp.hTol ? 'Zylinderkopfhöhe Soll ' + (sp.hSoll || '…') + (sp.hTol ? ' / Toleranz ' + heightTolText(sp) : '') : '',
       sp.vinSoll ? 'Ventilrückstand Soll Einlass ' + sp.vinSoll : '',
       sp.voutSoll ? 'Soll Auslass ' + sp.voutSoll : ''
     ].filter(Boolean).join(' · ');

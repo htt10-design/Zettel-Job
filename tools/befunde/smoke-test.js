@@ -104,6 +104,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR
       const order = getActiveOrder();
       const [hin, hout] = order.sheets.filter(s => s.type === 'head');
       hin.data.spec = { hSoll: '120,00', hTol: '0,10', vinSoll: '0,8 – 1,2', voutSoll: '1,0' };
+      const tolDir = [heightRange('120', '0,3', 'minus').join('/'), heightRange('120', '-0,3').join('/'), heightTolText({ hTol: '0,3', hTolDir: 'minus' })].join(' ');
       hin.data.tester = 'Höhenmessgerät';
       hin.data.rows = { A1: { h: '119,85', vin: '1,0', vout: '1,1' }, A2: { h: '120,05', vin: '1,5', dmg: 'ja', note: 'Riss Flammdeck' } };
       openSheet(hin.id);
@@ -114,9 +115,9 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR
       const pr = printSheetHtml(order, hout, 1, 1);
       const issues = sheetIssues(order, hin).map(i => i.st).join(',');
       return [hin.data.stage + '/' + hout.data.stage, rows[0].h.st, rows[0].vout.st, rows[1].vin.st, rows[1].st, rows[2].dmg, ro[0].h.st, ro.length, printDocTitle(hout),
-        pr.includes('Ventilrückstand') && pr.includes('Höhenmessgerät') && pr.includes('Äußere Beschädigung'), issues].join('|');
+        pr.includes('Ventilrückstand') && pr.includes('Höhenmessgerät') && pr.includes('Äußere Beschädigung'), issues, tolDir].join('|');
     });
-    assert(head === 'in/out|bad||bad|bad|nein|ok|16|Messblatt Zylinderkopf – Ausgang|true|bad,obs', 'Zylinderköpfe: ' + head, errors);
+    assert(head === 'in/out|bad||bad|bad|nein|ok|16|Messblatt Zylinderkopf – Ausgang|true|bad,obs|119.7/120 119.7/120 −0,3', 'Zylinderköpfe: ' + head, errors);
     await shot('11d-zylinderkopf');
 
     // Kipphebelböcke: Lagerspiel Ein-/Auslass je Zylinder
