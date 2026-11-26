@@ -51,6 +51,12 @@ function specialInit(order, sheet, src) {
       });
     }
   }
+  if (t.special === 'head') {
+    if (src) ['stage', 'headNo', 'contact', 'tester'].forEach(k => { if (src.data[k]) sheet.data[k] = src.data[k]; });
+    if (src && src.data.spec) sheet.data.spec = { ...src.data.spec };
+    if (src && Array.isArray(src.data.heads)) sheet.data.heads = src.data.heads.map(x => ({ ...x }));
+    if (!sheet.data.stage) sheet.data.stage = 'in';
+  }
   if (t.special === 'nozzles') {
     if (src && src.data.spec) sheet.data.spec = { ...src.data.spec };
     if (src) ['stage', 'part', 'medium', 'nozzleType', 'tester'].forEach(k => { if (src.data[k]) sheet.data[k] = src.data[k]; });
@@ -64,6 +70,7 @@ function specialInit(order, sheet, src) {
 function specialEditorHtml(order, sheet, kind) {
   if (kind === 'endoscopy') return endoEditorHtml(order, sheet);
   if (kind === 'nozzles') return nozzleEditorHtml(order, sheet);
+  if (kind === 'head') return headEditorHtml(order, sheet);
   if (kind === 'serials') return serialEditorHtml(order, sheet);
   if (kind === 'general') return generalEditorHtml(order, sheet);
   if (kind === 'parts') return partsEditorHtml(order, sheet);
@@ -72,6 +79,7 @@ function specialEditorHtml(order, sheet, kind) {
 
 function specialOnChange(sheet, el, ev) {
   refreshNozzles(); // auch Sollwert-Änderungen (prüft selbst die Blattart)
+  refreshHeads();
 }
 
 function specialAutoRating(order, sheet) {
@@ -79,6 +87,7 @@ function specialAutoRating(order, sheet) {
   const e = order.engines[sheet.engine || 0] || newEngine();
   if (t.special === 'endoscopy') return positions(e, 'cyl').map(p => ((sheet.data.cyl || {})[p] || {}).rating).filter(Boolean);
   if (t.special === 'nozzles') return nozzleRows(order, sheet).map(r => r.st).filter(Boolean);
+  if (t.special === 'head') return headRows(order, sheet).map(r => r.st).filter(Boolean);
   if (t.special === 'general') return Object.values(sheet.data.check || {}).map(c => c && c.rating).filter(Boolean);
   if (t.special === 'parts') return partItems(sheet).map(it => partStatus(it.status).rating).filter(Boolean);
   return [];
@@ -89,6 +98,7 @@ function specialProgress(order, sheet) {
   const e = order.engines[sheet.engine || 0] || newEngine();
   if (t.special === 'endoscopy') { const p = positions(e, 'cyl'); return p.filter(x => ((sheet.data.cyl || {})[x] || {}).rating).length + '/' + p.length + ' Zylinder'; }
   if (t.special === 'nozzles') { const r = nozzleRows(order, sheet); return r.filter(x => x.tested).length + '/' + r.length + ' Düsen geprüft'; }
+  if (t.special === 'head') { const r = headRows(order, sheet); return r.filter(x => x.tested).length + '/' + r.length + ' Köpfe geprüft'; }
   if (t.special === 'serials') { const g = sheet.data.groups || []; return g.reduce((s, x) => s + x.rows.filter(r => r.sn || r.snNew).length, 0) + ' Seriennummern'; }
   if (t.special === 'general') { const n = Object.values(sheet.data.check || {}).filter(c => c && c.rating).length; return n ? n + ' Punkte geprüft' : ''; }
   if (t.special === 'parts') return partsSummaryText(sheet);
@@ -217,7 +227,7 @@ function nozzleStageLabel(sheet) { return NOZZLE_STAGES[nozzleStage(sheet)]; }
 function nozzlePartner(order, sheet) {
   if (!order) return null;
   const st = nozzleStage(sheet);
-  const list = order.sheets.filter(s => s !== sheet && s.type === 'nozzles' && (s.engine || 0) === (sheet.engine || 0) && nozzleStage(s) !== st);
+  const list = order.sheets.filter(s => s !== sheet && s.type === sheet.type && (s.engine || 0) === (sheet.engine || 0) && nozzleStage(s) !== st);
   return list[list.length - 1] || null;
 }
 
@@ -240,10 +250,13 @@ function nozzleDefaultItems(order, sheet) {
   const e = order.engines[sheet.engine || 0] || newEngine();
   return positions(e, 'cyl').map(p => ({ k: p, label: p }));
 }
+// Listen-Schlüssel je Blattart (Düsen / Zylinderköpfe)
+function stageListKey(sheet) { return sheet.type === 'head' ? 'heads' : 'nozzles'; }
 function nozzleItems(order, sheet) {
-  if (Array.isArray(sheet.data.nozzles)) return sheet.data.nozzles;
+  const key = stageListKey(sheet);
+  if (Array.isArray(sheet.data[key])) return sheet.data[key];
   const p = nozzlePartner(order, sheet);
-  if (p && Array.isArray(p.data.nozzles)) return p.data.nozzles;
+  if (p && Array.isArray(p.data[key])) return p.data[key];
   return nozzleDefaultItems(order, sheet);
 }
 
@@ -308,13 +321,7 @@ function nozzleEditorHtml(order, sheet) {
     </div>
     <div class="card special nozzle-card">
       <div class="mc-head"><h3 class="card-title">Düsen</h3><span class="mc-sum" id="nozzle-sum"></span></div>
-      <div class="nz-count">
-        <span>Anzahl</span>
-        <button type="button" class="btn btn-soft nz-step" onclick="nozzleSetCount(${rows.length - 1})" aria-label="Weniger">−</button>
-        <input type="number" min="0" max="60" inputmode="numeric" value="${rows.length}" onchange="nozzleSetCount(this.value)" aria-label="Anzahl Düsen">
-        <button type="button" class="btn btn-soft nz-step" onclick="nozzleSetCount(${rows.length + 1})" aria-label="Mehr">+</button>
-        <span class="nz-suggest">Vorschlag: <button type="button" class="chip mini" onclick="nozzleSuggest('cyl')">Zylinder</button><button type="button" class="chip mini" onclick="nozzleSuggest('num')">1, 2, 3 …</button></span>
-      </div>
+      ${nozzleCountHtml(rows.length)}
       <p class="hint">Bezeichnung frei wählbar (z.B. „A1“, „BB 3“, „Reserve“). Dann Düsen-Nr. und Prüfdruck eintragen, i.O. / n.i.O. – Befund antippen oder frei schreiben.</p>
       <button type="button" class="btn btn-soft nz-allok" onclick="nozzleAllOk()">Alle übrigen i.O.</button>
       <div class="nz-list">
@@ -396,8 +403,9 @@ function refreshNozzles() {
 function nozzleOwnList() {
   const order = getActiveOrder(), sheet = getActiveSheet();
   if (!order || !sheet) return null;
-  if (!Array.isArray(sheet.data.nozzles)) sheet.data.nozzles = nozzleItems(order, sheet).map(x => ({ k: x.k, label: x.label }));
-  return sheet.data.nozzles;
+  const key = stageListKey(sheet);
+  if (!Array.isArray(sheet.data[key])) sheet.data[key] = nozzleItems(order, sheet).map(x => ({ k: x.k, label: x.label }));
+  return sheet.data[key];
 }
 function nozzleDone(msg) {
   touchSheet(getActiveSheet());
@@ -413,7 +421,7 @@ function nozzleRename(k, value) {
 }
 function nozzleHasData(k) {
   const r = ((getActiveSheet() || { data: {} }).data.rows || {})[k] || {};
-  return !!(r.sn || r.p || r.p1 || r.result || r.note);
+  return !!(r.sn || r.p || r.p1 || r.result || r.note || r.h || r.vin || r.vout || r.dmg);
 }
 // Vorschlag für die nächste Bezeichnung: nächster freier Zylinder, sonst fortlaufende Nummer
 function nozzleNextLabel(list) {
@@ -461,12 +469,163 @@ function nozzleSuggest(kind) {
 }
 
 // Neues Paar Eingang + Ausgang anlegen (Ausgang übernimmt leere Angaben vom Eingang)
-function createNozzlePair(order, engine) {
-  const a = createSheet(order, 'nozzles', null, engine || 0);
+// Anzahl − / + und Vorschläge (Düsen und Zylinderköpfe)
+function nozzleCountHtml(n) {
+  return `<div class="nz-count">
+        <span>Anzahl</span>
+        <button type="button" class="btn btn-soft nz-step" onclick="nozzleSetCount(${n - 1})" aria-label="Weniger">−</button>
+        <input type="number" min="0" max="60" inputmode="numeric" value="${n}" onchange="nozzleSetCount(this.value)" aria-label="Anzahl">
+        <button type="button" class="btn btn-soft nz-step" onclick="nozzleSetCount(${n + 1})" aria-label="Mehr">+</button>
+        <span class="nz-suggest">Vorschlag: <button type="button" class="chip mini" onclick="nozzleSuggest('cyl')">Zylinder</button><button type="button" class="chip mini" onclick="nozzleSuggest('num')">1, 2, 3 …</button></span>
+      </div>`;
+}
+
+function createNozzlePair(order, engine, typeId) {
+  const a = createSheet(order, typeId || 'nozzles', null, engine || 0);
   a.data.stage = 'in';
-  const b = createSheet(order, 'nozzles', null, engine || 0);
+  const b = createSheet(order, typeId || 'nozzles', null, engine || 0);
   b.data.stage = 'out';
   return a;
+}
+
+// =====================================================================
+// Zylinderköpfe – Messblatt Eingang/Ausgang (SDT-Vorlage „Messblatt Zylinderkopf“)
+// sheet.data: { stage, headNo, contact, tester, spec: { hSoll, hTol, vinSoll, voutSoll }, heads: [{ k, label }],
+//   rows: { [k]: { h, vin, vout, dmg: 'ja'|'nein', note } } }
+// Paar/Liste wie Druckprobe (nozzlePartner, nozzleField, nozzleItems, nozzleSetCount … sind typunabhängig).
+// =====================================================================
+
+// Sollwert-Text → Bereich: „0,8–1,2“ → [0,8; 1,2]; einzelne Zahl → nur Anzeige (keine Bewertung)
+function rangeFromText(text) {
+  const nums = String(text || '').replace(/(\d),(\d)/g, '$1.$2').match(/-?\d+(?:\.\d+)?/g);
+  if (!nums || nums.length < 2) return null;
+  const a = Number(nums[0]), b = Math.abs(Number(nums[1]));
+  return a <= b ? [a, b] : [b, a];
+}
+// Höhe: Soll ± Toleranz („0,1“ = ±0,1 · „-0,2“ = nur nach unten · „+0,2“ = nur nach oben)
+function heightRange(soll, tol) {
+  const s = parseNum(soll), t = String(tol || '').trim();
+  const n = parseNum(t.replace(/^[±+]/, ''));
+  if (s == null || n == null) return null;
+  if (/^-/.test(t)) return [s + n, s];
+  if (/^\+/.test(t)) return [s, s + n];
+  return [s - Math.abs(n), s + Math.abs(n)];
+}
+
+function headSpec(order, sheet) {
+  const own = sheet.data.spec || {};
+  if (Object.values(own).some(Boolean)) return own;
+  const p = nozzlePartner(order, sheet);
+  return (p && p.data.spec) || own;
+}
+
+function headRows(order, sheet) {
+  const sp = headSpec(order, sheet);
+  const hr = heightRange(sp.hSoll, sp.hTol), vi = rangeFromText(sp.vinSoll), vo = rangeFromText(sp.voutSoll);
+  const rows = sheet.data.rows || {};
+  const ev = (v, r) => { const n = parseNum(v); return { n, st: r ? evalRange(n, r[0], r[1]) : null }; };
+  return nozzleItems(order, sheet).map(it => {
+    const r = rows[it.k] || {};
+    const h = ev(r.h, hr), vin = ev(r.vin, vi), vout = ev(r.vout, vo);
+    const sts = [h.st, vin.st, vout.st].filter(Boolean);
+    if (r.dmg === 'ja') sts.push('obs');
+    if (r.dmg === 'nein' && !sts.length) sts.push('ok');
+    return { k: it.k, pos: it.label || '', r, h, vin, vout, dmg: r.dmg || '', note: r.note || '', st: worstRating(sts), tested: h.n != null || vin.n != null || vout.n != null || !!r.dmg };
+  });
+}
+
+function headEditorHtml(order, sheet) {
+  const spec = sheet.data.spec || {};
+  const pSpec = headSpec(order, sheet);
+  const rows = headRows(order, sheet);
+  const partner = nozzlePartner(order, sheet);
+  const stage = nozzleStage(sheet);
+  const other = NOZZLE_STAGES[stage === 'in' ? 'out' : 'in'];
+  const ph = (k, def) => escapeHtml(nozzleField(order, sheet, k) && !sheet.data[k] ? 'wie ' + other + ': ' + nozzleField(order, sheet, k) : def);
+  const sph = (k, def) => escapeHtml(pSpec[k] && !spec[k] ? pSpec[k] + ' (' + other + ')' : def);
+  const specIn = (label, k, def) => `<label class="field spec-field"><span>${label}</span><input class="spec-in" data-bind="data.spec.${k}" value="${escapeHtml(spec[k] || '')}" inputmode="decimal" autocomplete="off" placeholder="${sph(k, def)}"></label>`;
+  const dmgTog = (bind, val) => `<div class="mini-seg">
+      <button type="button" class="r-bad ${val === 'ja' ? 'on' : ''}" data-set="${bind}" data-val="ja">Ja</button>
+      <button type="button" class="r-ok ${val === 'nein' ? 'on' : ''}" data-set="${bind}" data-val="nein">Nein</button></div>`;
+  return `
+    <div class="card special">
+      <div class="seg nz-stage">
+        <button type="button" class="${stage === 'in' ? 'on' : ''}" data-set="data.stage" data-val="in" data-keep="1">Eingang</button>
+        <button type="button" class="${stage === 'out' ? 'on' : ''}" data-set="data.stage" data-val="out" data-keep="1">Ausgang</button>
+      </div>
+      ${partner ? `<p class="hint">Das ${other}sblatt liegt im Auftrag – leere Felder werden von dort übernommen.</p>` : ''}
+      <div class="grid-2">
+        ${field('Zylinderkopfnummer', 'data.headNo', sheet.data.headNo, { placeholder: ph('headNo', '') })}
+        ${field('Ansprechpartner', 'data.contact', sheet.data.contact, { placeholder: ph('contact', order.contact || '') })}
+        ${field('Verwendete Messmittel', 'data.tester', sheet.data.tester, { placeholder: ph('tester', 'z.B. Höhenmessgerät, Messuhr') })}
+      </div>
+      <h4 class="sub-title">Sollwerte</h4>
+      <div class="spec-grid">
+        ${specIn('Zylinderkopfhöhe Soll (mm)', 'hSoll', 'z.B. 120,00')}
+        ${specIn('Toleranz (±, −, +)', 'hTol', 'z.B. 0,10 oder -0,30')}
+        ${specIn('Ventilrückstand Soll Einlass', 'vinSoll', 'z.B. 0,8 – 1,2')}
+        ${specIn('Ventilrückstand Soll Auslass', 'voutSoll', 'z.B. 0,8 – 1,2')}
+      </div>
+      <p class="hint">Bereich mit Bindestrich („0,8 – 1,2“) wird automatisch bewertet, ein Einzelwert steht nur zur Info auf dem Blatt.</p>
+    </div>
+    <div class="card special head-card">
+      <div class="mc-head"><h3 class="card-title">Zylinderköpfe</h3><span class="mc-sum" id="head-sum"></span></div>
+      ${nozzleCountHtml(rows.length)}
+      <button type="button" class="btn btn-soft nz-allok" onclick="headNoDamage()">Übrige: keine äußere Beschädigung</button>
+      <div class="nz-list">
+        ${rows.map(row => {
+          const { k, pos, r } = row;
+          const p = 'data.rows.' + k;
+          const kJs = escapeHtml(JSON.stringify(k));
+          return `
+          <div class="nz-row hd-row" data-hd="${escapeHtml(k)}">
+            <div class="hd-top">
+              <input class="nz-label" value="${escapeHtml(pos)}" placeholder="Nr." onchange="nozzleRename(${kJs}, this.value)" autocomplete="off" aria-label="Bezeichnung">
+              <label class="hd-val"><span>Höhe</span><input class="m-in hd-h" data-bind="${p}.h" value="${escapeHtml(r.h || '')}" inputmode="decimal" autocomplete="off"></label>
+              <label class="hd-val"><span>VR Einl.</span><input class="m-in hd-vin" data-bind="${p}.vin" value="${escapeHtml(r.vin || '')}" inputmode="decimal" autocomplete="off"></label>
+              <label class="hd-val"><span>VR Ausl.</span><input class="m-in hd-vout" data-bind="${p}.vout" value="${escapeHtml(r.vout || '')}" inputmode="decimal" autocomplete="off"></label>
+            </div>
+            <div class="nz-res"><span class="hd-dmg-l">Äußere Beschädigung</span>${dmgTog(p + '.dmg', r.dmg)}</div>
+            ${r.dmg === 'ja' || r.note ? `<input class="nz-note hd-note" data-bind="${p}.note" value="${escapeHtml(r.note || '')}" placeholder="Beschädigung / Bemerkung" autocomplete="off">` : ''}
+            <button type="button" class="nz-del" onclick="nozzleRemove(${kJs})" aria-label="Zylinderkopf entfernen">×</button>
+          </div>`;
+        }).join('') || '<p class="muted small-text">Keine Zylinderköpfe – Anzahl oben einstellen.</p>'}
+      </div>
+    </div>`;
+}
+
+// Alle ohne Angabe: keine äußere Beschädigung
+function headNoDamage() {
+  const order = getActiveOrder(), sheet = getActiveSheet();
+  if (!order || !sheet) return;
+  sheet.data.rows = sheet.data.rows || {};
+  let n = 0;
+  headRows(order, sheet).forEach(row => {
+    if (row.dmg) return;
+    (sheet.data.rows[row.k] = sheet.data.rows[row.k] || {}).dmg = 'nein';
+    n++;
+  });
+  touchSheet(sheet);
+  renderSheet();
+  showToast(n ? n + '× „keine Beschädigung“ gesetzt' : 'Alle Köpfe haben schon eine Angabe');
+}
+
+function refreshHeads() {
+  const order = getActiveOrder(), sheet = getActiveSheet();
+  if (!order || !sheet || getType(sheet.type).special !== 'head') return;
+  const rows = headRows(order, sheet);
+  const setSt = (el, st) => { if (!el) return; el.classList.remove('st-ok', 'st-obs', 'st-bad'); if (st) el.classList.add('st-' + st); };
+  rows.forEach(r => {
+    const row = document.querySelector(`[data-hd="${CSS.escape(r.k)}"]`);
+    if (!row) return;
+    setSt(row.querySelector('.hd-h'), r.h.st);
+    setSt(row.querySelector('.hd-vin'), r.vin.st);
+    setSt(row.querySelector('.hd-vout'), r.vout.st);
+    row.className = 'nz-row hd-row rate-' + (r.st || 'none');
+  });
+  const sum = document.getElementById('head-sum');
+  const bad = rows.filter(r => r.st === 'bad').length, dmg = rows.filter(r => r.dmg === 'ja').length;
+  if (sum) sum.innerHTML = `${rows.filter(r => r.tested).length}/${rows.length} geprüft${bad ? ` · <b class="txt-bad">${bad}× außer Toleranz</b>` : ''}${dmg ? ` · ${dmg}× beschädigt` : ''}`;
 }
 
 // =====================================================================
@@ -727,6 +886,6 @@ async function removePart(i) {
   renderSheet();
 }
 
-Object.assign(window, { addPart, removePart, nozzleChip, nozzleAllOk, nozzleRename, nozzleSetCount, nozzleRemove, nozzleSuggest });
+Object.assign(window, { addPart, removePart, nozzleChip, nozzleAllOk, headNoDamage, nozzleRename, nozzleSetCount, nozzleRemove, nozzleSuggest });
 
 Object.assign(window, { selectCyl, endoRestOk, serialAddRow, serialRemoveRow, serialAddGroup, serialRemoveGroup });

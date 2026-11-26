@@ -11,7 +11,7 @@ const BF_RATINGS = { ok: 'i.O.', obs: 'beobachten', bad: 'n.i.O.' };
 const BF_SHEET_LABELS = {
   general: 'Allgemeines Befundblatt', serials: 'Seriennummern Bauteile', parts: 'Ersatzteile / Bestellliste',
   endoscopy: 'Endoskopie', piston_proj: 'Kolbenüberstand', liner: 'Laufbuchse', liner_fit: 'Laufbuchse einpassen',
-  liner_proj: 'Laufbuchse Überstand', kw_bore: 'Kurbelwelle Lagergasse', kw_journal: 'Kurbelwelle Zapfen', cam: 'Nockenwellenlager', rocker: 'Kipphebelböcke', nozzles: 'Druckprobe Einspritzdüsen'
+  liner_proj: 'Laufbuchse Überstand', kw_bore: 'Kurbelwelle Lagergasse', kw_journal: 'Kurbelwelle Zapfen', cam: 'Nockenwellenlager', rocker: 'Kipphebelböcke', head: 'Zylinderköpfe', nozzles: 'Druckprobe Einspritzdüsen'
 };
 const BF_PART_STATUS = { order: 'Bestellen', open: 'Klären', ordered: 'Bestellt', none: 'Nicht nötig' };
 

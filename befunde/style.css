@@ -1073,7 +1073,15 @@ p.pr-text { border: 0; padding: 0; margin: 4pt 0; }
 .nz-count input { width: 64px; text-align: center; margin-top: 0 !important; }
 .nz-step { width: 38px; padding: 8px 0 !important; font-size: 18px; line-height: 1; }
 .nz-suggest { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--muted); margin-left: auto; }
-.nz-row .nz-top input.nz-label { width: 74px !important; flex: 0 0 74px; font-weight: 800; text-align: center; color: var(--accent-strong); margin-top: 0 !important; }
+.nz-row input.nz-label { width: 74px !important; flex: 0 0 74px; font-weight: 800; text-align: center; color: var(--accent-strong); margin-top: 0 !important; }
 .nz-row { position: relative; }
 .nz-del { position: absolute; top: -8px; right: -6px; width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 15px; line-height: 1; cursor: pointer; }
 .nz-del:hover { color: var(--t-bad); border-color: var(--t-bad); }
+/* Zylinderköpfe */
+.hd-top { display: flex; align-items: flex-end; gap: 6px; }
+.hd-top input.nz-label { width: 58px !important; flex: 0 0 58px; }
+.hd-val { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; font-size: 11px; font-weight: 700; color: var(--muted); }
+.hd-val input.m-in { width: 100%; margin-top: 0 !important; }
+.hd-dmg-l { font-size: 12.5px; font-weight: 700; color: var(--muted); flex: 1; }
+.hd-note { margin-top: 6px !important; width: 100%; }
+.pr-cylhead td.ctr { text-align: center; font-weight: 700; }

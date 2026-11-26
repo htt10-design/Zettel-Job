@@ -458,10 +458,11 @@ function chooseSheetType(typeId, mode, engine) {
     return;
   }
   // Druckprobe Einspritzdüsen: immer Eingangs- UND Ausgangsprotokoll
-  const sheet = t.special === 'nozzles' ? createNozzlePair(order, engine || 0) : createSheet(order, typeId, mode || null, engine || 0);
+  const paired = t.special === 'nozzles' || t.special === 'head'; // immer Eingang + Ausgang
+  const sheet = paired ? createNozzlePair(order, engine || 0, typeId) : createSheet(order, typeId, mode || null, engine || 0);
   closeModal();
   openSheet(sheet.id);
-  if (t.special === 'nozzles') showToast('Eingangs- und Ausgangsprotokoll angelegt');
+  if (paired) showToast('Eingangs- und Ausgangsblatt angelegt');
 }
 
 function addPack(id, engine) {

@@ -68,6 +68,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR
 
     // Alle Blattarten anlegen
     const types = await page.evaluate(() => SHEET_TYPES.map(t => t.id));
+    const PAIRS = types.filter(t => t === 'nozzles' || t === 'head').length; // je ein zusätzliches Ausgangsblatt
     for (const t of types) {
       await page.click('.add-sheet-btn');
       await page.click(`.type-tile[onclick="chooseSheetType('${t}')"]`);
@@ -79,7 +80,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR
     }
     const n = await page.evaluate(() => getActiveOrder().sheets.length);
     // Druckprobe Einspritzdüsen legt Eingang + Ausgang an → ein Blatt mehr
-    assert(n === types.length + 1, `alle ${types.length} Blattarten angelegt, Düsen als Paar (${n})`, errors);
+    assert(n === types.length + PAIRS, `alle ${types.length} Blattarten angelegt, Düsen/Zylinderköpfe als Paar (${n})`, errors);
 
     // Sicherung zusammenführen: vorhandener Auftrag bleibt, neues Blatt + neuer Auftrag kommen dazu
     const bfMerge = await page.evaluate(() => {
@@ -97,6 +98,26 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR
       return res;
     });
     assert(bfMerge === '1|1|Testkunde|1|1', 'Sicherung zusammenführen: ' + bfMerge, errors);
+
+    // Zylinderköpfe: Eingang + Ausgang, Höhe/Ventilrückstand, Beschädigung
+    const head = await page.evaluate(() => {
+      const order = getActiveOrder();
+      const [hin, hout] = order.sheets.filter(s => s.type === 'head');
+      hin.data.spec = { hSoll: '120,00', hTol: '0,10', vinSoll: '0,8 – 1,2', voutSoll: '1,0' };
+      hin.data.tester = 'Höhenmessgerät';
+      hin.data.rows = { A1: { h: '119,85', vin: '1,0', vout: '1,1' }, A2: { h: '120,05', vin: '1,5', dmg: 'ja', note: 'Riss Flammdeck' } };
+      openSheet(hin.id);
+      headNoDamage();
+      const rows = headRows(order, hin);
+      hout.data.rows = { A1: { h: '119,95', vin: '1,0' } };
+      const ro = headRows(order, hout);
+      const pr = printSheetHtml(order, hout, 1, 1);
+      const issues = sheetIssues(order, hin).map(i => i.st).join(',');
+      return [hin.data.stage + '/' + hout.data.stage, rows[0].h.st, rows[0].vout.st, rows[1].vin.st, rows[1].st, rows[2].dmg, ro[0].h.st, ro.length, printDocTitle(hout),
+        pr.includes('Ventilrückstand') && pr.includes('Höhenmessgerät') && pr.includes('Äußere Beschädigung'), issues].join('|');
+    });
+    assert(head === 'in/out|bad||bad|bad|nein|ok|16|Messblatt Zylinderkopf – Ausgang|true|bad,obs', 'Zylinderköpfe: ' + head, errors);
+    await shot('11d-zylinderkopf');
 
     // Kipphebelböcke: Lagerspiel Ein-/Auslass je Zylinder
     const rocker = await page.evaluate(() => {
@@ -308,7 +329,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR
     await page.click('.modal-actions .btn-primary');
     await page.waitForFunction(() => window.__printed, null, { timeout: 5000 }).catch(() => errors.push('Druck nicht ausgelöst'));
     const pages = await page.evaluate(() => document.querySelectorAll('#print-area .pr-page').length);
-    assert(pages === types.length + 2, `Druck: Deckblatt + ${types.length + 1} Blätter (${pages})`, errors);
+    assert(pages === types.length + PAIRS + 1, `Druck: Deckblatt + ${types.length + PAIRS} Blätter (${pages})`, errors);
     if (label === 'desktop') {
       await page.emulateMedia({ media: 'print' });
       await page.pdf({ path: path.join(OUT, 'druck-alle-blaetter.pdf'), format: 'A4', printBackground: true });
@@ -323,7 +344,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR
     await page.click('.modal-actions .btn-primary');
     await page.waitForFunction(() => window.__printed, null, { timeout: 5000 }).catch(() => errors.push('Bericht: Druck nicht ausgelöst'));
     const rep = await page.evaluate(() => [document.querySelectorAll('#print-area .pr-page').length, document.querySelector('.pr-report').textContent]);
-    assert(rep[0] === types.length + 2, `Bericht + ${types.length + 1} Anlagen (${rep[0]})`, errors);
+    assert(rep[0] === types.length + PAIRS + 1, `Bericht + ${types.length + PAIRS} Anlagen (${rep[0]})`, errors);
     assert(/außer Toleranz: Zyl\. A2/.test(rep[1]) && /gutem Zustand/.test(rep[1]) && /Handlungsbedarf/.test(rep[1]), 'Bericht enthält Ergebnis, Fazit, Handlungsbedarf', errors);
     if (label === 'desktop') {
       await page.emulateMedia({ media: 'print' });
@@ -337,7 +358,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR
     const rv = await page.evaluate(() => [document.querySelectorAll('#paper .pr-page').length, getComputedStyle(document.querySelector('#paper .pr-title')).textDecorationLine]);
     assert(rv[0] === 1 && /underline/.test(rv[1]), 'Berichtsansicht zeigt Papierseite im Druckstil: ' + rv, errors);
     await page.click('#view-report .chip >> nth=1');
-    await page.waitForFunction(n => document.querySelectorAll('#paper .pr-page').length === n, types.length + 2, { timeout: 5000 }).catch(() => errors.push('Berichtsansicht + alle Blätter'));
+    await page.waitForFunction(n => document.querySelectorAll('#paper .pr-page').length === n, types.length + PAIRS + 1, { timeout: 5000 }).catch(() => errors.push('Berichtsansicht + alle Blätter'));
     await shot('16-report-view');
 
     // Büro: Auftrag als Datei senden → anderes Gerät lädt sie → Link öffnet Bericht

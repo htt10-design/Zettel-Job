@@ -26,6 +26,7 @@ const ICONS = {
   bore: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4"/>',
   cam: '<path d="M3 12h4M17 12h4"/><path d="M7 12a4 3 0 1 0 5-3l3-1"/><circle cx="15" cy="12" r="2"/>',
   nozzle: '<path d="M10 3h4v8l2 3v2H8v-2l2-3z"/><path d="M12 16v2M9 21l3-3 3 3"/>',
+  head: '<rect x="4" y="5" width="16" height="10" rx="1.5"/><path d="M8 15v4M12 15v4M16 15v4M7 9h2M15 9h2"/>',
   rocker: '<path d="M3 13l9-4 9 2"/><circle cx="12" cy="9.5" r="2.2"/><path d="M12 12v8M8 20h8"/><path d="M3 13v3M21 11v3"/>'
 };
 function icon(name) { return `<svg viewBox="0 0 24 24">${ICONS[name] || ICONS.doc}</svg>`; }
@@ -36,6 +37,7 @@ const GROUPS = [
   { id: 'lb', label: 'Laufbuchse' },
   { id: 'kw', label: 'Kurbelwelle' },
   { id: 'nw', label: 'Nockenwelle' },
+  { id: 'zk', label: 'Zylinderkopf' },
   { id: 'vt', label: 'Ventiltrieb' },
   { id: 'esp', label: 'Einspritzung' }
 ];
@@ -184,6 +186,11 @@ const SHEET_TYPES = [
     ]
   },
   {
+    id: 'head', group: 'zk', icon: 'head', label: 'Zylinderköpfe',
+    desc: 'Eingang + Ausgang: Zylinderkopfhöhe, Ventilrückstand Ein-/Auslass, äußere Beschädigung',
+    special: 'head'
+  },
+  {
     id: 'rocker', group: 'vt', icon: 'rocker', label: 'Kipphebelböcke', printLabel: 'Kipphebelböcke',
     desc: 'Kipphebelbuchse ↔ Kipphebelachse Ein-/Auslass, Lagerspiel + Sichtbefund',
     measure: [{
@@ -220,7 +227,7 @@ function showInspect(sheet) { const t = getType(sheet.type); return typeHasInspe
 
 function sheetTitle(sheet) {
   const t = getType(sheet.type);
-  if (t.special === 'nozzles') return t.label + ' · ' + nozzleStageLabel(sheet);
+  if (t.special === 'nozzles' || t.special === 'head') return t.label + ' · ' + nozzleStageLabel(sheet);
   if (t.special || !typeModes(t)) return (t.measure && !t.inspect ? 'Messprotokoll ' : '') + t.label;
   if (sheet.mode === 'mess') return 'Messprotokoll ' + t.label;
   if (sheet.mode === 'befund') return 'Befundblatt ' + t.label;
@@ -233,6 +240,7 @@ function sheetKindText(sheet) {
   if (t.special === 'parts') return 'Bestellliste';
   if (t.special === 'endoscopy') return 'Befundblatt';
   if (t.special === 'nozzles') return nozzleStageLabel(sheet) + 'sprotokoll';
+  if (t.special === 'head') return 'Messblatt ' + nozzleStageLabel(sheet);
   if (!typeModes(t)) return 'Messblatt';
   return { mess: 'Messblatt', befund: 'Befundblatt' }[sheet.mode] || 'Mess- + Befundblatt';
 }

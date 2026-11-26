@@ -71,6 +71,15 @@ function sheetDigest(order, sheet) {
     const cyl = sheet.data.cyl || {};
     countLine('Zylinder', positions(e, 'cyl').map(p => ({ p, r: (cyl[p] || {}).rating })));
   }
+  if (t.special === 'head') {
+    const rows = headRows(order, sheet);
+    const tol = rows.filter(r => r.st === 'bad').map(r => r.pos);
+    const dmg = rows.filter(r => r.dmg === 'ja').map(r => r.pos);
+    const parts = [`${nozzleStageLabel(sheet)}: ${rows.filter(r => r.tested).length}/${rows.length} Köpfe geprüft`];
+    if (tol.length) parts.push(`außer Toleranz: ${list(tol)}`);
+    if (dmg.length) parts.push(`äußere Beschädigung: ${list(dmg)}`);
+    lines.push(parts.join(' · '));
+  }
   if (t.special === 'nozzles') {
     const rows = nozzleRows(order, sheet);
     const bad = rows.filter(r => r.st === 'bad').map(r => r.pos);

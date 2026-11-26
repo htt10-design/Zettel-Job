@@ -39,6 +39,7 @@ function printHeadHtml(order, sheet, title) {
     (t.extra || []).forEach(x => { const v = (sheet.data.extra || {})[x.k]; if (v) info.push([x.label, v]); });
     if (t.special === 'endoscopy') info.push(['Endoskop', sheet.data.scope], ['Zugang', sheet.data.access]);
     if (t.special === 'nozzles') info.push(['Düsentyp', nozzleField(order, sheet, 'nozzleType')]);
+    if (t.special === 'head') info.push(['Zylinderkopfnummer', nozzleField(order, sheet, 'headNo')], ['Ansprechpartner', nozzleField(order, sheet, 'contact') || order.contact]);
     if (t.special === 'general') info.push(['Anlass', sheet.data.reason], ['Zustand', sheet.data.state]);
   }
   const infoHtml = info.filter(x => x[1]).map(x => `<span><b>${escapeHtml(x[0])}:</b> ${escapeHtml(x[1])}</span>`).join('');
@@ -66,6 +67,7 @@ function printDocTitle(sheet) {
   else if (t.special === 'parts') title = 'Ersatzteilliste / Bestellung';
   else if (t.special === 'endoscopy') title = 'Befundblatt Endoskopie';
   else if (t.special === 'nozzles') title = 'Messblatt Druckprobe – ' + nozzleStageLabel(sheet);
+  else if (t.special === 'head') title = 'Messblatt Zylinderkopf – ' + nozzleStageLabel(sheet);
   else if (!typeModes(t) || sheet.mode === 'mess') title = 'Messblatt ' + name;
   else if (sheet.mode === 'befund') title = 'Befundblatt ' + name;
   else title = 'Mess- und Befundblatt ' + name;
@@ -233,6 +235,26 @@ function specialPrintHtml(order, sheet) {
         </table>
       </div>`;
   }
+  if (t.special === 'head') {
+    const sp = headSpec(order, sheet);
+    const rows = headRows(order, sheet);
+    const x = v => v ? 'X' : '';
+    const specTxt = [
+      sp.hSoll || sp.hTol ? 'Zylinderkopfhöhe Soll ' + (sp.hSoll || '…') + (sp.hTol ? ' / Toleranz ' + sp.hTol : '') : '',
+      sp.vinSoll ? 'Ventilrückstand Soll Einlass ' + sp.vinSoll : '',
+      sp.voutSoll ? 'Soll Auslass ' + sp.voutSoll : ''
+    ].filter(Boolean).join(' · ');
+    return `
+      <div class="pr-block">
+        <div class="pr-block-head"><span>${escapeHtml(nozzleStageLabel(sheet))}</span><span class="pr-block-sum">${rows.filter(r => r.tested).length}/${rows.length} geprüft</span></div>
+        <div class="pr-spec">${specTxt ? escapeHtml(specTxt) : 'Sollwerte: Zylinderkopfhöhe ________ Toleranz ______ · Ventilrückstand Einlass ______ Auslass ______'}</div>
+        <table class="pr-m pr-cylhead"><colgroup><col style="width:9%"><col style="width:15%"><col style="width:15%"><col style="width:15%"><col style="width:7%"><col style="width:7%"><col></colgroup>
+          <thead><tr><th rowspan="2" class="pos">Nr.</th><th rowspan="2">Zylinderkopf&shy;höhe</th><th colspan="2">Ventilrückstand</th><th colspan="2">Äußere Beschädigung</th><th rowspan="2">Bemerkung</th></tr>
+            <tr><th>Einlass</th><th>Auslass</th><th>Ja</th><th>Nein</th></tr></thead>
+          <tbody>${rows.map(r => `<tr><th class="pos">${escapeHtml(r.pos)}</th><td class="num">${escapeHtml(r.r.h || '')}</td><td class="num">${escapeHtml(r.r.vin || '')}</td><td class="num">${escapeHtml(r.r.vout || '')}</td><td class="ctr">${x(r.dmg === 'ja')}</td><td class="ctr">${x(r.dmg === 'nein')}</td><td>${escapeHtml(r.note)}</td></tr>`).join('')}</tbody>
+        </table>
+      </div>`;
+  }
   if (t.special === 'serials') {
     const groups = sheet.data.groups || [];
     return `
@@ -288,7 +310,7 @@ function printFootBlock(order, sheet, idx, total) {
   const box = v => `<span class="pr-box">${r === v ? '☒' : '☐'} ${escapeHtml(ratingInfo(v).label)}</span>`;
   const sig = sheet && sheet.signWorker;
   const cust = sheet && sheet.signCustomer;
-  const tool = sheet && getType(sheet.type).special === 'nozzles' ? nozzleField(order, sheet, 'tester') : sheet && showMeasure(sheet) ? [sheet.data.tool, sheet.data.toolNo ? 'Nr. ' + sheet.data.toolNo : '', sheet.data.temp ? sheet.data.temp + ' °C' : ''].filter(Boolean).join(' · ') : '';
+  const tool = sheet && ['nozzles', 'head'].includes(getType(sheet.type).special) ? nozzleField(order, sheet, 'tester') : sheet && showMeasure(sheet) ? [sheet.data.tool, sheet.data.toolNo ? 'Nr. ' + sheet.data.toolNo : '', sheet.data.temp ? sheet.data.temp + ' °C' : ''].filter(Boolean).join(' · ') : '';
   const remark = sheet ? [sheet.summary, sheet.advice].filter(Boolean).join('\n') : '';
   return `
     <table class="pr-footbox">
@@ -344,6 +366,13 @@ function sheetIssues(order, sheet) {
     const r = (sheet.data.cyl || {})[p] || {};
     if (r.rating === 'bad' || r.rating === 'obs') out.push({ st: r.rating, text: `Endoskopie Zyl. ${p}: ${[(r.tags || []).join(', '), r.note].filter(Boolean).join(' – ') || ratingLabel(r.rating)}` });
   });
+  if (t.special === 'head') {
+    const rows = headRows(order, sheet);
+    const tol = rows.filter(r => r.st === 'bad').map(r => r.pos || '?');
+    const dmg = rows.filter(r => r.dmg === 'ja').map(r => (r.pos || '?') + (r.note ? ' (' + r.note + ')' : ''));
+    if (tol.length) out.push({ st: 'bad', text: 'Zylinderköpfe außer Toleranz (' + nozzleStageLabel(sheet) + '): ' + tol.join(', ') });
+    if (dmg.length) out.push({ st: 'obs', text: 'Zylinderköpfe äußere Beschädigung (' + nozzleStageLabel(sheet) + '): ' + dmg.join(', ') });
+  }
   if (t.special === 'nozzles') {
     const bad = nozzleRows(order, sheet).filter(r => r.st === 'bad').map(r => r.pos || '?');
     if (bad.length) out.push({ st: 'bad', text: 'Einspritzdüsen n.i.O. (' + nozzleStageLabel(sheet) + '): ' + bad.join(', ') });
