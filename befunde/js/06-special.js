@@ -52,7 +52,7 @@ function specialInit(order, sheet, src) {
     }
   }
   if (t.special === 'head') {
-    if (src) ['stage', 'headNo', 'contact', 'tester'].forEach(k => { if (src.data[k]) sheet.data[k] = src.data[k]; });
+    if (src) ['stage', 'headNo', 'contact', 'tester', 'printStyle'].forEach(k => { if (src.data[k]) sheet.data[k] = src.data[k]; });
     if (src && src.data.spec) sheet.data.spec = { ...src.data.spec };
     if (src && Array.isArray(src.data.heads)) sheet.data.heads = src.data.heads.map(x => ({ ...x }));
     if (!sheet.data.stage) sheet.data.stage = 'in';
@@ -564,6 +564,10 @@ function headEditorHtml(order, sheet) {
         <button type="button" class="${stage === 'out' ? 'on' : ''}" data-set="data.stage" data-val="out" data-keep="1">Ausgang</button>
       </div>
       ${partner ? `<p class="hint">Das ${other}sblatt liegt im Auftrag – leere Felder werden von dort übernommen.</p>` : ''}
+      <div class="hd-print"><span>Druck</span>
+        <div class="seg mini-seg">${[['sdt', 'SDT-Vorlage'], ['std', 'Standard']].map(([val, l]) => `<button type="button" class="${headPrintStyle(order, sheet) === val ? 'on' : ''}" data-set="data.printStyle" data-val="${val}" data-keep="1">${l}</button>`).join('')}</div>
+        <button type="button" class="link-btn" onclick="printSheets([getActiveSheet()])">Vorschau / Drucken</button>
+      </div>
       <div class="grid-2">
         ${field('Zylinderkopfnummer', 'data.headNo', sheet.data.headNo, { placeholder: ph('headNo', '') })}
         ${field('Ansprechpartner', 'data.contact', sheet.data.contact, { placeholder: ph('contact', order.contact || '') })}

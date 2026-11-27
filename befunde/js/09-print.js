@@ -328,8 +328,53 @@ function printFootBlock(order, sheet, idx, total) {
     <div class="pr-pageno">Seite ${idx} von ${total}</div>`;
 }
 
+// ---------- Zylinderköpfe: Druck wie SDT-Papiervorlage („Messblatt Zylinderkopf Eingang“) ----------
+// Druckart je Blatt: data.printStyle 'sdt' (Vorlage, Standard) | 'std' (einheitliches App-Layout); leer → vom Gegenstück
+function headPrintStyle(order, sheet) { return nozzleField(order, sheet, 'printStyle') || 'sdt'; }
+
+function headSdtPageHtml(order, sheet) {
+  const sp = headSpec(order, sheet);
+  const rows = headRows(order, sheet);
+  const min = Math.max(rows.length, 16); // wie das Papierblatt: mindestens 16 Zeilen
+  const list = rows.concat(Array.from({ length: min - rows.length }, () => null));
+  const sig = sheet.signWorker;
+  const x = v => v ? 'X' : '';
+  const notes = rows.filter(r => r.note).map(r => (r.pos ? 'Zyl. ' + r.pos + ': ' : '') + r.note);
+  const remark = [sheet.summary, sheet.advice].filter(Boolean);
+  const v = s => escapeHtml(s || '');
+  return `
+    <div class="pr-page sdt-page">
+      <div class="sdt-logo">${printLogo()}</div>
+      <table class="sdt-headtab">
+        <colgroup><col style="width:34%"><col style="width:22%"><col style="width:22%"><col style="width:22%"></colgroup>
+        <tr><th>Auftraggeber</th><th>Auftragsnummer</th><th>Zylinderkopfnummer</th><th class="ctr">Ansprechpartner</th></tr>
+        <tr class="val"><td>${v(order.customer)}${order.vessel ? ' · ' + v(order.vessel) : ''}</td><td>${v(order.orderNo)}</td><td>${v(nozzleField(order, sheet, 'headNo'))}</td><td>${v(nozzleField(order, sheet, 'contact') || order.contact)}</td></tr>
+        <tr><td colspan="4" class="sdt-title">Messblatt Zylinderkopf ${escapeHtml(nozzleStageLabel(sheet))}</td></tr>
+      </table>
+      <table class="sdt-grid">
+        <colgroup><col style="width:7%"><col style="width:16%"><col style="width:6%"><col style="width:16%"><col style="width:10%"><col style="width:16%"><col style="width:12%"><col style="width:7%"><col style="width:3%"><col style="width:7%"></colgroup>
+        <tr class="sdt-boxrow"><td></td><td class="b hd">Zylinderkopfhöhe</td><td></td><td colspan="3" class="b hd sdt-vr">Ventilrückstand</td><td></td><td colspan="3" class="b hd">Äußere Beschädigung</td></tr>
+        <tr><td></td><td class="b kv"><span>Soll</span><b>${v(sp.hSoll)}</b></td><td></td><td class="b ctr">Soll Einlass</td><td></td><td class="b ctr">Soll Auslass</td><td></td><td class="b ctr">Ja</td><td></td><td class="b ctr">Nein</td></tr>
+        <tr><td></td><td class="b kv"><span>Toleranz</span><b>${v(heightTolText(sp))}</b></td><td></td><td class="b ctr val">${v(sp.vinSoll)}</td><td></td><td class="b ctr val">${v(sp.voutSoll)}</td><td colspan="4"></td></tr>
+        <tr class="sdt-sub"><td></td><td></td><td></td><td class="ctr">Einlass</td><td></td><td class="ctr">Auslass</td><td colspan="4"></td></tr>
+        ${list.map(r => `<tr class="sdt-row"><td class="num">${r ? v(r.pos) : ''}</td><td class="b val">${r ? v(r.r.h) : ''}</td><td></td><td class="b val">${r ? v(r.r.vin) : ''}</td><td></td><td class="b val">${r ? v(r.r.vout) : ''}</td><td></td><td class="b ctr">${r ? x(r.dmg === 'ja') : ''}</td><td></td><td class="b ctr">${r ? x(r.dmg === 'nein') : ''}</td></tr>`).join('')}
+      </table>
+      <div class="sdt-hint">Beschädigung in Bemerkung mit Zyl. Nr. eintragen</div>
+      <div class="sdt-tab">Bemerkungen</div>
+      <div class="sdt-remark">
+        <div class="sdt-tools">Verwendete Messmittel : <span>${v(nozzleField(order, sheet, 'tester'))}</span></div>
+        ${notes.concat(remark).map(n => `<div class="sdt-note">${escapeHtml(n)}</div>`).join('')}
+      </div>
+      <div class="sdt-foot">
+        <div><span>Datum</span><div class="sdt-box">${escapeHtml(formatDate(sheet.date))}</div></div>
+        <div><span>Unterschrift Mitarbeiter</span><div class="sdt-box sig">${sig && sig.img ? `<img src="${sig.img}" alt="">` : ''}<small>${escapeHtml((sig && sig.name) || '')}</small></div></div>
+      </div>
+    </div>`;
+}
+
 function printSheetHtml(order, sheet, idx, total) {
   const t = getType(sheet.type);
+  if (t.special === 'head' && headPrintStyle(order, sheet) === 'sdt') return headSdtPageHtml(order, sheet);
   let body = '';
   if (showMeasure(sheet)) body += t.measure.map(cfg => printMeasureHtml(order, sheet, cfg)).join('');
   if (showInspect(sheet)) body += t.inspect.map(cfg => printInspectHtml(order, sheet, cfg)).join('');

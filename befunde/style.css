@@ -1091,3 +1091,39 @@ p.pr-text { border: 0; padding: 0; margin: 4pt 0; }
 .hd-tol-row .spec-in { flex: 1; min-width: 0; width: auto; margin-top: 0 !important; }
 .hd-dir { flex: none; margin: 0; padding: 3px; }
 .hd-dir button { padding: 6px 8px; min-width: 26px; font-weight: 800; }
+.hd-print { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 10px; }
+.hd-print > span { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.hd-print .mini-seg button { padding: 6px 10px; }
+
+/* Druck „Messblatt Zylinderkopf“ wie SDT-Papiervorlage */
+.sdt-page { font-family: Calibri, Carlito, Arial, sans-serif; font-size: 10pt; }
+.sdt-logo { text-align: center; margin: 0 0 12pt; }
+.sdt-logo .pr-logo { height: 40pt; max-width: 160pt; }
+.paper-doc table.sdt-headtab { table-layout: fixed; border: 1pt solid #000; margin-bottom: 14pt; }
+.paper-doc .sdt-headtab th { font-size: 10pt; font-weight: 400; padding: 1pt 4pt; border: .8pt solid #000; border-bottom: .5pt solid #000; }
+.paper-doc .sdt-headtab th.ctr { text-align: center; }
+.paper-doc .sdt-headtab tr.val td { height: 16pt; font-size: 10pt; padding: 1pt 4pt; border: .8pt solid #000; border-top: 0; }
+.paper-doc .sdt-headtab td.sdt-title { text-align: center; font-weight: 700; text-decoration: underline; font-size: 10.5pt; padding: 2pt; border: .8pt solid #000; }
+.paper-doc table.sdt-grid { table-layout: fixed; border: 0; margin: 0; }
+.paper-doc .sdt-grid td { border: 0; padding: 0 3pt; height: 15pt; vertical-align: middle; font-size: 10pt; }
+.paper-doc .sdt-grid td.b { border: .8pt solid #000; }
+.paper-doc .sdt-grid td.hd { text-align: center; border-width: 1.2pt; }
+.paper-doc .sdt-grid td.ctr { text-align: center; }
+.paper-doc .sdt-grid td.val { text-align: center; font-size: 10.5pt; }
+.paper-doc .sdt-grid td.num { text-align: right; padding-right: 6pt; }
+.paper-doc .sdt-grid td.kv { display: table-cell; }
+.sdt-grid td.kv span { display: inline-block; min-width: 40pt; border-right: .8pt solid #000; padding-right: 3pt; margin-right: 4pt; }
+.sdt-grid td.kv b { font-weight: 400; }
+.paper-doc .sdt-grid tr.sdt-sub td { height: 14pt; padding-top: 3pt; }
+.sdt-hint { width: 22%; margin: 10pt 0 0 auto; border: .8pt solid #000; padding: 4pt; text-align: center; font-size: 9.5pt; line-height: 1.35; min-height: 40pt; }
+.sdt-tab { display: inline-block; border: 1pt solid #000; border-bottom: 0; padding: 1pt 18pt 1pt 6pt; margin-top: 8pt; font-size: 10pt; }
+.sdt-remark { border: 1pt solid #000; min-height: 95pt; padding: 10pt 12pt; break-inside: avoid; page-break-inside: avoid; }
+.sdt-tools { font-size: 13pt; margin-bottom: 6pt; }
+.sdt-tools span { font-size: 11pt; }
+.sdt-note { font-size: 10pt; margin-top: 2pt; white-space: pre-wrap; }
+.sdt-foot { display: flex; gap: 30pt; margin-top: 14pt; break-inside: avoid; page-break-inside: avoid; }
+.sdt-foot > div > span { display: block; font-size: 10pt; margin-bottom: 2pt; }
+.sdt-box { border: .8pt solid #000; width: 110pt; height: 30pt; padding: 3pt 5pt; font-size: 10.5pt; display: flex; align-items: center; }
+.sdt-box.sig { width: 170pt; position: relative; }
+.sdt-box.sig img { max-height: 26pt; max-width: 120pt; filter: grayscale(1) contrast(2); }
+.sdt-box.sig small { position: absolute; right: 4pt; bottom: 2pt; font-size: 7.5pt; }
