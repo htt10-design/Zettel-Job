@@ -291,6 +291,8 @@ function nozzleEditorHtml(order, sheet) {
   const rows = nozzleRows(order, sheet);
   const partner = nozzlePartner(order, sheet);
   const stage = nozzleStage(sheet);
+  const inByK = {};
+  if (stage === 'out' && partner) nozzleRows(order, partner).forEach(x => { inByK[x.k] = x; });
   const pump = sheet.data.pump || {};
   const partnerPump = (partner && partner.data.pump) || {};
   const ph = (k, def) => escapeHtml(nozzleField(order, sheet, k) && !sheet.data[k] ? 'wie ' + NOZZLE_STAGES[stage === 'in' ? 'out' : 'in'] + ': ' + nozzleField(order, sheet, k) : def);
@@ -329,13 +331,17 @@ function nozzleEditorHtml(order, sheet) {
           const { k, pos, r } = row;
           const p = 'data.rows.' + k;
           const kJs = escapeHtml(JSON.stringify(k));
+          // Ausgang: Eingangswerte grau als Vergleich (nur Eingabe, nicht im Druck)
+          const e = inByK[k];
+          const eTxt = e && e.tested ? [e.pText ? e.pText + ' bar' : '', e.result === 'ok' ? 'i.O.' : e.result === 'bad' ? 'n.i.O.' : '', e.note].filter(Boolean).join(' · ') : '';
           return `
           <div class="nz-row" data-nz="${escapeHtml(k)}">
             <div class="nz-top">
               <input class="nz-label" value="${escapeHtml(pos)}" placeholder="Bez." onchange="nozzleRename(${kJs}, this.value)" autocomplete="off" aria-label="Bezeichnung">
               <input class="nz-sn" data-bind="${p}.sn" value="${escapeHtml(r.sn || '')}" placeholder="${escapeHtml(row.snInherited ? row.sn : 'Düsen-Nr.')}" autocomplete="off">
-              <label class="nz-p"><span>bar</span><input class="m-in nz-p1" data-bind="${p}.p" value="${escapeHtml(row.pText)}" inputmode="decimal" placeholder="Prüfdr." autocomplete="off"></label>
+              <label class="nz-p"><span>bar</span><input class="m-in nz-p1" data-bind="${p}.p" value="${escapeHtml(row.pText)}" inputmode="decimal" placeholder="${escapeHtml(e && e.pText ? e.pText : 'Prüfdr.')}" autocomplete="off"></label>
             </div>
+            ${eTxt ? `<div class="in-val">Eingang: ${escapeHtml(eTxt)}</div>` : ''}
             <div class="nz-res">${tog(p + '.result', row.result)}
               <input class="nz-note" data-bind="${p}.note" value="${escapeHtml(row.note)}" placeholder="Befund" autocomplete="off"></div>
             <div class="nz-chips">${NOZZLE_CHIPS.map(c => `<button type="button" class="chip mini" onclick="nozzleChip(${kJs}, ${escapeHtml(JSON.stringify(c))})">${escapeHtml(c)}</button>`).join('')}</div>
@@ -551,6 +557,9 @@ function headEditorHtml(order, sheet) {
   const partner = nozzlePartner(order, sheet);
   const stage = nozzleStage(sheet);
   const other = NOZZLE_STAGES[stage === 'in' ? 'out' : 'in'];
+  const inByK = {};
+  if (stage === 'out' && partner) headRows(order, partner).forEach(x => { inByK[x.k] = x; });
+  const hasIn = Object.values(inByK).some(x => x.tested);
   const ph = (k, def) => escapeHtml(nozzleField(order, sheet, k) && !sheet.data[k] ? 'wie ' + other + ': ' + nozzleField(order, sheet, k) : def);
   const sph = (k, def) => escapeHtml(pSpec[k] && !spec[k] ? pSpec[k] + ' (' + other + ')' : def);
   const specIn = (label, k, def) => `<label class="field spec-field"><span>${label}</span><input class="spec-in" data-bind="data.spec.${k}" value="${escapeHtml(spec[k] || '')}" inputmode="decimal" autocomplete="off" placeholder="${sph(k, def)}"></label>`;
@@ -595,15 +604,18 @@ function headEditorHtml(order, sheet) {
           const { k, pos, r } = row;
           const p = 'data.rows.' + k;
           const kJs = escapeHtml(JSON.stringify(k));
+          const e = inByK[k] || { r: {} };
+          const inp = (f, cls) => `<input class="m-in ${cls}" data-bind="${p}.${f}" value="${escapeHtml(r[f] || '')}" inputmode="decimal" autocomplete="off" placeholder="${escapeHtml(e.r[f] || '')}">${hasIn ? `<small class="in-val">${e.r[f] ? 'E: ' + escapeHtml(e.r[f]) : '&nbsp;'}</small>` : ''}`;
+          const eDmg = e.dmg ? 'Eingang: ' + (e.dmg === 'ja' ? 'Ja' : 'Nein') + (e.note ? ' – ' + e.note : '') : '';
           return `
           <div class="nz-row hd-row" data-hd="${escapeHtml(k)}">
             <div class="hd-top">
               <input class="nz-label" value="${escapeHtml(pos)}" placeholder="Nr." onchange="nozzleRename(${kJs}, this.value)" autocomplete="off" aria-label="Bezeichnung">
-              <label class="hd-val"><span>Höhe</span><input class="m-in hd-h" data-bind="${p}.h" value="${escapeHtml(r.h || '')}" inputmode="decimal" autocomplete="off"></label>
-              <label class="hd-val"><span>VR Einl.</span><input class="m-in hd-vin" data-bind="${p}.vin" value="${escapeHtml(r.vin || '')}" inputmode="decimal" autocomplete="off"></label>
-              <label class="hd-val"><span>VR Ausl.</span><input class="m-in hd-vout" data-bind="${p}.vout" value="${escapeHtml(r.vout || '')}" inputmode="decimal" autocomplete="off"></label>
+              <label class="hd-val"><span>Höhe</span>${inp('h', 'hd-h')}</label>
+              <label class="hd-val"><span>VR Einl.</span>${inp('vin', 'hd-vin')}</label>
+              <label class="hd-val"><span>VR Ausl.</span>${inp('vout', 'hd-vout')}</label>
             </div>
-            <div class="nz-res"><span class="hd-dmg-l">Äußere Beschädigung</span>${dmgTog(p + '.dmg', r.dmg)}</div>
+            <div class="nz-res"><span class="hd-dmg-l">Äußere Beschädigung${eDmg ? `<small class="in-val">${escapeHtml(eDmg)}</small>` : ''}</span>${dmgTog(p + '.dmg', r.dmg)}</div>
             ${r.dmg === 'ja' || r.note ? `<input class="nz-note hd-note" data-bind="${p}.note" value="${escapeHtml(r.note || '')}" placeholder="Beschädigung / Bemerkung" autocomplete="off">` : ''}
             <button type="button" class="nz-del" onclick="nozzleRemove(${kJs})" aria-label="Zylinderkopf entfernen">×</button>
           </div>`;

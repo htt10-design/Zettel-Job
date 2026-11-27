@@ -114,15 +114,17 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR
       const ro = headRows(order, hout);
       hout.data.printStyle = 'std'; const pr = printSheetHtml(order, hout, 1, 1); delete hout.data.printStyle;
       const issues = sheetIssues(order, hin).map(i => i.st).join(',');
+      openSheet(hout.id);
+      const grey = [document.querySelector('#sheet-body [data-hd="A1"] .hd-h').placeholder, document.querySelector('#sheet-body [data-hd="A1"] .in-val').textContent, (document.querySelector('#sheet-body [data-hd="A2"] .hd-dmg-l .in-val') || {}).textContent].join(' / ');
       const sdt = printSheetHtml(order, hout, 1, 1).includes('sdt-page');
       hin.data.printStyle = 'std';
       const std = !printSheetHtml(order, hout, 1, 1).includes('sdt-page') && printSheetHtml(order, hout, 1, 1).includes('Messblatt Zylinderkopf – Ausgang');
       delete hin.data.printStyle;
       return [hin.data.stage + '/' + hout.data.stage, rows[0].h.st, rows[0].vout.st, rows[1].vin.st, rows[1].st, rows[2].dmg, ro[0].h.st, ro.length, printDocTitle(hout),
-        pr.includes('Ventilrückstand') && pr.includes('Höhenmessgerät') && pr.includes('Äußere Beschädigung'), issues, tolDir, sdt, std].join('|');
+        pr.includes('Ventilrückstand') && pr.includes('Höhenmessgerät') && pr.includes('Äußere Beschädigung'), issues, tolDir, sdt, std, grey].join('|');
     });
-    assert(head === 'in/out|bad||bad|bad|nein|ok|16|Messblatt Zylinderkopf – Ausgang|true|bad,obs|119.7/120 119.7/120 −0,3|true|true', 'Zylinderköpfe: ' + head, errors);
-    await shot('11d-zylinderkopf');
+    assert(head === 'in/out|bad||bad|bad|nein|ok|16|Messblatt Zylinderkopf – Ausgang|true|bad,obs|119.7/120 119.7/120 −0,3|true|true|119,85 / E: 119,85 / Eingang: Ja – Riss Flammdeck', 'Zylinderköpfe: ' + head, errors);
+    await shot('11e-zylinderkopf-ausgang');
 
     // Kipphebelböcke: Lagerspiel Ein-/Auslass je Zylinder
     const rocker = await page.evaluate(() => {

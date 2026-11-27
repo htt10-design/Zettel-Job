@@ -1127,3 +1127,8 @@ p.pr-text { border: 0; padding: 0; margin: 4pt 0; }
 .sdt-box.sig { width: 170pt; position: relative; }
 .sdt-box.sig img { max-height: 26pt; max-width: 120pt; filter: grayscale(1) contrast(2); }
 .sdt-box.sig small { position: absolute; right: 4pt; bottom: 2pt; font-size: 7.5pt; }
+/* Ausgangsblatt: Eingangswerte grau als Vergleich */
+.in-val { display: block; font-size: 11px; font-weight: 600; color: var(--muted); opacity: .85; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nz-row > .in-val { margin: 4px 0 0 2px; }
+.hd-dmg-l .in-val { font-weight: 500; white-space: normal; }
+.nz-row input.m-in::placeholder { color: var(--muted); opacity: .7; }
